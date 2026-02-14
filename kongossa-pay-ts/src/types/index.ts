@@ -1,0 +1,25 @@
+export interface IUserLog {
+  id: string;                 // Guid
+  detail?: string | null;     // nullable string
+  changes?: string | null;    // jsonb (stringified JSON)
+  actionType: string;         // required string
+  modelName: string;          // required string
+  modelId?: string | null;    // Guid?
+  createdBy: string;          // Guid
+  createdByName: string;          // Guid
+  createdAt: string;          // ISO Date string (from backend)
+  createdAtId: number;        // long
+  ipAddress?: string | null;
+  browser?: string | null;
+  device?: string | null;
+  operatingSystem?: string | null;
+  userAgent?: string | null;
+}
+export interface TranslationMap {
+    [key: string]: string;
+  }
+
+  export interface FetchTranslationsPayload {
+    lang: string;
+    forceFetch?: boolean;
+  }

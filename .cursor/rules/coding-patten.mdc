@@ -1,0 +1,131 @@
+---
+description: Coding patterns and best practices for E-Tontine & Budgeting System using Laravel 12, Inertia.js 2.0, React (using https://ui.shadcn.com/), MySQL, and Service Pattern
+globs: ['**/*.php', '**/*.jsx', '**/*.js', '**/*.ts', '**/*.tsx']
+alwaysApply: true
+---
+
+# Laravel 12 Backend Patterns
+
+## Service Pattern
+- Use service classes for business logic, keep controllers thin
+- Services should be injected via constructor dependency injection
+- Return appropriate response objects or throw exceptions
+- Example: `ExpenseService`, `BudgetService`, `TontineService`
+
+## Controller Best Practices
+- Use Form Request classes for validation (`StoreBudgetCategoryRequest`)
+- Use Resource classes for API responses (`BudgetCategoryResource`)
+- Implement proper authorization using policies
+- Follow RESTful conventions
+- Keep methods focused and single-purpose
+
+## Model Structure
+- Use proper relationships (hasMany, belongsTo, belongsToMany)
+- Implement model factories for testing
+- Use Eloquent scopes for common queries
+- Add proper fillable/guarded properties
+- Include database seeders for development data
+
+## Database Design
+- Use migrations for all schema changes
+- Follow Laravel naming conventions (snake_case for tables/columns)
+- Add proper foreign key constraints
+- Use indexes for frequently queried columns
+- Implement soft deletes where appropriate
+
+## API Design
+- Use consistent JSON responses
+- Implement proper HTTP status codes
+- Use pagination for list endpoints
+- Include search and filtering capabilities
+- Version your APIs appropriately
+
+# Frontend React + Inertia.js Patterns
+- Use shadcn design
+- already connected the shadcn mcp, so take idea from their documentation
+- always follow the react best component based best practices
+
+## Component Structure
+- Use functional components with hooks
+- Keep components small and focused
+- Extract custom hooks for reusable logic
+- Use TypeScript for type safety
+- Follow atomic design principles (atoms, molecules, organisms)
+
+## Inertia.js Best Practices
+- Use Inertia forms for form handling
+- Implement proper loading states
+- Use shared data for global state
+- Handle errors gracefully with error boundaries
+- Implement proper navigation with router methods
+
+## State Management
+- Use React's built-in state management (useState, useReducer)
+- Implement Context API for shared state when needed
+- Use Inertia's form helper for form state
+- Keep state as close to where it's used as possible
+
+## UI/UX Patterns
+- Implement responsive design with mobile-first approach
+- Use consistent color coding for budget categories
+- Provide clear visual feedback for user actions
+- Implement proper loading states and error handling
+- Use accessibility best practices (ARIA labels, keyboard navigation)
+
+# E-Tontine & Budgeting Specific Patterns
+
+## Budget Management
+- Support multiple budget periods (weekly, monthly, yearly)
+- Implement category-based expense tracking
+- Provide real-time spending calculations
+- Include budget vs actual comparisons
+- Generate visual analytics and reports
+
+## Tontine System
+- Support multiple tontine types (Friends, Family, Savings, Investment)
+- Implement secure invitation system with unique links
+- Handle contribution schedules (weekly/monthly)
+- Manage payout priority system transparently
+- Support dual administration with proper permissions
+
+## Payment Integration
+- Abstract payment providers behind interfaces
+- Support multiple payment methods (cards, bank transfers, mobile money)
+- Implement proper transaction logging
+- Handle payment failures gracefully
+- Provide transaction history and receipts
+
+## Security & Authorization
+- Implement role-based access control
+- Use Laravel Sanctum for API authentication
+- Validate all inputs on both client and server
+- Implement CSRF protection
+- Use proper encryption for sensitive data
+
+## Notifications
+- Use Laravel's notification system
+- Support multiple channels (email, SMS, in-app)
+- Implement notification preferences
+- Queue notifications for better performance
+- Track notification delivery status
+
+## Error Handling
+- Use Laravel's exception handling
+- Implement custom exception classes for business logic
+- Provide user-friendly error messages
+- Log errors for debugging
+- Handle API errors gracefully in React components
+
+## Testing
+- Write unit tests for services and models
+- Implement feature tests for controllers
+- Use React Testing Library for component tests
+- Mock external services and APIs
+- Maintain high test coverage for critical features
+
+## Performance
+- Use database indexes appropriately
+- Implement query optimization with eager loading
+- Use Laravel's caching system
+- Optimize React renders with useMemo/useCallback
+- Implement proper image optimization and lazy loading

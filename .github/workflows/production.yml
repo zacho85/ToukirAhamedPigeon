@@ -1,0 +1,112 @@
+name: "Production Deployment"
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy-production:
+    name: Deploy to Production Server
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: /var/www/kongossapay
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Deployment Variables
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "ROOT_DIR=/var/www/kongossapay" >> $GITHUB_ENV
+          echo "APP_DIR=/home/kongossapay/kongossapay/_work/kongossa_pay/kongossa_pay" >> $GITHUB_ENV
+          echo "RELEASE_DIR=/var/www/kongossapay/releases/$TIMESTAMP" >> $GITHUB_ENV
+          echo "CURRENT_DIR=/var/www/kongossapay/current" >> $GITHUB_ENV
+          echo "STORAGE_DIR=/var/www/kongossapay/shared/storage" >> $GITHUB_ENV
+
+      - name: Ensure Shared Storage
+        run: |
+          echo "${{secrets.SUDOPASS}}" | sudo -S chown -R $USER:$USER $STORAGE_DIR
+          echo "${{secrets.SUDOPASS}}" | sudo -S chmod -R 775 $STORAGE_DIR
+
+      - name: Move Current Storage to Shared Storage (One-time Setup)
+        run: |
+          if [ -d "$CURRENT_DIR/storage" ]; then
+           echo "${{secrets.SUDOPASS}}" | sudo -S rsync -av $CURRENT_DIR/storage/ $SHARED_STORAGE/
+          fi
+
+      - name: Sync Files to New Release
+        run: |
+          rsync -av --exclude=node_modules --exclude=.git --exclude=vendor --exclude=storage $APP_DIR/ $RELEASE_DIR
+          rsync -av $STORAGE_DIR/ $RELEASE_DIR/storage/
+          echo "${{secrets.SUDOPASS}}" | sudo -S chown -R $USER:$USER $RELEASE_DIR/storage
+          echo "${{secrets.SUDOPASS}}" | sudo -S chmod -R 777 $RELEASE_DIR/storage
+          echo "${{secrets.SUDOPASS}}" | sudo -S chmod -R 777 $RELEASE_DIR/storage/framework
+          echo "${{secrets.SUDOPASS}}" | sudo -S chmod -R 777 $RELEASE_DIR/storage/logs
+          echo "${{secrets.SUDOPASS}}" | sudo -S chmod -R 777 $RELEASE_DIR/storage/app 
+
+      - name: Copy .env from Current Version
+        run: |
+            cp $APP_DIR/.env.prod $RELEASE_DIR/.env
+
+      - name: Install Composer Dependencies
+        run: |
+          cd $RELEASE_DIR
+          composer install --optimize-autoloader --no-dev
+      
+      - name: Clear and Optimize Cache
+        run: |
+          cd $RELEASE_DIR
+          php artisan optimize:clear
+
+      # 1) Install Node first (no yarn cache yet)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 2) Provide Yarn (via Corepack that ships with Node)
+      - name: Enable Corepack (Yarn)
+        run: |
+          corepack enable
+          # choose one of the following lines if you need a specific Yarn line:
+          # corepack prepare yarn@stable --activate    # Yarn Berry/modern
+          # corepack prepare yarn@1.x --activate       # Yarn Classic 1.x
+
+      - name: Check Yarn is available
+        run: |
+          which yarn || echo "no yarn on PATH"
+          yarn --version
+
+      # 3) Now re-run setup-node to restore/save Yarn cache
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: '**/yarn.lock'
+
+      # 4) Install deps
+      - run: |
+          cd $RELEASE_DIR
+          if yarn -v | grep -q '^1\.'; then
+            yarn install --frozen-lockfile
+          else
+            yarn install --immutable
+          fi
+          yarn build
+
+      - name: Replace Current Symlink & Restart Services
+        run: |
+          ln -sfn "$RELEASE_DIR/public" $CURRENT_DIR/public
+          ln -sfn "$RELEASE_DIR/artisan" $CURRENT_DIR/artisan
+          ln -sfn "$RELEASE_DIR/storage" $CURRENT_DIR/storage
+          echo "${{secrets.SUDOPASS}}" | sudo -S systemctl reload php-fpm
+          echo "${{secrets.SUDOPASS}}" | sudo -S supervisorctl restart "horizon:*"
+          cd $RELEASE_DIR
+          php artisan storage:link
+
+      - name: Cleanup Old Releases
+        run: |
+          ls -dt $ROOT_DIR/releases/* | tail -n +6 | xargs rm -rf
