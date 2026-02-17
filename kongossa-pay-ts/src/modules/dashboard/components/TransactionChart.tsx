@@ -60,6 +60,7 @@ interface TransactionChartProps {
 
 export default function TransactionChart({transactions}: TransactionChartProps) {
   const [viewType, setViewType] = useState<ViewType>("bar");
+  console.log(transactions);
 
   const pieData: PieData[] = useMemo(
     () => [

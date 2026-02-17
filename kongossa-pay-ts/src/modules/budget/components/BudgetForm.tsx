@@ -65,7 +65,7 @@ export function BudgetForm({ budget, onSuccess, onCancel }: BudgetFormProps) {
     totalAmount: budget?.totalAmount || 0,
   });
 
-  const [errors, setErrors] = useState<ErrorMessages>({});
+  // const [errors, setErrors] = useState<ErrorMessages>({});
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export function BudgetForm({ budget, onSuccess, onCancel }: BudgetFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProcessing(true);
-    setErrors({});
+    // setErrors({});
 
     try {
       if (isEditing && budget?.id) {
@@ -114,9 +114,9 @@ export function BudgetForm({ budget, onSuccess, onCancel }: BudgetFormProps) {
     } catch (err: any) {
       console.error(err);
 
-      if (err?.response?.data?.errors) {
-        setErrors(err.response.data.errors);
-      }
+      // if (err?.response?.data?.errors) {
+      //   setErrors(err.response.data.errors);
+      // }
 
       dispatch(
         showToast({

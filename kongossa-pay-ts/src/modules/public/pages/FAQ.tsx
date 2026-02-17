@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import PublicLayout from "@/layouts/PublicLayout";
 
 interface FAQItem {

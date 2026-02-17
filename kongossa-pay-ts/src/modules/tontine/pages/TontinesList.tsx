@@ -94,6 +94,8 @@ export default function TontinesList() {
     status: searchParams.get("status") || "",
   });
 
+  console.log(pagination)
+
   // --------------------------
   // Fetch Tontines
   // --------------------------

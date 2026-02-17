@@ -12,3 +12,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+/// <reference lib="webworker" />
+/// <reference types="vite/client" />
+

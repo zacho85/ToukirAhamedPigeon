@@ -65,7 +65,8 @@ export function ColumnVisibilityManager<T>({
 
   const refreshFromDB = async () => {
     try {
-      const showColumnCombinations = await getTableColumnSettings(tableId, user?.id ?? '')
+      const userId = user?.id?.toString() ?? '';
+      const showColumnCombinations = await getTableColumnSettings(tableId, userId);
       const visibleIds: string[] = showColumnCombinations ?? []
 
       const columnMap: Record<string, ColumnDef<T>> = {}
@@ -189,7 +190,12 @@ export function ColumnVisibilityManager<T>({
     onClose()
 
     try {
-      const res = await updateTableColumnSettings(tableId, user?.id ?? '', visibleColumnIds)
+      const userId = user?.id?.toString() ?? '';
+      const res = await updateTableColumnSettings(
+        tableId,
+        userId,
+        visibleColumnIds
+      )
 
       const formattedTable = formatLabel(tableId, 'sentence')
       if (res.status === 200 && res.data?.success) {

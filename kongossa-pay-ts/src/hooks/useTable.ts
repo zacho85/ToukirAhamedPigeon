@@ -3,7 +3,7 @@ import type { ColumnDef, SortingState, OnChangeFn } from '@tanstack/react-table'
 
 export function useTable<T>({
   fetcher,
-  initialColumns = [],
+  // initialColumns = [],
   defaultSort = 'createdAt',
 }: {
   fetcher: (params: {

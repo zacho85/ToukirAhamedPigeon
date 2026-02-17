@@ -113,9 +113,9 @@ export function CustomSelect<T extends Record<string, any>>({
   const {
     options: fetchedOptions,
     loading,
-    selected,
-    setSelected,
-    getOptionLabel,
+    // selected,
+    // setSelected,
+    // getOptionLabel,
     setOptions,
   } = useSelect({
     collection,

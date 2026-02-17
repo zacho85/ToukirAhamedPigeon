@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { getUserById, downloadUserDocument } from "../api";
-import { useDispatch } from "react-redux";
+// import { useDispatch } from "react-redux";
 import PageTransition from '@/components/module/admin/layout/PageTransition';
 
 // ----------------------
@@ -64,7 +64,7 @@ interface UserType {
 // COMPONENT
 // ----------------------
 export default function UserShow() {
-  const dispatch = useDispatch();
+  // const dispatch = useDispatch();
   const { id } = useParams<{ id: string }>();
 
   const [user, setUser] = useState<UserType | null>(null);

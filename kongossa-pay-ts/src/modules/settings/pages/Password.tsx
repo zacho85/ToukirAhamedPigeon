@@ -28,7 +28,7 @@ export default function Password() {
     password: "",
     password_confirmation: "",
   });
-  const [errors, setErrors] = useState<Errors>({});
+  // const [errors, setErrors] = useState<Errors>({});
   const [success, setSuccess] = useState<boolean>(false);
 
   const currentPasswordInput = useRef<HTMLInputElement>(null);
@@ -55,7 +55,7 @@ export default function Password() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setErrors({});
+    // setErrors({});
     setSuccess(false);
 
     try {
@@ -73,7 +73,7 @@ export default function Password() {
       );
     } catch (err: any) {
       if (err.response?.data?.errors) {
-        setErrors(err.response.data.errors);
+        // setErrors(err.response.data.errors);
         dispatch(
           showToast({
             type: "danger",

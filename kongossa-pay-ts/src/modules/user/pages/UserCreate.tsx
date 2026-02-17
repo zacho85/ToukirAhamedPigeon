@@ -75,7 +75,7 @@ export default function UserCreate(){
     legalFormDocument: null,
   });
 
-  const [roles] = useState<string[]>(["user", "business_merchant"]);
+  // const [roles] = useState<string[]>(["user", "business_merchant"]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [processing, setProcessing] = useState<boolean>(false);
 

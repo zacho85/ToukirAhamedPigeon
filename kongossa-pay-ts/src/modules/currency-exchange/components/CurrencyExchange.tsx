@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 // import { InvokeLLM } from '@/api/integrations';
 // import { User, Transaction, PaymentMethod } from '@/api/entities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowRightLeft, Loader2, CreditCard, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { User } from '@/modules/auth/types';
+import type { User } from '@/redux/slices/authSlice';
 import { useAppSelector } from '@/hooks/useRedux';
 // import { createPageUrl } from '@/utils';
 
@@ -22,7 +22,7 @@ interface PaymentMethodType {
 
 export default function CurrencyExchange() {
     const [user, setUser] = useState<User | null>(null);
-    const [paymentMethods, setPaymentMethods] = useState<PaymentMethodType[]>([]);
+    const [paymentMethods] = useState<PaymentMethodType[]>([]);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType | null>(null);
     const [fromCurrency, setFromCurrency] = useState<string>("USD");
     const [toCurrency, setToCurrency] = useState<string>("EUR");
@@ -36,6 +36,7 @@ export default function CurrencyExchange() {
         const fetchUserAndMethods = async () => {
             try {
                 const currentUser = useAppSelector((state) => state.auth.user);
+                if (!currentUser) return;
                 setUser(currentUser);
 
                 // const methods = await PaymentMethod.filter({ user_id: currentUser.id });

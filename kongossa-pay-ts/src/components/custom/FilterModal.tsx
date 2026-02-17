@@ -57,8 +57,8 @@ export function FilterModal<T>({
 
   
 
-  const isFilterApplied = () =>
-    JSON.stringify(filterValues) !== JSON.stringify(initialFilters)
+  // const isFilterApplied = () =>
+  //   JSON.stringify(filterValues) !== JSON.stringify(initialFilters)
 
   const handleApply = () => {
     onApply(filterValues)

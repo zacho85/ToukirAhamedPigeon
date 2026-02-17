@@ -16,9 +16,9 @@ import {
   Bitcoin,
   DollarSign,
   History,
-  User,
+  // User,
   Send,
-  Fence,
+  // Fence,
   CoinsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";

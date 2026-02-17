@@ -49,7 +49,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 export default function Register() {
   const [role, setRole] = useState<"personal" | "merchant">("personal");
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  // const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -64,7 +64,7 @@ export default function Register() {
   });
 
   const onSubmit: SubmitHandler<RegisterFormValues> = async (values) => {
-    setErrorMessage("");
+    // setErrorMessage("");
     setLoading(true);
     try {
       const formData = new FormData();
@@ -94,10 +94,10 @@ export default function Register() {
       }
     } catch (err: any) {
       console.error(err);
-      setErrorMessage(
-        err?.response?.data?.message?.message ||
-          "Registration failed. Try again."
-      );
+      // setErrorMessage(
+      //   err?.response?.data?.message?.message ||
+      //     "Registration failed. Try again."
+      // );
     } finally {
       setLoading(false);
     }

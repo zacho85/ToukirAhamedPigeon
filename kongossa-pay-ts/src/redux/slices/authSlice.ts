@@ -15,6 +15,7 @@ export interface User {
   rewards_points?: number;
   role?: string;
   isActive?: boolean;
+  permissions?: string[];
 }
 
 // 🔹 Define the Auth slice state

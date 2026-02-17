@@ -5,7 +5,6 @@ import {
   Calendar,
   CreditCard,
   DollarSign,
-  PieChart,
   Plus,
   QrCode,
   Target,
@@ -99,12 +98,13 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error("Error loading dashboard data:", error);
     }
+    console.log(showAddMoney);
     setIsLoading(false);
   };
 
-  const handleMoneyAdded = async () => {
-    loadDashboardData();
-  };
+  // const handleMoneyAdded = async () => {
+  //   loadDashboardData();
+  // };
   console.log(user);
 
   if (isLoading) {

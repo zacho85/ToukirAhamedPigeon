@@ -67,6 +67,7 @@ export default function LoginPage() {
         );
       } else {
         dispatch(setUser(data.userInfo));
+        if (!data.accessToken) return;
         dispatch(setAccessToken(data.accessToken));
 
         dispatch(

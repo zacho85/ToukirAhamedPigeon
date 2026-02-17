@@ -32,7 +32,7 @@ export const fetchTranslations = createAsyncThunk<
   { rejectValue: string }
 >(
   "language/fetchTranslations",
-  async ({ lang, forceFetch = false }, { rejectWithValue }) => {
+  async ({ lang }, { rejectWithValue }) => {
     try {
       // Always load JSON — or only force reload based on your logic
       const translations = await loadLocalTranslationFile(lang);

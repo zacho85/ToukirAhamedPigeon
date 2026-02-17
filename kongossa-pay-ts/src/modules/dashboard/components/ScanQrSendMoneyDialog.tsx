@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { sendMoney } from "@/modules/history/api";
 import { getQRUser } from "@/modules/dashboard/api";
 import { getSystemSettings } from "@/modules/fee-management/api";
-import { getWalletStats } from "@/modules/wallet/api";
+// import { getWalletStats } from "@/modules/wallet/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@radix-ui/react-dropdown-menu";
 import { syncCurrentUser } from "@/lib/dispatch";
@@ -93,7 +93,7 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
         },
         (errorMessage) => {
             // Error callback (mandatory)
-            // console.log("QR scan frame error:", errorMessage);
+            console.log("QR scan frame error:", errorMessage);
         }
         );
 

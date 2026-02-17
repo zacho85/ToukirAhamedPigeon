@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumbs from "@/components/module/admin/layout/Breadcrumb";
 import { TontineForm } from "@/modules/tontine/components/TontineForm";
 import { getTontineTypes, createTontine } from "../api";
-import { useSelector, useDispatch } from "react-redux";
+import {useDispatch } from "react-redux";
 import { showToast } from "@/redux/slices/toastSlice";
 import PageTransition from '@/components/module/admin/layout/PageTransition';
 interface TontineTypeOption {
@@ -11,17 +11,17 @@ interface TontineTypeOption {
   label: string;
 }
 
-interface RootState {
-  auth: {
-    user: {
-      id: string | number;
-      [key: string]: any;
-    } | null;
-  };
-}
+// interface RootState {
+//   auth: {
+//     user: {
+//       id: string | number;
+//       [key: string]: any;
+//     } | null;
+//   };
+// }
 
 export default function CreateTontine() {
-  const user = useSelector((state: RootState) => state.auth.user);
+  // const user = useSelector((state: RootState) => state.auth.user);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
