@@ -116,28 +116,34 @@ export class AuthService {
 
   async login(identifier: string, password: string, rememberMe: boolean = false) {
     // Find user by email OR phone number
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: identifier },
-          { phoneNumber: identifier },
-        ],
-      },
-    });
+    try{
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: identifier },
+            { phoneNumber: identifier },
+          ],
+        },
+      });
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+      if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    const valid = await bcrypt.compare(password, user.passwordHash || '');
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+      const valid = await bcrypt.compare(password, user.passwordHash || '');
+      if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    await this.otpService.sendOtp(user.email, 'login');
+      await this.otpService.sendOtp(user.email, 'login');
 
-    return {
-      otp_required: true,
-      email: user.email,
-      message: 'OTP sent to email',
-      rememberMe, // forward for OTP verification
-    };
+      return {
+        otp_required: true,
+        email: user.email,
+        message: 'OTP sent to email',
+        rememberMe, // forward for OTP verification
+      };
+    }
+    catch(error){
+      console.error('Login error:', error);
+      throw error;
+    }
   }
 
   // Generate tokens after OTP verification
