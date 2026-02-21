@@ -1,0 +1,140 @@
+name: Deploy to Hetzner Production
+
+on:
+  push:
+    branches: [ main ]  
+  workflow_dispatch: 
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: 🚀 Deploy to Hetzner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # ----------------------------
+      # Step 1: Docker Build & Push to GitHub Container Registry
+      # ----------------------------
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: 🏷️ Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: 🛠️ Build and push Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./kongossa-backend
+          file: ./kongossa-backend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend:buildcache,mode=max
+
+      - name: 🛠️ Build and push Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./kongossa-pay-ts
+          file: ./kongossa-pay-ts/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: $steps.meta-frontend.outputs.labels
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:buildcache,mode=max
+
+      # ----------------------------
+      # Step 2: Deploy to Hetzner via SSH
+      # ----------------------------
+      - name: 🔐 Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_KEY }}
+
+      - name: 📝 Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 📋 Copy docker-compose and env template
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: 22
+          source: "docker-compose.prod.yml,.env.prod.template"
+          target: "/var/www/kongossa-pay"
+
+      - name: 🚀 SSH and Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: 22
+          envs: DB_PASSWORD,JWT_SECRET,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,GITHUB_SHA
+          script: |
+            set -e
+            cd /var/www/kongossa-pay
+
+            # Git pull latest code
+            git pull origin main
+
+            # Create .env file from template
+            cp .env.prod.template .env
+            sed -i "s|{{DB_PASSWORD}}|$DB_PASSWORD|g" .env
+            sed -i "s|{{JWT_SECRET}}|$JWT_SECRET|g" .env
+            sed -i "s|{{STRIPE_SECRET_KEY}}|$STRIPE_SECRET_KEY|g" .env
+            sed -i "s|{{STRIPE_WEBHOOK_SECRET}}|$STRIPE_WEBHOOK_SECRET|g" .env
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull latest images
+            docker compose -f docker-compose.prod.yml pull
+
+            # Stop and remove old containers
+            docker compose -f docker-compose.prod.yml down
+
+            # Start new containers
+            docker compose -f docker-compose.prod.yml up -d
+
+            # Clean up old images
+            docker system prune -f
+
+            # Run migrations
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+
+            echo "✅ Deployment completed successfully!"

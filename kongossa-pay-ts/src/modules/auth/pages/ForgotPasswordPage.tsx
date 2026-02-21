@@ -30,6 +30,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const res = (await sendForgotPassword(email)) as ApiResponse;
+      console.log(res);
       setSuccess(true);
 
       dispatch(
@@ -42,6 +43,7 @@ export default function ForgotPasswordPage() {
         })
       );
     } catch (err: any) {
+      console.error("Error sending reset email:", err);
       const msg =
         err?.response?.data?.message?.message || "Failed to send reset email.";
       setErrorMessage(msg);

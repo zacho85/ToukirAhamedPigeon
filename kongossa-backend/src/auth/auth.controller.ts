@@ -219,7 +219,12 @@ export class AuthController {
   // -------------------
   @Post('forgot-password')
   async forgotPassword(@Body('email') email: string, @Body('domain') domain: string) {
-    return this.authService.forgotPassword(email, domain);
+    try{
+      return this.authService.forgotPassword(email, domain);
+    } catch (error) {
+      console.log(error);
+      return { message: 'Forgot password failed', error: error.message };
+    }
   }
 
   @Post('reset-password')

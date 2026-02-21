@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: kongossa-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: kongossa_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: kongossa_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kongossa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kongossa_user -d kongossa_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/zacho85/toukir-ahamed-pigeon/backend:latest
+    container_name: kongossa-backend
+    restart: always
+    pull_policy: always
+    environment:
+      DATABASE_URL: postgresql://kongossa_user:${DB_PASSWORD}@postgres:5432/kongossa_db
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION: 15m
+      JWT_REFRESH_TTL_DAYS: 7
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      CORS_ORIGIN: https://kongossapay.com
+      FRONTEND_URL: https://kongossapay.com
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: false
+      SMTP_EMAIL: ${SMTP_EMAIL}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kongossa-network
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    image: ghcr.io/zacho85/toukir-ahamed-pigeon/frontend:latest
+    container_name: kongossa-frontend
+    restart: always
+    pull_policy: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/kongossa-pay/kongossa-backend/uploads:/backend-uploads:ro
+    depends_on:
+      - backend
+    networks:
+      - kongossa-network
+
+networks:
+  kongossa-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  backend_uploads:
