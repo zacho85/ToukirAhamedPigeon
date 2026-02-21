@@ -2,12 +2,13 @@ name: Deploy to Hetzner Production
 
 on:
   push:
-    branches: [ main ]  
-  workflow_dispatch: 
+    branches: [ main, master ]
+  workflow_dispatch:
 
 env:
   DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # ছোট হাতের অক্ষরে repository name দিন
+  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
   deploy:
@@ -21,9 +22,7 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      # ----------------------------
-      # Step 1: Docker Build & Push to GitHub Container Registry
-      # ----------------------------
+      # Step 1: Docker Build & Push
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -34,11 +33,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_TOKEN }}
 
+      # Repository name lowercase করতে হবে
       - name: 🏷️ Extract metadata for Backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ github.event.repository.name }}/backend
           tags: |
             type=raw,value=latest
             type=sha,format=short
@@ -47,11 +47,12 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ github.event.repository.name }}/frontend
           tags: |
             type=raw,value=latest
             type=sha,format=short
 
+      # Backend build (cache সরিয়ে দেওয়া হয়েছে)
       - name: 🛠️ Build and push Backend image
         uses: docker/build-push-action@v6
         with:
@@ -60,9 +61,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/backend:buildcache,mode=max
 
+      # Frontend build (cache সরিয়ে দেওয়া হয়েছে)
       - name: 🛠️ Build and push Frontend image
         uses: docker/build-push-action@v6
         with:
@@ -70,13 +70,9 @@ jobs:
           file: ./kongossa-pay-ts/Dockerfile.prod
           push: true
           tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: $steps.meta-frontend.outputs.labels
-          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:buildcache,mode=max
+          labels: ${{ steps.meta-frontend.outputs.labels }}
 
-      # ----------------------------
-      # Step 2: Deploy to Hetzner via SSH
-      # ----------------------------
+      # Step 2: Deploy to Hetzner
       - name: 🔐 Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
