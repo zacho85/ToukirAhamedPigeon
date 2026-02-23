@@ -150,17 +150,23 @@ export class StripeService {
 
   // ------------------- WALLET TOPUP -------------------
   private async processWalletTopupFromIntent(intent: Stripe.PaymentIntent) {
-    console.log(intent);
+    console.log('🔍 Processing wallet topup from intent:', intent.id);
+    console.log('🔍 Metadata:', intent.metadata);
+    
     const userId = Number(intent.metadata.wallet_topup_user_id);
     const amount = intent.amount_received / 100;
     const intentId = intent.id;
     const chargeId = intent.latest_charge as string | null;
+
+    console.log(`🔍 User ID: ${userId}, Amount: ${amount}, Intent: ${intentId}`);
 
     try {
       // 1️⃣ Find topup
       const topup = await this.prisma.walletTopUp.findUnique({
         where: { stripeIntentId: intentId },
       });
+
+      console.log('🔍 Found topup:', topup ? 'YES' : 'NO');
 
       if (!topup) {
         this.logger.warn(`Topup not found for intent ${intentId}`);
@@ -203,8 +209,9 @@ export class StripeService {
         }),
       ]);
 
-      this.logger.log(`Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
+      this.logger.log(`✅ Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
     } catch (err: any) {
+      console.error('❌ Error processing wallet topup:', err);
       this.logger.error('Error processing wallet topup', err);
       throw new BadRequestException('Wallet topup failed');
     }
