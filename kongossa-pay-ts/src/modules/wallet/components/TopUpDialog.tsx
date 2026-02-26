@@ -48,11 +48,15 @@ export function TopUpDialog({
         remarks,
       });
 
+      console.log('🔍 createTopUpIntent response:', { clientSecret });
+
       // 2️⃣ Confirm payment
       const { error, paymentIntent } =
         await stripe.confirmCardPayment(clientSecret);
-
+      console.log('🔍 confirmCardPayment response:', { error, paymentIntent });
+        
       if (error) {
+        console.error('❌ Payment error:', error);
         dispatchShowToast({
           message: error.message || "Top up failed",
           type: "danger",
@@ -61,6 +65,7 @@ export function TopUpDialog({
       }
 
       if (paymentIntent?.status === "succeeded") {
+        console.log('✅ Payment succeeded:', paymentIntent.id, paymentIntent.status);
         dispatchShowToast({
           message: "Top up successful! Updating wallet…",
           type: "success",
@@ -73,6 +78,9 @@ export function TopUpDialog({
         onClose();
         setAmount("");
         setRemarks("");
+      }
+      else{
+        console.log('⚠️ Payment not succeeded, status:', paymentIntent?.status);
       }
     } catch (err: any) {
       console.error("Top up failed:", err);

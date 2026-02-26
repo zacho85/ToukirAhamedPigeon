@@ -18,56 +18,50 @@ export class WalletTopUpService {
     amount: number,
     paymentMethodId: string,
     remarks?: string,
-    ) {
+  ) {
     if (amount <= 0) {
-        throw new BadRequestException('Invalid amount');
+      throw new BadRequestException('Invalid amount');
     }
 
     const user = await this.prisma.user.findUnique({
-        where: { id: userId },
+      where: { id: userId },
     });
 
     if (!user) {
-        throw new BadRequestException('User not found');
+      throw new BadRequestException('User not found');
     }
 
-    // ✅ Always ensure customer exists in CURRENT Stripe account
     const customerId = await this.paymentMethods.getOrCreateCustomer(userId);
 
     const intent = await this.stripe.client.paymentIntents.create({
-        amount: Math.round(amount * 100),
-        currency: user.currency.toLowerCase(),
-
-        customer: customerId,
-
-        // ✅ attached & already saved payment method
-        payment_method: paymentMethodId,
-
-        // ✅ frontend confirms
-        confirm: false,
-
-        metadata: {
+      amount: Math.round(amount * 100),
+      currency: user.currency.toLowerCase(),
+      customer: customerId,
+      payment_method: paymentMethodId,
+      confirm: false,
+      // return_url: `${process.env.FRONTEND_URL}/wallet/topup/complete`,
+      metadata: {
         wallet_topup_user_id: String(userId),
         purpose: 'wallet_topup',
         remarks: remarks || '',
-        },
+      },
     });
 
     await this.prisma.walletTopUp.create({
-        data: {
+      data: {
         userId,
         amount,
         currency: user.currency,
         stripeIntentId: intent.id,
         paymentMethodId,
         status: 'pending',
-        },
+      },
     });
 
     return {
-        clientSecret: intent.client_secret,
+      clientSecret: intent.client_secret,
     };
- }
+  }
 
   /**
    * Compute wallet balance from transactions table

@@ -41,6 +41,7 @@ export const createTopUpIntent = async (payload: {
   remarks?: string;
 }) => {
   const res = await api.post("/wallet-topup/intent", payload);
+  console.log(res);
   return res.data;
 };
 

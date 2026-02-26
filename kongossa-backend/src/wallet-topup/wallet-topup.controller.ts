@@ -8,21 +8,31 @@ export class WalletTopUpController {
   constructor(private service: WalletTopUpService) {}
 
   @Post('intent')
-  createIntent(
-    @Req() req: any,
-    @Body() body: {userId: number; amount: number; paymentMethodId: string, remarks?: string }
-  ) {
-    try {
-      return this.service.createTopUpIntent(
-        req.user.userId,
-        body.amount,
-        body.paymentMethodId,
-        body.remarks
-      );
-    } catch (error) {
-        console.log(error);
-    }
+async createIntent(
+  @Req() req: any,
+  @Body() body: { amount: number; paymentMethodId: string; remarks?: string }
+) {
+  console.log('💰 Wallet topup intent request received');
+  console.log('👤 User ID:', req.user.userId);
+  console.log('💵 Amount:', body.amount);
+  console.log('💳 Payment Method ID:', body.paymentMethodId);
+  console.log('📝 Remarks:', body.remarks);
+  console.error('This is a test error log'); 
+  try {
+    const result = await this.service.createTopUpIntent(
+      req.user.userId,
+      body.amount,
+      body.paymentMethodId,
+      body.remarks
+    );
+    console.log('✅ Topup intent created successfully');
+    return result;
+  } catch (error) {
+    console.error('🔥 CATCHED ERROR:', error);
+    console.error('Stack:', error.stack);
+    throw error;
   }
+}
 
   @Get('stats')
   @UseGuards(JwtAuthGuard)
