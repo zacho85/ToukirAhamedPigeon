@@ -232,4 +232,31 @@
   input[type="number"] {
     -moz-appearance: textfield;
   }
+
+  /* Ensure dropdowns appear above modals and other elements */
+.iti__country-list {
+  z-index: 9999 !important;
+}
+
+/* Fix for any overflow hidden parents */
+.space-y-4,
+.space-y-2,
+.space-y-6 {
+  overflow: visible !important;
+}
+
+/* Ensure the dropdown container can show the list */
+.relative {
+  overflow: visible !important;
+}
+
+/* Fix for AuthFormCard or any card that might cut off content */
+.overflow-hidden {
+  overflow: visible !important;
+}
+
+/* Ensure the dropdown is visible */
+.iti {
+  overflow: visible !important;
+}
 }

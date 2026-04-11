@@ -7,12 +7,16 @@ export default function PasswordInput<T extends FieldValues>({
   name,
   placeholder = "••••••••",
   className = "",
+  onKeyUp,
+  onFocus,
   ...props
 }: {
   register: UseFormRegister<T>;
   name: Path<T>;
   placeholder?: string;
   className?: string;
+  onKeyUp?: () => void;
+  onFocus?: () => void;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -34,6 +38,8 @@ export default function PasswordInput<T extends FieldValues>({
 
         ${className}`}
         {...register(name)}
+        onKeyUp={onKeyUp}
+        onFocus={onFocus}
         {...props}
       />
 
