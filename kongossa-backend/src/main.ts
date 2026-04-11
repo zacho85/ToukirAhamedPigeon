@@ -8,6 +8,7 @@ import { stripeRawBodyMiddleware } from './middleware/stripe-raw-body.middleware
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -15,9 +16,9 @@ async function bootstrap() {
   // ⚡ Stripe webhook raw body middleware
   app.use('/stripe/webhook', stripeRawBodyMiddleware());
 
-  // ⚡ Normal JSON parsing for other routes
-  app.use(require('body-parser').json());
-  app.use(require('body-parser').urlencoded({ extended: true }));
+  // ⚡ Normal JSON parsing with increased limits for file uploads
+  app.use(bodyParser.json({ limit: '100mb' }));
+  app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
   // Static assets
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
@@ -32,11 +33,13 @@ async function bootstrap() {
   // Cookies
   app.use(cookieParser());
 
-  // CORS
+  // ✅ FIXED CORS - Allow your production domain
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:4000', 'http://localhost:3000'],
+    origin: ['https://kongossapay.com', 'https://www.kongossapay.com', 'http://localhost:5173', 'http://localhost:4000'],
     credentials: true,
-    allowedHeaders: ['Content-Type','Authorization','Stripe-Signature'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Stripe-Signature', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'Content-Type'],
   });
 
   // Swagger
