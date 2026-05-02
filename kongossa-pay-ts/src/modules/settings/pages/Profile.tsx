@@ -228,7 +228,7 @@ export default function Profile() {
 
         {/* ================= Profile Image ================= */}
         <div className="relative w-24 h-24">
-          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-300">
+          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-300  bg-gray-50">
             {preview ? (
               <img
                 src={
@@ -237,10 +237,10 @@ export default function Profile() {
                     : `${import.meta.env.VITE_APP_API_URL}${preview}`
                 }
                 alt="Profile Preview"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover rounded-full border-2 border-gray-300"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+              <div className="w-full h-full rounded-full border-2 border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400">
                 No Image
               </div>
             )}

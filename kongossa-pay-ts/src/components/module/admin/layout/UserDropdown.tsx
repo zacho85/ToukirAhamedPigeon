@@ -51,15 +51,22 @@ export default function UserDropdown() {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <div className="flex items-center gap-2 cursor-pointer">
-          <Avatar className="w-8 h-8">
+          <Avatar className="w-8 h-8 rounded-full">
             <AvatarImage
-              src={`${import.meta.env.VITE_APP_API_URL+user?.profileImage || `https://avatar.vercel.sh/${user?.email}`}`}
-              alt={user?.fullName}
+              src={user?.profileImage 
+                ? `${import.meta.env.VITE_APP_API_URL}${user.profileImage}` 
+                : `https://avatar.vercel.sh/${user?.email || 'default'}`
+              }
+              alt={user?.fullName || 'User'}
+              className="rounded-full object-cover w-full h-full"
             />
-            <AvatarFallback>{shortName.charAt(0)}</AvatarFallback>
+            <AvatarFallback className="rounded-full bg-gray-200 text-gray-600 text-xs font-medium">
+              {shortName?.charAt(0)?.toUpperCase() || 'U'}
+            </AvatarFallback>
           </Avatar>
-
-          <span className="hidden lg:block text-gray-600 font-medium">{shortName}</span>
+          <span className="hidden lg:block text-gray-600 font-medium text-sm">
+            {shortName}
+          </span>
         </div>
       </DropdownMenuTrigger>
 

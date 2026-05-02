@@ -378,7 +378,7 @@ export class AuthService {
       try {
         const user = await this.prisma.user.findUnique({ where: { email } });
         if (!user) throw new NotFoundException('User with this email not found');
-
+	console.log(user);
         // Revoke previous unused tokens
         await this.prisma.passwordReset.updateMany({
           where: { userId: user.id, used: false },
@@ -397,11 +397,21 @@ export class AuthService {
         // Send reset email
         const resetUrl = `${domain}/reset-password?token=${token}`;
         console.log(resetUrl);
-        await this.mailService.sendMail(
-          user.email,
-          'Reset Your Password',
-          `Click this link to reset your password: ${resetUrl}\n\nThis link will expire in 1 hour.`
-        );
+        console.log('🔵 Before calling mailService.sendMail');
+        console.log('🔵 Email:', user.email);
+        console.log('🔵 Reset URL:', resetUrl);
+
+        try {
+          await this.mailService.sendMail(
+            user.email,
+            'Reset Your Password',
+            `Click this link to reset your password: ${resetUrl}\n\nThis link will expire in 1 hour.`
+          );
+          console.log('🟢 Mail sent successfully');
+        } catch (mailError) {
+          console.error('🔴 Mail sending failed:', mailError.message);
+          console.error(mailError);
+        }
 
         return { message: 'Password reset email sent successfully' };
       } catch (error) {

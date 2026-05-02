@@ -16,7 +16,7 @@ export class StripeService {
     if (!secret) throw new Error('STRIPE_SECRET_KEY missing in .env');
 
     this.stripe = new Stripe(secret, {
-      apiVersion: '2025-10-29.clover',
+      apiVersion: '2025-11-17.clover' as any,
     });
   }
 
@@ -150,72 +150,72 @@ export class StripeService {
 
   // ------------------- WALLET TOPUP -------------------
   private async processWalletTopupFromIntent(intent: Stripe.PaymentIntent) {
-    console.log('🔍 Processing wallet topup from intent:', intent.id);
-    console.log('🔍 Metadata:', intent.metadata);
-    
-    const userId = Number(intent.metadata.wallet_topup_user_id);
-    const amount = intent.amount_received / 100;
-    const intentId = intent.id;
-    const chargeId = intent.latest_charge as string | null;
+  console.log('🔍 Processing wallet topup from intent:', intent.id);
+  console.log('🔍 Metadata:', intent.metadata);
+  
+  const userId = Number(intent.metadata.wallet_topup_user_id);
+  const amount = intent.amount_received / 100;
+  const intentId = intent.id;
+  const chargeId = intent.latest_charge as string | null;
 
-    console.log(`🔍 User ID: ${userId}, Amount: ${amount}, Intent: ${intentId}`);
+  console.log(`🔍 User ID: ${userId}, Amount: ${amount}, Intent: ${intentId}`);
 
-    try {
-      // 1️⃣ Find topup
-      const topup = await this.prisma.walletTopUp.findUnique({
-        where: { stripeIntentId: intentId },
-      });
+  try {
+    // 1️⃣ Find topup
+    const topup = await this.prisma.walletTopUp.findUnique({
+      where: { stripeIntentId: intentId },
+    });
 
-      console.log('🔍 Found topup:', topup ? 'YES' : 'NO');
+    console.log('🔍 Found topup:', topup ? 'YES' : 'NO');
 
-      if (!topup) {
-        this.logger.warn(`Topup not found for intent ${intentId}`);
-        return;
-      }
-
-      if (topup.status === 'succeeded') {
-        this.logger.warn(`Topup already processed → ${intentId}`);
-        return;
-      }
-
-      // 2️⃣ Run all DB updates in a real transaction
-      await this.prisma.$transaction([
-        // Update wallet topup
-        this.prisma.walletTopUp.update({
-          where: { id: topup.id },
-          data: { status: 'succeeded', stripeChargeId: chargeId },
-        }),
-
-        // Increment wallet balance
-        this.prisma.user.update({
-          where: { id: userId },
-          data: { walletBalance: { increment: amount } },
-        }),
-
-        // Create transaction if not exists
-        this.prisma.transaction.upsert({
-          where: { transactionId: intentId },
-          update: {}, // already processed, do nothing
-          create: {
-            transactionId: intentId,
-            senderId: userId,
-            amount,
-            currency: topup.currency,
-            type: 'wallet_topup',
-            status: 'completed',
-            paymentMethod: 'stripe',
-            description: ' Wallet topup via Stripe. ' + (intent.metadata.remarks || ''),
-          },
-        }),
-      ]);
-
-      this.logger.log(`✅ Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
-    } catch (err: any) {
-      console.error('❌ Error processing wallet topup:', err);
-      this.logger.error('Error processing wallet topup', err);
-      throw new BadRequestException('Wallet topup failed');
+    if (!topup) {
+      this.logger.warn(`Topup not found for intent ${intentId}`);
+      return;
     }
+
+    if (topup.status === 'succeeded') {
+      this.logger.warn(`Topup already processed → ${intentId}`);
+      return;
+    }
+
+    // 2️⃣ Run all DB updates in a real transaction
+    await this.prisma.$transaction([
+      // Update wallet topup
+      this.prisma.walletTopUp.update({
+        where: { id: topup.id },
+        data: { status: 'succeeded', stripeChargeId: chargeId },
+      }),
+
+      // Increment wallet balance
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { walletBalance: { increment: amount } },
+      }),
+
+      // Create transaction if not exists
+      this.prisma.transaction.upsert({
+        where: { transactionId: intentId },
+        update: {}, // already processed, do nothing
+        create: {
+          transactionId: intentId,
+          senderId: userId,
+          amount,
+          currency: topup.currency,
+          type: 'wallet_topup',
+          status: 'completed',
+          paymentMethod: 'stripe',
+          description: ' Wallet topup via Stripe. ' + (intent.metadata.remarks || ''),
+        },
+      }),
+    ]);
+
+    this.logger.log(`✅ Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
+  } catch (err: any) {
+    console.error('❌ Error processing wallet topup:', err);
+    this.logger.error('Error processing wallet topup', err);
+    throw new BadRequestException('Wallet topup failed');
   }
+}
 
   // ------------------- TONTINE -------------------
   private async handleTontinePayment(session: Stripe.Checkout.Session) {

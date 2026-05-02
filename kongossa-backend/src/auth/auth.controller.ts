@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Get,
+  Options,
   Req,
   Patch,
   UseGuards,
@@ -32,7 +33,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly otpService: OtpService,
   ) {}
-
+ 
   // -------------------
   // Existing routes
   // -------------------
@@ -111,7 +112,7 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 48 * 60 * 60 * 1000, // 48h
-      domain: process.env.NODE_ENV === 'production' ? '.yourdomain.com' : undefined,
+      domain: process.env.NODE_ENV === 'production' ? '.kongossapay.com' : undefined,
     });
 
     return { message: 'Login successful', accessToken, refreshTokenExpires, user: userInfo };
@@ -220,7 +221,7 @@ export class AuthController {
   @Post('forgot-password')
   async forgotPassword(@Body('email') email: string, @Body('domain') domain: string) {
     try{
-      return this.authService.forgotPassword(email, domain);
+	return this.authService.forgotPassword(email, domain);
     } catch (error) {
       console.log(error);
       return { message: 'Forgot password failed', error: error.message };
