@@ -18,10 +18,11 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/zacho85/toukir-ahamed-pigeon/backend:latest
+    build:
+      context: ./kongossa-backend
+      dockerfile: Dockerfile.prod
     container_name: kongossa-backend
     restart: always
-    pull_policy: always
     environment:
       DATABASE_URL: postgresql://kongossa_user:${DB_PASSWORD}@postgres:5432/kongossa_db
       NODE_ENV: production
@@ -49,10 +50,11 @@ services:
       - backend_uploads:/app/uploads
 
   frontend:
-    image: ghcr.io/zacho85/toukir-ahamed-pigeon/frontend:latest
+    build:
+      context: ./kongossa-pay-ts
+      dockerfile: Dockerfile.prod
     container_name: kongossa-frontend
     restart: always
-    pull_policy: always
     ports:
       - "80:80"
       - "443:443"

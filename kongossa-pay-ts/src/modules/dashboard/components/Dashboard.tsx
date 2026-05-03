@@ -196,11 +196,13 @@ const Dashboard: React.FC = () => {
                   <CardTitle className="text-sm font-medium">Budget Usage</CardTitle>
                   <Target className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="w-full overflow-hidden"> {/* Add this */}
                   <div className="text-2xl font-bold">
                     {budgetUsagePercentage.toFixed(1)}%
                   </div>
-                  <Progress value={budgetUsagePercentage} className="mt-2" />
+                  <div className="relative w-full"> {/* Wrapper div */}
+                    <Progress value={budgetUsagePercentage} className="w-full" />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     ${stats.budgets.totalSpent.toLocaleString()} of $
                     {stats.budgets.totalAllocated.toLocaleString()}
