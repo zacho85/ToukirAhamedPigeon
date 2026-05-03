@@ -199,26 +199,89 @@ export class UsersService {
     };
   }
 
-  /**
+    /**
+     * Delete a user by ID
+     */
+    /**
    * Delete a user by ID
    */
   async remove(id: number) {
-  try {
-    await this.findOne(id); // ensure user exists
+    try {
+      await this.findOne(id); // ensure user exists
 
-    // Delete dependent records first
-    await this.prisma.transactionLimits.deleteMany({ where: { userId: id } });
-    await this.prisma.userRole.deleteMany({ where: { userId: id } });
-    // await this.prisma.wallet?.deleteMany?.({ where: { userId: id } }); // optional if wallet table exists
-    await this.prisma.transaction?.deleteMany?.({ where: { senderId: id } }); // optional if transactions exist
+      // Delete dependent records in correct order (child tables first)
+      await this.prisma.$transaction([
+        // Auth & Security related
+        this.prisma.refreshToken.deleteMany({ where: { userId: id } }),
+        this.prisma.otp.deleteMany({ where: { userId: id } }),
+        this.prisma.passwordReset.deleteMany({ where: { userId: id } }),
+        this.prisma.session.deleteMany({ where: { userId: id } }),
+        
+        // Tontine related (check relationships carefully)
+        this.prisma.tontineContribution.deleteMany({ where: { userId: id } }),
+        this.prisma.tontineInvite.deleteMany({ where: { userId: id } }),
+        this.prisma.tontineMember.deleteMany({ where: { userId: id } }),
+        this.prisma.tontinePayout.deleteMany({ 
+          where: { 
+            tontineMember: {
+              userId: id
+            }
+          } 
+        }),
+        
+        // Financial & Payment related
+        this.prisma.transaction.deleteMany({ 
+          where: { 
+            OR: [
+              { senderId: id },
+              { recipientId: id }
+            ]
+          } 
+        }),
+        this.prisma.transactionLimits.deleteMany({ where: { userId: id } }),
+        this.prisma.paymentMethod.deleteMany({ where: { userId: id } }),
+        this.prisma.walletTopUp.deleteMany({ where: { userId: id } }),
+        this.prisma.walletPayout.deleteMany({ where: { userId: id } }),
+        this.prisma.budget.deleteMany({ where: { userId: id } }),
+        this.prisma.subscription.deleteMany({ where: { userId: id } }),
+        
+        // Support & Communication related
+        this.prisma.supportTicket.deleteMany({ where: { userId: id } }),
+        
+        // Remittance & Contacts
+        this.prisma.remittance.deleteMany({ where: { agentId: id } }),
+        this.prisma.savedContact.deleteMany({ where: { agentId: id } }),
+        this.prisma.floatRequest.deleteMany({ where: { agentId: id } }),
+        
+        // QR Payments
+        this.prisma.qRPayment.deleteMany({ where: { recipientId: id } }),
+        
+        // User role (must be deleted before user)
+        this.prisma.userRole.deleteMany({ where: { userId: id } }),
+      ]);
 
-    // Now delete the user
-    return await this.prisma.user.delete({ where: { id } });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    throw new BadRequestException(error.message);
+      // Finally delete the user
+      const deletedUser = await this.prisma.user.delete({ where: { id } });
+      
+      return {
+        message: 'User deleted successfully',
+        userId: deletedUser.id,
+        email: deletedUser.email,
+        fullName: deletedUser.fullName
+      };
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      
+      // Handle specific Prisma errors
+      if (error.code === 'P2003') {
+        throw new BadRequestException(
+          'Cannot delete user because they have related records. Please delete all related records first.'
+        );
+      }
+      
+      throw new BadRequestException(error.message);
+    }
   }
-}
 
   /**
    * Find a user by email (used in login/auth)

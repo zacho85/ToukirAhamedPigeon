@@ -13,15 +13,21 @@ import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // ⚡ Stripe webhook raw body middleware
+  // ⚡ Stripe webhook raw body middleware (must be BEFORE body-parser)
   app.use('/stripe/webhook', stripeRawBodyMiddleware());
 
   // ⚡ Normal JSON parsing with increased limits for file uploads
   app.use(bodyParser.json({ limit: '100mb' }));
   app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
-  // Static assets
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // ✅ Static assets for uploaded files (make uploads folder accessible)
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { 
+    prefix: '/uploads/',
+    setHeaders: (res, path, stat) => {
+      // Allow cross-origin access to uploaded files
+      res.setHeader('Access-Control-Allow-Origin', 'https://kongossapay.com');
+    },
+  });
 
   // Global validation
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -33,7 +39,7 @@ async function bootstrap() {
   // Cookies
   app.use(cookieParser());
 
-  // ✅ FIXED CORS - Allow your production domain
+  // ✅ CORS - Allow your production domain
   app.enableCors({
     origin: ['https://kongossapay.com', 'https://www.kongossapay.com', 'http://localhost:5173', 'http://localhost:4000'],
     credentials: true,

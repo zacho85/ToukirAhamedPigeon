@@ -9,23 +9,22 @@ export class MailService {
   constructor() {
     console.log('📧 MailService constructor called');
     console.log('SMTP_HOST from env:', process.env.SMTP_HOST);
+    console.log('SMTP_PORT from env:', process.env.SMTP_PORT);
     console.log('SMTP_USER from env:', process.env.SMTP_USER);
     console.log('SMTP_FROM from env:', process.env.SMTP_FROM);
+    console.log('SMTP_PASSWORD from env:', process.env.SMTP_PASSWORD ? '✅ EXISTS' : '❌ MISSING');
+    console.log('SMTP_PASSWORD length:', process.env.SMTP_PASSWORD?.length || 0);
     
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
-      secure: false, // important: false for port 587
+      secure: false,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
       },
-      tls: {
-        rejectUnauthorized: false, // for testing
-      },
     });
   }
-
   async sendMail(to: string, subject: string, text: string) {
     console.log('🔵🔵🔵 MAIL SERVICE sendMail CALLED 🔵🔵🔵');
     console.log('=== MAIL SERVICE DEBUG ===');
