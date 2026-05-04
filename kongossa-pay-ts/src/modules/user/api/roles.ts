@@ -34,15 +34,21 @@ export const deleteRole = async (id: string) => {
   return res.data;
 };
 
-// Assign role to user
-export const assignRoleToUser = async (userId: string, roleId: string) => {
-  const res = await api.post(`/roles/assign`, { userId, roleId });
+// Remove role from user
+export const removeRoleFromUser = async (userId: string, roleId: string) => {
+  const res = await api.post(`/roles/remove`, { 
+    userId: parseInt(userId),  // String to Number
+    roleId: parseInt(roleId)   // String to Number
+  });
   return res.data;
 };
 
-// Remove role from user
-export const removeRoleFromUser = async (userId: string, roleId: string) => {
-  const res = await api.post(`/roles/remove`, { userId, roleId });
+// Assign role to user
+export const assignRoleToUser = async (userId: string, roleId: string) => {
+  const res = await api.post(`/roles/assign`, { 
+    userId: parseInt(userId),  // String to Number
+    roleId: parseInt(roleId)   // String to Number
+  });
   return res.data;
 };
 

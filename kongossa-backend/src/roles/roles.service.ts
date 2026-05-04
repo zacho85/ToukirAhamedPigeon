@@ -173,46 +173,70 @@ export class RolesService {
    * @param roleId Role ID
    */
   async assignRoleToUser(userId: number, roleId: number) {
-  // Create the userRole record
-  const userRole = await this.prisma.userRole.create({
-    data: { userId, roleId },
-  });
-
-  // Fetch the role name
-  const role = await this.prisma.role.findUnique({ where: { id: roleId } });
-
-  if (role) {
-    // Update the user's main 'role' column
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { role: role.name },
+  try {
+    // Check if user already has this role
+    const existing = await this.prisma.userRole.findFirst({
+      where: { userId, roleId },
     });
-  }
 
-  return userRole;
+    if (existing) {
+      throw new Error('User already has this role');
+    }
+
+    // Create the userRole record
+    const userRole = await this.prisma.userRole.create({
+      data: { userId, roleId },
+    });
+
+    // Fetch the role name
+    const role = await this.prisma.role.findUnique({ 
+      where: { id: roleId } 
+    });
+
+    if (role) {
+      // Update the user's main 'role' column
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: role.name },
+      });
+    }
+
+    return { success: true, message: 'Role assigned successfully', userRole };
+  } catch (error) {
+    console.error('Error assigning role:', error);
+    throw new Error(`Failed to assign role: ${error.message}`);
+  }
 }
 
 async removeRoleFromUser(userId: number, roleId: number) {
-  // Remove the userRole record
-  await this.prisma.userRole.deleteMany({
-    where: { userId, roleId },
-  });
+  try {
+    // Remove the userRole record
+    await this.prisma.userRole.deleteMany({
+      where: { 
+        userId: userId,
+        roleId: roleId 
+      },
+    });
 
-  // Fetch remaining roles for the user
-  const remainingRoles = await this.prisma.userRole.findMany({
-    where: { userId },
-    include: { role: true },
-  });
+    // Fetch remaining roles for the user
+    const remainingRoles = await this.prisma.userRole.findMany({
+      where: { userId: userId },
+      include: { role: true },
+    });
 
-  // Update user's main 'role' column
-  await this.prisma.user.update({
-    where: { id: userId },
-    data: {
-      role: remainingRoles.length > 0 ? remainingRoles[0].role.name : '', // empty if no roles left
-    },
-  });
+    // Update user's main 'role' column
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: remainingRoles.length > 0 ? remainingRoles[0].role.name : 'user',
+      },
+    });
 
-  return { success: true };
+    return { success: true, message: 'Role removed successfully' };
+  } catch (error) {
+    console.error('Error removing role:', error);
+    throw new Error(`Failed to remove role: ${error.message}`);
+  }
 }
 
   /**

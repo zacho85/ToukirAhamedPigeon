@@ -144,60 +144,73 @@ export class UsersService {
    * Update a user by ID
    */
   async update(id: number, data: any) {
-    const existing = await this.prisma.user.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('User not found');
+  const existing = await this.prisma.user.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundException('User not found');
 
-    const { role, password, legalFormDocument, ...updateData } = data;
+  const { role, password, legalFormDocument, ...updateData } = data;
 
-    // Hash password if changed
-    if (password && password.trim() !== '') {
-      updateData.passwordHash = await bcrypt.hash(password, 10);
-    }
-
-    // Handle legal form document replacement
-    if (legalFormDocument && existing.legalFormDocument) {
-      try {
-        const oldFilePath = path.join(process.cwd(), existing.legalFormDocument.replace('/uploads', 'uploads'));
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
-      } catch (err) {
-        console.error('Failed to remove old legal document:', err);
-      }
-    }
-
-    // Update user
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: {
-        ...updateData,
-        legalFormDocument: legalFormDocument || existing.legalFormDocument,
-      },
-    });
-
-    // Handle role update
-    if (role) {
-      const existingRole = await this.prisma.role.findUnique({ where: { name: role } });
-      if (existingRole) {
-        await this.prisma.userRole.upsert({
-          where: { userId_roleId: { userId: id, roleId: existingRole.id } },
-          create: { userId: id, roleId: existingRole.id },
-          update: {},
-        });
-      }
-    }
-
-    // Return user with role
-    const userWithRole = await this.prisma.user.findUnique({
-      where: { id },
-      include: { userRoles: { include: { role: true } } },
-    });
-
-    return {
-      ...userWithRole,
-      role: userWithRole?.userRoles?.[0]?.role?.name,
-    };
+  // Hash password if changed
+  if (password && password.trim() !== '') {
+    updateData.passwordHash = await bcrypt.hash(password, 10);
   }
+
+  // Handle legal form document replacement
+  if (legalFormDocument && existing.legalFormDocument) {
+    try {
+      const oldFilePath = path.join(process.cwd(), existing.legalFormDocument.replace('/uploads', 'uploads'));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    } catch (err) {
+      console.error('Failed to remove old legal document:', err);
+    }
+  }
+
+  // Update user basic info
+  const updatedUser = await this.prisma.user.update({
+    where: { id },
+    data: {
+      ...updateData,
+      legalFormDocument: legalFormDocument || existing.legalFormDocument,
+    },
+  });
+
+  // Handle role update - if role is provided
+  if (role) {
+    const existingRole = await this.prisma.role.findUnique({ where: { name: role } });
+    if (existingRole) {
+      // First, remove all existing roles for this user
+      await this.prisma.userRole.deleteMany({
+        where: { userId: id },
+      });
+      
+      // Then add the new role
+      await this.prisma.userRole.create({
+        data: {
+          userId: id,
+          roleId: existingRole.id,
+        },
+      });
+      
+      // Also update the user's main role field
+      await this.prisma.user.update({
+        where: { id },
+        data: { role: role },
+      });
+    }
+  }
+
+  // Return user with roles
+  const userWithRole = await this.prisma.user.findUnique({
+    where: { id },
+    include: { userRoles: { include: { role: true } } },
+  });
+
+  return {
+    ...userWithRole,
+    role: userWithRole?.userRoles?.[0]?.role?.name,
+  };
+}
 
     /**
      * Delete a user by ID
