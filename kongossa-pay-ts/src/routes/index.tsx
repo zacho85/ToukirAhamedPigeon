@@ -55,6 +55,10 @@ import HistoryPage from "@/modules/history/pages/HistoryPage";
 import SendMoneyPage from "@/modules/send-money/pages/SendMoneyPage";
 import FeeManagementPage from "@/modules/fee-management/pages/FeeManagementPage";
 
+import PaymentLinksList from '@/modules/payment-links/pages/PaymentLinksList';
+import CreatePaymentLink from '@/modules/payment-links/pages/CreatePaymentLink';
+import PublicPaymentPage from '@/modules/payment-links/pages/PublicPaymentPage';
+
 // Users & Roles
 import UserList from "@/modules/user/pages/UserList";
 import UserShow from "@/modules/user/pages/UserShow";
@@ -75,6 +79,10 @@ import About from "@/modules/public/pages/About";
 import Pricing from "@/modules/public/pages/Pricing";
 import Contact from "@/modules/public/pages/Contact";
 import FAQ from "@/modules/public/pages/FAQ";
+
+import PaymentLinkSuccess from '@/modules/payment-links/pages/PaymentLinkSuccess';
+import PaymentLinkCancel from '@/modules/payment-links/pages/PaymentLinkCancel';
+
 
 import NotFound from "@/pages/NotFound";
 import Unauthorized from "@/pages/Unauthorized";
@@ -111,6 +119,7 @@ export default function AppRoutes() {
       <Route path="/verify-otp" element={<PublicRoute><OTPVerificationPage /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
+      <Route path="/pay/:linkId" element={<PublicPaymentPage />} />
 
       <Route path="/unauthorized" element={<Unauthorized />} />
 
@@ -155,6 +164,19 @@ export default function AppRoutes() {
         <Route path="tontines/:id" element={<ProtectedRoute allOf={["read:tontine"]}><TontineDetail /></ProtectedRoute>} />
         <Route path="tontines/:id/edit" element={<ProtectedRoute allOf={["update:tontine"]}><TontineEdit /></ProtectedRoute>} />
         <Route path="tontines/invite" element={<ProtectedRoute allOf={["read:tontine-invite"]}><TontineInvite /></ProtectedRoute>} />
+
+        <Route path="payment-links" element={
+          <ProtectedRoute allOf={["create:payment-link", "read:payment-link"]}>
+            <PaymentLinksList />
+          </ProtectedRoute>
+        } />
+        <Route path="payment-links/create" element={
+          <ProtectedRoute allOf={["create:payment-link"]}>
+            <CreatePaymentLink />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment-link/success" element={<PaymentLinkSuccess />} />
+      <Route path="/payment-link/cancel" element={<PaymentLinkCancel />} />
 
         {/* Contributions */}
         <Route path="tontine-contributions" element={<ProtectedRoute allOf={["read:tontine-contribution"]}><ContributionList /></ProtectedRoute>} />

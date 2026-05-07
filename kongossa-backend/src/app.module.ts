@@ -37,6 +37,7 @@ import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { WalletTopUpModule } from './wallet-topup/wallet-topup.module';
 import { UploadModule } from './upload/upload.module';
 import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
+import { PaymentLinksModule } from './payment-links/payment-links.module';
 
 @Module({
   imports: [
@@ -44,23 +45,23 @@ import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
     }),
-    AppConfigModule,        // Loads environment variables
-    PrismaModule,           // Provides PrismaService
-    AuthModule,             // Authentication & authorization
-    UsersModule,            // User management
-    TransactionsModule,     // Transactions management
-    RolesModule,            // Role & permissions management
-    PermissionsModule,       // Permission management
-    OtpModule,              // OTP management
-    PasswordResetsModule,   // Password resets
-    RefreshTokensModule,    // Refresh tokens
-    QRPaymentsModule,       // QR payments
-    RemittancesModule,      // Remittances
-    SavedContactsModule,    // Saved contacts
-    FloatRequestsModule,    // Float requests
-    PaymentMethodsModule,   // Payment methods
-    SupportTicketsModule,   // Support tickets
-    TontinesModule,         // Tontines
+    AppConfigModule,
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    TransactionsModule,
+    RolesModule,
+    PermissionsModule,
+    OtpModule,
+    PasswordResetsModule,
+    RefreshTokensModule,
+    QRPaymentsModule,
+    RemittancesModule,
+    SavedContactsModule,
+    FloatRequestsModule,
+    PaymentMethodsModule,
+    SupportTicketsModule,
+    TontinesModule,
     SystemSettingsModule,
     SettingsModule,
     BudgetsModule,
@@ -76,6 +77,7 @@ import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
     WalletTopUpModule,
     WalletPayoutModule,
     UploadModule,
+    PaymentLinksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

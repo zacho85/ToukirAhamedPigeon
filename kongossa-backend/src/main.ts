@@ -15,6 +15,7 @@ async function bootstrap() {
 
   // ⚡ Stripe webhook raw body middleware (must be BEFORE body-parser)
   app.use('/stripe/webhook', stripeRawBodyMiddleware());
+  app.use('/stripe/payment-links/webhook', stripeRawBodyMiddleware());
 
   // ⚡ Normal JSON parsing with increased limits for file uploads
   app.use(bodyParser.json({ limit: '100mb' }));
