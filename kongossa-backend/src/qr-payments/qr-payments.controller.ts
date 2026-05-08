@@ -1,11 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { QRPaymentsService } from './qr-payments.service';
 import { CreateQRPaymentDto } from './dto/create-qr-payment.dto';
 import { UpdateQRPaymentDto } from './dto/update-qr-payment.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Req } from '@nestjs/common';
+import { TransactionsService } from '../transactions/transactions.service';
 
 @Controller('qr-payments')
 export class QRPaymentsController {
-  constructor(private readonly qrPaymentsService: QRPaymentsService) {}
+  constructor(
+    private readonly qrPaymentsService: QRPaymentsService,
+    private readonly transactionsService: TransactionsService,
+  ) {}
 
   @Post()
   create(@Body() createDto: CreateQRPaymentDto) {
@@ -54,5 +60,18 @@ export class QRPaymentsController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.qrPaymentsService.remove(id);
+  }
+  @Post(':id/pay')
+  @UseGuards(JwtAuthGuard)
+  async payQRPayment(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { amount?: number },
+  ) {
+    return this.transactionsService.processQRPayment(
+      req.user.userId,
+      id,
+      body.amount,
+    );
   }
 }

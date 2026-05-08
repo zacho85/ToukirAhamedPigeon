@@ -97,6 +97,7 @@ export class TransactionsService {
    * Send money between users
    * Balance is always recalculated from transactions table
    */
+  // transactions.service.ts
   async sendMoney(
     senderId: number,
     dto: { recipientId: number; amount: number; description?: string },
@@ -104,26 +105,29 @@ export class TransactionsService {
     const sender = await this.prisma.user.findUnique({ where: { id: senderId } });
     if (!sender) throw new NotFoundException('Sender not found');
 
+    const recipient = await this.prisma.user.findUnique({ where: { id: dto.recipientId } });
+    if (!recipient) throw new NotFoundException('Recipient not found');
+
     const settings = await this.prisma.systemSettings.findFirst();
     if (!settings) throw new BadRequestException('System settings not configured');
 
     const transferFee = dto.amount * (settings.transferFeePercent / 100);
     const totalDeduction = dto.amount + transferFee;
 
-    // Compute actual wallet balance from transactions
-    const senderBalance = await this.walletService.computeWalletBalance(senderId);
+    // Get current balances from User table (not recomputed)
+    const senderCurrentBalance = sender.walletBalance;
+    const recipientCurrentBalance = recipient.walletBalance;
 
-    console.log('Sender ID:', senderId);
-    console.log('Recipient ID:', dto.recipientId);
+    console.log('Sender balance:', senderCurrentBalance);
     console.log('Transfer amount:', dto.amount);
     console.log('Transfer fee:', transferFee);
-    console.log('Sender balance:', senderBalance);
-    console.log('Total deduction:', totalDeduction);
 
-    if (senderBalance < totalDeduction) throw new BadRequestException('Insufficient balance');
+    if (senderCurrentBalance < totalDeduction) {
+      throw new BadRequestException('Insufficient balance');
+    }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1️⃣ Create transaction
+      // 1️⃣ Create transaction record (for sender as debit, recipient as credit)
       const transaction = await tx.transaction.create({
         data: {
           transactionId: crypto.randomUUID(),
@@ -137,14 +141,43 @@ export class TransactionsService {
         },
       });
 
-      // 2️⃣ Recompute balances for sender and recipient
-      const updatedSenderBalance = await this.walletService.computeWalletBalance(senderId);
-      const updatedRecipientBalance = await this.walletService.computeWalletBalance(dto.recipientId);
+      // 2️⃣ Update sender's balance (decrease)
+      await tx.user.update({
+        where: { id: senderId },
+        data: { walletBalance: { decrement: totalDeduction } },
+      });
 
-      await tx.user.update({ where: { id: senderId }, data: { walletBalance: updatedSenderBalance } });
-      await tx.user.update({ where: { id: dto.recipientId }, data: { walletBalance: updatedRecipientBalance } });
+      // 3️⃣ Update recipient's balance (increase)
+      await tx.user.update({
+        where: { id: dto.recipientId },
+        data: { walletBalance: { increment: dto.amount } },
+      });
+
+      console.log(`Sender ${senderId}: -${totalDeduction}`);
+      console.log(`Recipient ${dto.recipientId}: +${dto.amount}`);
 
       return transaction;
+    });
+  }
+  async processQRPayment(senderId: number, qrPaymentId: number, customAmount?: number) {
+    const qrPayment = await this.prisma.qRPayment.findUnique({
+      where: { id: qrPaymentId },
+      include: { recipient: true },
+    });
+
+    if (!qrPayment) throw new NotFoundException('QR payment not found');
+    if (!qrPayment.isActive) throw new BadRequestException('QR payment is inactive');
+    if (qrPayment.expiryDate && new Date() > qrPayment.expiryDate) {
+      throw new BadRequestException('QR payment has expired');
+    }
+
+    const amount = customAmount || qrPayment.amount;
+    if (!amount) throw new BadRequestException('Amount is required');
+
+    return this.sendMoney(senderId, {
+      recipientId: qrPayment.recipientId,
+      amount,
+      description: qrPayment.description || 'QR code payment',
     });
   }
 }

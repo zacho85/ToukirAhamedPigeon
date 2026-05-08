@@ -68,41 +68,33 @@ export class WalletTopUpService {
    * Always the source of truth
    */
   async computeWalletBalance(userId: number, currency?: string) {
-
-    const moneyInTopUpAgg = await this.prisma.transaction.aggregate({
-      _sum: { amount: true, fee: true },
-      where: {
-        senderId: userId,
-        status: 'completed',
-        type: 'wallet_topup',
-        ...(currency ? { currency } : {}),
-      },
-    });
-
+    // Money IN: Wallet topups + Received transfers
     const moneyInAgg = await this.prisma.transaction.aggregate({
-      _sum: { amount: true, fee: true },
+      _sum: { amount: true },
       where: {
-        recipientId: userId,
-        status: 'completed',
+        OR: [
+          { senderId: userId, type: 'wallet_topup', status: 'completed' },
+          { recipientId: userId, type: 'wallet_transfer', status: 'completed' },
+        ],
         ...(currency ? { currency } : {}),
       },
     });
 
+    // Money OUT: Sent transfers (including fees)
     const moneyOutAgg = await this.prisma.transaction.aggregate({
       _sum: { amount: true, fee: true },
       where: {
         senderId: userId,
+        type: 'wallet_transfer',
         status: 'completed',
-        NOT: { type: 'wallet_topup' },
         ...(currency ? { currency } : {}),
       },
     });
 
-    const moneyInTopUp = (moneyInTopUpAgg._sum.amount || 0);
-    const moneyIn = moneyInAgg._sum.amount || 0;
+    const moneyIn = toNumber(moneyInAgg._sum.amount || 0);
     const moneyOut = toNumber(moneyOutAgg._sum.amount || 0) + toNumber(moneyOutAgg._sum.fee || 0);
 
-    return toNumber(moneyInTopUp) + toNumber(moneyIn) - toNumber(moneyOut);
+    return Number(moneyIn) - Number(moneyOut);
   }
 
   /**

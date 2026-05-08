@@ -9,10 +9,11 @@ import { ArrowUpRight, ArrowDownLeft, Search, Download, Filter } from "lucide-re
 import { format } from "date-fns";
 import { fetchTransactionHistory } from "@/modules/history/api";
 import { formatDateTimeDisplay } from "@/lib/formatDate";
+import { useAppSelector } from "@/hooks/useRedux";
 
 interface TransactionType {
   id: number;
-  createdAt: string;   // ✅ correct
+  createdAt: string;
   type: string;
   amount: number;
   currency?: string;
@@ -22,18 +23,16 @@ interface TransactionType {
   recipientId?: number;
 }
 
-
 export default function History() {
+    const { user: currentUser } = useAppSelector((state) => state.auth);
+    const currentUserId = currentUser?.id;
+
     const [transactions, setTransactions] = useState<TransactionType[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
-
-    // useEffect(() => {
-    //     loadTransactionHistory();
-    // }, []);
 
     useEffect(() => {
         loadTransactionHistory();
@@ -74,42 +73,99 @@ export default function History() {
     };
 
     const loadTransactionHistory = async () => {
-    try {
-        setIsLoading(true);
+        try {
+            setIsLoading(true);
+            const res = await fetchTransactionHistory({
+                search: searchTerm || undefined,
+                type: filterType !== "all" ? filterType : undefined,
+                status: filterStatus !== "all" ? filterStatus : undefined,
+                page: 1,
+                limit: 50,
+            });
 
-        const res = await fetchTransactionHistory({
-        search: searchTerm || undefined,
-        type: filterType !== "all" ? filterType : undefined,
-        status: filterStatus !== "all" ? filterStatus : undefined,
-        page: 1,
-        limit: 50,
-        });
+            const normalized = res.data.map((t: TransactionType) => ({
+                ...t,
+                type: normalizeType(t.type),
+            }));
 
-        const normalized = res.data.map((t: TransactionType) => ({
-        ...t,
-        type: normalizeType(t.type),
-        }));
-
-        setTransactions(normalized);
-        setFilteredTransactions(normalized);
-    } catch (err) {
-        console.error(err);
-    } finally {
-        setIsLoading(false);
-    }
+            setTransactions(normalized);
+            setFilteredTransactions(normalized);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const getTransactionIcon = (type: string) => {
-        switch (type) {
-            case 'send':
-            case 'withdrawal':
-                return <ArrowUpRight className="w-5 h-5 text-red-600 dark:text-red-400" />;
-            case 'receive':
-            case 'deposit':
-                return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
-            default:
-                return <ArrowUpRight className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+    /**
+     * Determines if the current user is the sender or recipient
+     * Returns 'sent', 'received', or 'unknown'
+     */
+    const getTransactionDirection = (transaction: TransactionType): 'sent' | 'received' | 'unknown' => {
+        if (transaction.senderId === currentUserId) {
+            return 'sent';
         }
+        if (transaction.recipientId === currentUserId) {
+            return 'received';
+        }
+        return 'unknown';
+    };
+
+    /**
+     * Returns the appropriate icon based on transaction direction
+     */
+    const getTransactionIcon = (transaction: TransactionType) => {
+        const direction = getTransactionDirection(transaction);
+        
+        if (direction === 'sent') {
+            return <ArrowUpRight className="w-5 h-5 text-red-600 dark:text-red-400" />;
+        }
+        if (direction === 'received') {
+            return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
+        }
+        // Fallback based on type
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
+        }
+        return <ArrowUpRight className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+    };
+
+    /**
+     * Returns the formatted amount with +/- sign based on direction
+     */
+    const getFormattedAmount = (transaction: TransactionType) => {
+        const direction = getTransactionDirection(transaction);
+        const amount = Number(transaction.amount || 0).toFixed(2);
+        
+        if (direction === 'sent') {
+            return `-$${amount}`;
+        }
+        if (direction === 'received') {
+            return `+$${amount}`;
+        }
+        // Fallback based on type
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return `+$${amount}`;
+        }
+        return `-$${amount}`;
+    };
+
+    /**
+     * Returns the color class for the amount based on direction
+     */
+    const getAmountColorClass = (transaction: TransactionType) => {
+        const direction = getTransactionDirection(transaction);
+        
+        if (direction === 'sent') {
+            return 'text-red-600 dark:text-red-400';
+        }
+        if (direction === 'received') {
+            return 'text-green-600 dark:text-green-400';
+        }
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return 'text-green-600 dark:text-green-400';
+        }
+        return 'text-red-600 dark:text-red-400';
     };
 
     const getStatusColor = (status: string) => {
@@ -131,7 +187,7 @@ export default function History() {
             ...filteredTransactions.map(t => [
                 formatDateTimeDisplay(t.createdAt),
                 t.type,
-                t.amount,
+                getFormattedAmount(t).replace('$', ''),
                 t.currency || 'USD',
                 t.status,
                 t.description || ''
@@ -144,6 +200,19 @@ export default function History() {
         a.href = url;
         a.download = `transactions_${format(new Date(), 'yyyy-MM-dd')}.csv`;
         a.click();
+    };
+
+    // Helper to get transaction title/description
+    const getTransactionTitle = (transaction: TransactionType) => {
+        const direction = getTransactionDirection(transaction);
+        
+        if (direction === 'sent') {
+            return `Sent to ${transaction.recipientId || 'User'}`;
+        }
+        if (direction === 'received') {
+            return `Received from ${transaction.senderId || 'User'}`;
+        }
+        return transaction.description || `${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} Transaction`;
     };
 
     if (isLoading) {
@@ -229,41 +298,41 @@ export default function History() {
                                 <p className="text-slate-500 dark:text-gray-300">No transactions found matching your criteria</p>
                             </div>
                         ) : (
-                            filteredTransactions.map((transaction) => (
-                                <div key={transaction.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-slate-100 dark:bg-gray-600 rounded-full flex items-center justify-center">
-                                            {getTransactionIcon(transaction.type)}
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-900 dark:text-gray-100">
-                                                {transaction.description || `${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} Transaction`}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <p className="text-sm text-slate-500 dark:text-gray-400">
-                                                    {formatDateTimeDisplay(transaction.createdAt)}
+                            filteredTransactions.map((transaction) => {
+                                const direction = getTransactionDirection(transaction);
+                                const isSent = direction === 'sent';
+                                
+                                return (
+                                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-slate-100 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                                {getTransactionIcon(transaction)}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-slate-900 dark:text-gray-100">
+                                                    {getTransactionTitle(transaction)}
                                                 </p>
-                                                <Badge className={getStatusColor(transaction.status)}>
-                                                    {transaction.status}
-                                                </Badge>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <p className="text-sm text-slate-500 dark:text-gray-400">
+                                                        {formatDateTimeDisplay(transaction.createdAt)}
+                                                    </p>
+                                                    <Badge className={getStatusColor(transaction.status)}>
+                                                        {transaction.status}
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
+                                        <div className="text-right">
+                                            <p className={`text-lg font-semibold ${getAmountColorClass(transaction)}`}>
+                                                {getFormattedAmount(transaction)}
+                                            </p>
+                                            <p className="text-sm text-slate-500 dark:text-gray-400">
+                                                {transaction.currency || 'USD'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className={`text-lg font-semibold ${
-                                            transaction.type === 'send' || transaction.type === 'withdrawal'
-                                                ? 'text-red-600 dark:text-red-400'
-                                                : 'text-green-600 dark:text-green-400'
-                                        }`}>
-                                            {transaction.type === 'send' || transaction.type === 'withdrawal' ? '-' : '+'}
-                                            ${Number(transaction.amount || 0)?.toFixed(2)}
-                                        </p>
-                                        <p className="text-sm text-slate-500 dark:text-gray-400">
-                                            {transaction.currency || 'USD'}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </CardContent>
