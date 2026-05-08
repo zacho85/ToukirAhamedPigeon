@@ -28,3 +28,46 @@ Thumbs.db
 live/*
 */live/*
 *.sql
+
+# Docker configuration files
+docker-compose.prod.yml
+docker-compose.yml
+Dockerfile.prod
+Dockerfile
+nginx.conf
+
+# Environment files
+.env
+.env.prod
+.env.local
+.env.*.local
+
+# Backend configuration
+kongossa-backend/.env
+kongossa-backend/src/main.ts
+
+# Frontend configuration
+kongossa-pay-ts/.env
+kongossa-pay-ts/Dockerfile.prod
+kongossa-pay-ts/nginx.conf
+
+# Backup files
+*.backup
+*.sql
+# Docker configuration files
+docker-compose.prod.yml
+docker-compose.yml
+Dockerfile.prod
+nginx.conf
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Backup files
+*.backup
+*.backup.*
+backups/
+**/*.backup
+**/*.backup.*
