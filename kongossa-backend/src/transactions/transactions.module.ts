@@ -14,5 +14,6 @@ import { PaymentMethodsModule } from 'src/payment-methods/payment-methods.module
   imports: [PrismaModule, StripeModule, PaymentMethodsModule], // Import PrismaModule for database access
   controllers: [TransactionsController],
   providers: [TransactionsService, WalletTopUpService],
+   exports: [TransactionsService],
 })
 export class TransactionsModule {}
