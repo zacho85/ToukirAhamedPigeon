@@ -144,12 +144,20 @@ export class PaymentMethodsService {
       where: { id, userId },
     });
 
-    if (!pm) throw new BadRequestException('Not found');
+    if (!pm) throw new BadRequestException('Payment method not found');
 
+    // Try to detach from Stripe, but don't fail if it's already gone
     if (pm.stripePmId) {
-      await this.stripeService.client.paymentMethods.detach(pm.stripePmId);
+      try {
+        await this.stripeService.client.paymentMethods.detach(pm.stripePmId);
+      } catch (error: any) {
+        // If the payment method doesn't exist in Stripe anymore, just log it
+        console.log(`Payment method ${pm.stripePmId} not found in Stripe, skipping detach:`, error.message);
+        // Don't throw - continue with database deletion
+      }
     }
 
-    return this.prisma.paymentMethod.delete({ where: { id }});
+    // Delete from database regardless of Stripe status
+    return this.prisma.paymentMethod.delete({ where: { id } });
   }
 }
