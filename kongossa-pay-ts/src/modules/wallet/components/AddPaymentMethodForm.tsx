@@ -25,14 +25,13 @@ export default function AddPaymentMethodForm({
       dispatchShowToast({
         type: "danger",
         message: "Stripe not initialized. Please refresh the page.",
-        position: "top-right",
       });
       return;
     }
 
     setLoading(true);
     try {
-      // 1️⃣ Create a fresh SetupIntent
+      // Create a fresh SetupIntent
       const { clientSecret } = await createSetupIntent();
       
       if (!clientSecret) {
@@ -41,7 +40,7 @@ export default function AddPaymentMethodForm({
 
       console.log("SetupIntent client secret received");
 
-      // 2️⃣ Confirm the card setup
+      // Confirm the card setup immediately
       const result = await stripe.confirmCardSetup(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
@@ -56,7 +55,6 @@ export default function AddPaymentMethodForm({
         dispatchShowToast({
           type: "danger",
           message: result.error.message || "Failed to save card",
-          position: "top-right",
         });
         return;
       }
@@ -67,7 +65,7 @@ export default function AddPaymentMethodForm({
 
       const paymentMethodId = result.setupIntent.payment_method as string;
 
-      // 3️⃣ Attach payment method to your backend
+      // Attach payment method to your backend
       await attachPaymentMethod(paymentMethodId, {
         accountName: meta.accountName,
         bankName: meta.bankName,
@@ -76,7 +74,6 @@ export default function AddPaymentMethodForm({
       dispatchShowToast({
         type: "success",
         message: "Card saved successfully!",
-        position: "top-right",
       });
       
       onSuccess?.();
@@ -85,7 +82,6 @@ export default function AddPaymentMethodForm({
       dispatchShowToast({
         type: "danger",
         message: err.message || "Failed to save card. Please try again.",
-        position: "top-right",
       });
     } finally {
       setLoading(false);

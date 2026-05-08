@@ -61,13 +61,12 @@ export class PaymentMethodsService {
   async createSetupIntent(userId: number) {
     try {
       const customerId = await this.getOrCreateCustomer(userId);
-
       console.log(`Creating SetupIntent for customer: ${customerId}`);
 
       const setupIntent = await this.stripeService.client.setupIntents.create({
         customer: customerId,
         payment_method_types: ['card'],
-        usage: 'off_session', // Allows future payments without customer interaction
+        usage: 'off_session',
       });
 
       console.log(`SetupIntent created: ${setupIntent.id}`);
