@@ -60,19 +60,27 @@ export class PaymentMethodsService {
   // -----------------------------------
   async createSetupIntent(userId: number) {
     try {
-        const customerId = await this.getOrCreateCustomer(userId)
+      const customerId = await this.getOrCreateCustomer(userId);
 
-        const setupIntent = await this.stripeService.client.setupIntents.create({
+      console.log(`Creating SetupIntent for customer: ${customerId}`);
+
+      const setupIntent = await this.stripeService.client.setupIntents.create({
         customer: customerId,
         payment_method_types: ['card'],
-        })
+        usage: 'off_session', // Allows future payments without customer interaction
+      });
 
-        return { clientSecret: setupIntent.client_secret }
-    } catch (error) {
-        console.error('Error creating setup intent:', error)
-        throw new Error('Failed to create setup intent')
+      console.log(`SetupIntent created: ${setupIntent.id}`);
+
+      return { 
+        clientSecret: setupIntent.client_secret,
+        setupIntentId: setupIntent.id 
+      };
+    } catch (error: any) {
+      console.error('Error creating setup intent:', error);
+      throw new BadRequestException(error.message || 'Failed to create setup intent');
     }
-}
+  }
 
   // -----------------------------------
   // Attach & Save Payment Method

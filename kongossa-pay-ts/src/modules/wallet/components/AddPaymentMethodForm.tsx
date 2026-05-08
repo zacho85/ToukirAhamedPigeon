@@ -18,52 +18,75 @@ export default function AddPaymentMethodForm({
   const [meta, setMeta] = useState({
     accountName: "",
     bankName: "",
-    });
+  });
 
   const saveCard = async () => {
-    if (!stripe || !elements) return;
+    if (!stripe || !elements) {
+      dispatchShowToast({
+        type: "danger",
+        message: "Stripe not initialized. Please refresh the page.",
+        position: "top-right",
+      });
+      return;
+    }
 
     setLoading(true);
     try {
-      // 1️⃣ Create SetupIntent
+      // 1️⃣ Create a fresh SetupIntent
       const { clientSecret } = await createSetupIntent();
-      const result = await stripe.confirmCardSetup(
-        clientSecret,
-        {
-          payment_method: {
-            card: elements.getElement(CardElement)!,
+      
+      if (!clientSecret) {
+        throw new Error("Failed to create setup intent");
+      }
+
+      console.log("SetupIntent client secret received");
+
+      // 2️⃣ Confirm the card setup
+      const result = await stripe.confirmCardSetup(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+          billing_details: {
+            name: meta.accountName || undefined,
           },
-        }
-      );
+        },
+      });
 
       if (result.error) {
-        alert(result.error.message);
+        console.error("Setup confirmation error:", result.error);
+        dispatchShowToast({
+          type: "danger",
+          message: result.error.message || "Failed to save card",
+          position: "top-right",
+        });
         return;
       }
 
-      // 3️⃣ Attach payment method
-    const pm = result.setupIntent?.payment_method;
+      if (!result.setupIntent?.payment_method) {
+        throw new Error("Payment method not created");
+      }
 
-    if (!pm) {
-    throw new Error("Payment method not created");
-    }
+      const paymentMethodId = result.setupIntent.payment_method as string;
 
-    const paymentMethodId =
-    typeof pm === "string" ? pm : pm.id;
-
-    await attachPaymentMethod(paymentMethodId, {
+      // 3️⃣ Attach payment method to your backend
+      await attachPaymentMethod(paymentMethodId, {
         accountName: meta.accountName,
         bankName: meta.bankName,
-    });
+      });
 
       dispatchShowToast({
         type: "success",
         message: "Card saved successfully!",
         position: "top-right",
-        animation: "slide-right-in",
-        duration: 4000,
       });
+      
       onSuccess?.();
+    } catch (err: any) {
+      console.error("Save card error:", err);
+      dispatchShowToast({
+        type: "danger",
+        message: err.message || "Failed to save card. Please try again.",
+        position: "top-right",
+      });
     } finally {
       setLoading(false);
     }
@@ -71,18 +94,19 @@ export default function AddPaymentMethodForm({
 
   return (
     <div className="space-y-4">
-        <Input
-            placeholder="Card Holder Name"
-            value={meta.accountName}
-            onChange={(e) => setMeta({ ...meta, accountName: e.target.value })}
-            required
-            />
+      <Input
+        placeholder="Card Holder Name"
+        value={meta.accountName}
+        onChange={(e) => setMeta({ ...meta, accountName: e.target.value })}
+        required
+      />
 
-        <Input
-            placeholder="Bank Name (optional)"
-            value={meta.bankName}
-            onChange={(e) => setMeta({ ...meta, bankName: e.target.value })}
-        />
+      <Input
+        placeholder="Bank Name (optional)"
+        value={meta.bankName}
+        onChange={(e) => setMeta({ ...meta, bankName: e.target.value })}
+      />
+      
       <div className="border rounded-md p-3 bg-background">
         <CardElement
           options={{
@@ -90,6 +114,10 @@ export default function AddPaymentMethodForm({
             style: {
               base: {
                 fontSize: "16px",
+                color: "#32325d",
+                "::placeholder": {
+                  color: "#aab7c4",
+                },
               },
             },
           }}
