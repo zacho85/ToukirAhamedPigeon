@@ -11,7 +11,8 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
-  Wallet
+  Wallet,
+  Link as LinkIcon
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -102,9 +103,6 @@ const Dashboard: React.FC = () => {
     setIsLoading(false);
   };
 
-  // const handleMoneyAdded = async () => {
-  //   loadDashboardData();
-  // };
   console.log(user);
 
   if (isLoading) {
@@ -196,11 +194,11 @@ const Dashboard: React.FC = () => {
                   <CardTitle className="text-sm font-medium">Budget Usage</CardTitle>
                   <Target className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="w-full overflow-hidden"> {/* Add this */}
+                <CardContent className="w-full overflow-hidden">
                   <div className="text-2xl font-bold">
                     {budgetUsagePercentage.toFixed(1)}%
                   </div>
-                  <div className="relative w-full"> {/* Wrapper div */}
+                  <div className="relative w-full">
                     <Progress value={budgetUsagePercentage} className="w-full" />
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
@@ -251,7 +249,7 @@ const Dashboard: React.FC = () => {
               </Card>
             </div>
 
-                        {/* Quick Actions */}
+            {/* Quick Actions */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
@@ -279,15 +277,18 @@ const Dashboard: React.FC = () => {
                       </Link>
                     </Button>
                   </Can>
-                  <Can anyOf={["create:tontine"]}>
+                  
+                  {/* Create Payment Link - NEW OPTION (replaced Start Tontine) */}
+                  <Can anyOf={["create:payment-link"]}>
                     <Button variant="outline" size="lg" asChild className="h-auto p-6">
-                      <Link to="/tontines/create" className="flex flex-col items-center gap-2">
-                        <Users className="h-8 w-8" />
-                        <span className="font-medium">Start Tontine</span>
-                        <span className="text-xs text-muted-foreground">Create savings group</span>
+                      <Link to="/payment-links/create" className="flex flex-col items-center gap-2">
+                        <LinkIcon className="h-8 w-8" />
+                        <span className="font-medium">Payment Link</span>
+                        <span className="text-xs text-muted-foreground">Create payment link</span>
                       </Link>
                     </Button>
                   </Can>
+                  
                   <Button
                     variant="outline"
                     size="lg"
@@ -301,25 +302,7 @@ const Dashboard: React.FC = () => {
                         Send money via QR code
                         </span>
                     </div>
-                    </Button>
-                  {/* <Can anyOf={["read:qr-payment"]}>
-                    <Button variant="outline" size="lg" asChild className="h-auto p-6">
-                    <Link to="/qr/pending" className="flex flex-col items-center gap-2">
-                        <Wallet className="h-8 w-8" />
-                        <span className="font-medium">Pending QR Payments</span>
-                        <span className="text-xs text-muted-foreground">
-                        Complete wallet transfers
-                        </span>
-                    </Link>
-                    </Button>
-                </Can> */}
-                  {/* <Button variant="outline" size="lg" asChild className="h-auto p-6">
-                    <Link to="/analytics" className="flex flex-col items-center gap-2">
-                      <PieChart className="h-8 w-8" />
-                      <span className="font-medium">View Reports</span>
-                      <span className="text-xs text-muted-foreground">Analyze spending</span>
-                    </Link>
-                  </Button> */}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

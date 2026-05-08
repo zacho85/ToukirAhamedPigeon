@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Send, ArrowDownLeft, Plus, Minus } from "lucide-react";
+import { Send, ArrowDownLeft, Plus, Minus, Link as LinkIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
 
@@ -40,6 +40,15 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       action: onShowQR,
       bgColor: "bg-green-100",
       textColor: "text-green-600",
+    },
+    {
+      key: "payment-link", // New option - Create Payment Link
+      title: "Payment Link",
+      description: "Create payment link",
+      icon: LinkIcon,
+      url: "/payment-links/create",
+      bgColor: "bg-indigo-100",
+      textColor: "text-indigo-600",
     },
     {
       key: "deposit",

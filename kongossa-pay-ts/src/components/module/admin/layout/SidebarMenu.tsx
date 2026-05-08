@@ -20,6 +20,7 @@ import {
   Send,
   // Fence,
   CoinsIcon,
+  Link as LinkIcon
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -88,6 +89,12 @@ const menu = [
         permission: ["create:tontine"],
       },
     ],
+  },
+  {
+    title: "Payment Links", // New section
+    url: "/payment-links",
+    icon: LinkIcon,
+    permission: ["create:payment-link", "read:payment-link"],
   },
   {
     title: "Wallet",

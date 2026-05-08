@@ -89,58 +89,63 @@ export class StripeService {
 
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        if (session.metadata?.tontine_id) await this.handleTontinePayment(session);
-        if (session.metadata?.subscription) await this.handleSubscriptionPayment(session);
+        
+        // Handle tontine payment
+        if (session.metadata?.tontine_id) {
+          await this.handleTontinePayment(session);
+        }
+        
+        // Handle subscription payment
+        if (session.metadata?.subscription) {
+          await this.handleSubscriptionPayment(session);
+        }
+        
+        // Note: Payment link webhook is handled by separate controller
         break;
       }
 
       case 'payout.paid': {
         const payout = event.data.object as Stripe.Payout;
-
         await this.prisma.walletPayout.updateMany({
-            where: { stripePayoutId: payout.id },
-            data: { status: 'completed' },
+          where: { stripePayoutId: payout.id },
+          data: { status: 'completed' },
         });
-
         break;
-        }
-        case 'payout.failed': {
+      }
+      
+      case 'payout.failed': {
         const payout = event.data.object as Stripe.Payout;
-
         await this.prisma.walletPayout.updateMany({
-            where: { stripePayoutId: payout.id },
-            data: {
+          where: { stripePayoutId: payout.id },
+          data: {
             status: 'failed',
             failureReason: payout.failure_message || 'Unknown',
-            },
+          },
         });
-
         break;
-        }
-        case 'account.updated': {
-            const account = event.data.object as Stripe.Account;
+      }
+      
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account;
+        await this.prisma.user.updateMany({
+          where: { stripeConnectId: account.id },
+          data: {
+            stripeChargesEnabled: account.charges_enabled,
+            stripePayoutsEnabled: account.payouts_enabled,
+            stripeDetailsSubmitted: account.details_submitted,
+          },
+        });
+        this.logger.log(
+          `Connect account updated → ${account.id} | payouts: ${account.payouts_enabled}`
+        );
+        break;
+      }
 
-            await this.prisma.user.updateMany({
-                where: { stripeConnectId: account.id },
-                data: {
-                stripeChargesEnabled: account.charges_enabled,
-                stripePayoutsEnabled: account.payouts_enabled,
-                stripeDetailsSubmitted: account.details_submitted,
-                },
-            });
-
-            this.logger.log(
-                `Connect account updated → ${account.id} | payouts: ${account.payouts_enabled}`
-            );
-            break;
-            }
-
-            case 'account.application.authorized': {
-            this.logger.log(
-                `Platform authorized for account ${event.account}`
-            );
-            break;
-            }
+      case 'account.application.authorized': {
+        this.logger.log(`Platform authorized for account ${event.account}`);
+        break;
+      }
+      
       default:
         this.logger.warn(`Unhandled Stripe event: ${event.type}`);
     }
@@ -150,72 +155,65 @@ export class StripeService {
 
   // ------------------- WALLET TOPUP -------------------
   private async processWalletTopupFromIntent(intent: Stripe.PaymentIntent) {
-  console.log('🔍 Processing wallet topup from intent:', intent.id);
-  console.log('🔍 Metadata:', intent.metadata);
-  
-  const userId = Number(intent.metadata.wallet_topup_user_id);
-  const amount = intent.amount_received / 100;
-  const intentId = intent.id;
-  const chargeId = intent.latest_charge as string | null;
+    console.log('🔍 Processing wallet topup from intent:', intent.id);
+    console.log('🔍 Metadata:', intent.metadata);
+    
+    const userId = Number(intent.metadata.wallet_topup_user_id);
+    const amount = intent.amount_received / 100;
+    const intentId = intent.id;
+    const chargeId = intent.latest_charge as string | null;
 
-  console.log(`🔍 User ID: ${userId}, Amount: ${amount}, Intent: ${intentId}`);
+    console.log(`🔍 User ID: ${userId}, Amount: ${amount}, Intent: ${intentId}`);
 
-  try {
-    // 1️⃣ Find topup
-    const topup = await this.prisma.walletTopUp.findUnique({
-      where: { stripeIntentId: intentId },
-    });
+    try {
+      const topup = await this.prisma.walletTopUp.findUnique({
+        where: { stripeIntentId: intentId },
+      });
 
-    console.log('🔍 Found topup:', topup ? 'YES' : 'NO');
+      console.log('🔍 Found topup:', topup ? 'YES' : 'NO');
 
-    if (!topup) {
-      this.logger.warn(`Topup not found for intent ${intentId}`);
-      return;
+      if (!topup) {
+        this.logger.warn(`Topup not found for intent ${intentId}`);
+        return;
+      }
+
+      if (topup.status === 'succeeded') {
+        this.logger.warn(`Topup already processed → ${intentId}`);
+        return;
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.walletTopUp.update({
+          where: { id: topup.id },
+          data: { status: 'succeeded', stripeChargeId: chargeId },
+        }),
+        this.prisma.user.update({
+          where: { id: userId },
+          data: { walletBalance: { increment: amount } },
+        }),
+        this.prisma.transaction.upsert({
+          where: { transactionId: intentId },
+          update: {},
+          create: {
+            transactionId: intentId,
+            senderId: userId,
+            amount,
+            currency: topup.currency,
+            type: 'wallet_topup',
+            status: 'completed',
+            paymentMethod: 'stripe',
+            description: 'Wallet topup via Stripe. ' + (intent.metadata.remarks || ''),
+          },
+        }),
+      ]);
+
+      this.logger.log(`✅ Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
+    } catch (err: any) {
+      console.error('❌ Error processing wallet topup:', err);
+      this.logger.error('Error processing wallet topup', err);
+      throw new BadRequestException('Wallet topup failed');
     }
-
-    if (topup.status === 'succeeded') {
-      this.logger.warn(`Topup already processed → ${intentId}`);
-      return;
-    }
-
-    // 2️⃣ Run all DB updates in a real transaction
-    await this.prisma.$transaction([
-      // Update wallet topup
-      this.prisma.walletTopUp.update({
-        where: { id: topup.id },
-        data: { status: 'succeeded', stripeChargeId: chargeId },
-      }),
-
-      // Increment wallet balance
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { walletBalance: { increment: amount } },
-      }),
-
-      // Create transaction if not exists
-      this.prisma.transaction.upsert({
-        where: { transactionId: intentId },
-        update: {}, // already processed, do nothing
-        create: {
-          transactionId: intentId,
-          senderId: userId,
-          amount,
-          currency: topup.currency,
-          type: 'wallet_topup',
-          status: 'completed',
-          paymentMethod: 'stripe',
-          description: ' Wallet topup via Stripe. ' + (intent.metadata.remarks || ''),
-        },
-      }),
-    ]);
-
-    this.logger.log(`✅ Wallet topup SUCCESS → user ${userId}, amount ${amount}`);
-  } catch (err: any) {
-    console.error('❌ Error processing wallet topup:', err);
-    this.logger.error('Error processing wallet topup', err);
-    throw new BadRequestException('Wallet topup failed');
   }
-}
 
   // ------------------- TONTINE -------------------
   private async handleTontinePayment(session: Stripe.Checkout.Session) {
@@ -259,50 +257,49 @@ export class StripeService {
     this.logger.log('Subscription payment handler not implemented yet');
   }
 
+  // ------------------- STRIPE CONNECT -------------------
   async createConnectAccount(userId: number) {
-  const user = await this.prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new BadRequestException('User not found');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
 
-  // Prevent duplicate account
-  if (user.stripeConnectId) {
-    return { accountId: user.stripeConnectId };
+    if (user.stripeConnectId) {
+      return { accountId: user.stripeConnectId };
+    }
+
+    const account = await this.stripe.accounts.create({
+      type: 'express',
+      country: user.country || 'FR',
+      email: user.email,
+      business_type: user.accountType === 'business' ? 'company' : 'individual',
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      metadata: {
+        user_id: String(user.id),
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { stripeConnectId: account.id },
+    });
+
+    return { accountId: account.id };
   }
 
-  const account = await this.stripe.accounts.create({
-    type: 'express',
-    country: user.country || 'FR',
-    email: user.email,
-    business_type: user.accountType === 'business' ? 'company' : 'individual',
-    capabilities: {
-      card_payments: { requested: true },
-      transfers: { requested: true },
-    },
-    metadata: {
-      user_id: String(user.id),
-    },
-  });
+  async createOnboardingLink(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.stripeConnectId)
+      throw new BadRequestException('Connect account not created');
 
-  await this.prisma.user.update({
-    where: { id: userId },
-    data: { stripeConnectId: account.id },
-  });
+    const link = await this.stripe.accountLinks.create({
+      account: user.stripeConnectId,
+      refresh_url: `${this.config.get('FRONTEND_URL')}/stripe/onboarding/refresh`,
+      return_url: `${this.config.get('FRONTEND_URL')}/stripe/onboarding/success`,
+      type: 'account_onboarding',
+    });
 
-  return { accountId: account.id };
-}
-async createOnboardingLink(userId: number) {
-  const user = await this.prisma.user.findUnique({ where: { id: userId } });
-  if (!user?.stripeConnectId)
-    throw new BadRequestException('Connect account not created');
-
-  const link = await this.stripe.accountLinks.create({
-    account: user.stripeConnectId,
-    refresh_url: `${this.config.get('FRONTEND_URL')}/stripe/onboarding/refresh`,
-    return_url: `${this.config.get('FRONTEND_URL')}/stripe/onboarding/success`,
-    type: 'account_onboarding',
-  });
-
-  return { url: link.url };
-}
-
-
+    return { url: link.url };
+  }
 }
