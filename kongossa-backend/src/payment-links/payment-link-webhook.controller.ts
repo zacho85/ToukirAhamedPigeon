@@ -27,14 +27,14 @@ export class PaymentLinkWebhookController {
     @Headers('stripe-signature') signature: string,
   ) {
     const rawBody = (req as any).rawBody;
-    const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
+    const webhookSecret = this.config.get<string>('STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET');
     
     this.logger.log('🔵 Webhook received at /stripe/payment-links/webhook');
     this.logger.log(`Signature: ${signature?.substring(0, 20)}...`);
     
     if (!webhookSecret) {
-      this.logger.error('STRIPE_WEBHOOK_SECRET missing');
-      throw new Error('STRIPE_WEBHOOK_SECRET missing');
+      this.logger.error('STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET missing');
+      throw new Error('STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET missing');
     }
 
     if (!rawBody) {
