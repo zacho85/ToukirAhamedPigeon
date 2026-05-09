@@ -22,12 +22,10 @@ export class BackupService {
   constructor(private prisma: PrismaService) {}
 
   async createBackup(userId: number, userRole: string) {
-    // Only superadmin can create backups
     if (userRole !== 'superadmin') {
       throw new ForbiddenException('Only superadmin can create backups');
     }
 
-    // Ensure backup directory exists
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
     }
@@ -36,10 +34,22 @@ export class BackupService {
     const filename = `backup_${timestamp}.sql`;
     const filepath = path.join(this.backupDir, filename);
 
-    // Use docker exec to run pg_dump from postgres container (no host parsing needed)
+    // Get database connection from environment
+    const host = 'postgres'; // Docker container name
+    const port = '5432';
+    const user = 'kongossa_user';
+    const dbName = 'kongossa_db';
+    const password = process.env.DB_PASSWORD;
+
+    if (!password) {
+      throw new Error('DB_PASSWORD not set in environment');
+    }
+
+    // Set PGPASSWORD for pg_dump
+    process.env.PGPASSWORD = password;
+
     try {
-      // This command runs inside the host, so it has access to docker socket
-      const command = `docker exec kongossa-postgres pg_dump -U kongossa_user -d kongossa_db --no-owner --no-privileges > ${filepath}`;
+      const command = `pg_dump -h ${host} -p ${port} -U ${user} -d ${dbName} --no-owner --no-privileges > ${filepath}`;
       await execAsync(command, { shell: '/bin/sh' });
 
       const stats = fs.statSync(filepath);
@@ -55,6 +65,8 @@ export class BackupService {
     } catch (error) {
       console.error('Backup failed:', error);
       throw new Error('Backup creation failed');
+    } finally {
+      delete process.env.PGPASSWORD;
     }
   }
 
@@ -92,7 +104,6 @@ export class BackupService {
 
     const filepath = path.join(this.backupDir, filename);
     
-    // Security: Prevent path traversal
     if (!filepath.startsWith(this.backupDir)) {
       throw new ForbiddenException('Invalid filename');
     }
