@@ -63,8 +63,6 @@ export async function syncCurrentUser(delay = 2000) {
         walletBalance: currentUser.walletBalance,
         currency: currentUser.currency,
         rewards_points: currentUser.rewardsPoints,
-        role: currentUser.role,
-        permissions: currentUser.permissions,
       });
       console.log('User synced successfully');
     }
