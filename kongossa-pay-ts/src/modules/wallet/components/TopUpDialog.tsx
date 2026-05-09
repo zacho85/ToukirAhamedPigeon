@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { createTopUpIntent } from "../api";
 import { useStripe } from "@stripe/react-stripe-js";
-import { dispatchShowToast, syncCurrentUser } from "@/lib/dispatch";
+import { dispatchShowToast, syncUserProfile } from "@/lib/dispatch";
 
 export function TopUpDialog({
   open,
@@ -72,7 +72,7 @@ export function TopUpDialog({
         });
 
         // 🔄 wait for webhook
-        await syncCurrentUser();
+        await syncUserProfile();
 
         onSuccess();
         onClose();

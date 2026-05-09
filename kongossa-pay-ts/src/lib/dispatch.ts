@@ -44,6 +44,49 @@ export async function syncWalletBalance() {
   }
 }
 
+export const dispatchUpdateUserProfile = (profileData: {
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  profileImage?: string;
+  walletBalance?: number;
+  currency?: string;
+  rewards_points?: number;
+}) => {
+  store.dispatch(setUser(profileData));
+};
+
+// ✅ NEW: Fetch and sync only user profile data (not auth)
+export async function syncUserProfile(delay = 0) {
+  if (delay > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  try {
+    const currentUser = await getCurrentUser();
+    
+    if (currentUser) {
+      // Update ONLY profile data, preserve role and permissions
+      dispatchUpdateUserProfile({
+        fullName: currentUser.fullName,
+        email: currentUser.email,
+        phoneNumber: currentUser.phoneNumber,
+        profileImage: currentUser.profileImage,
+        walletBalance: currentUser.walletBalance,
+        currency: currentUser.currency,
+        rewards_points: currentUser.rewardsPoints,
+      });
+      console.log('User profile synced successfully');
+    }
+  } catch (error: any) {
+    // Silent fail for 403/401
+    if (error?.response?.status !== 403 && error?.response?.status !== 401) {
+      console.error('Failed to sync user profile:', error);
+    }
+  }
+}
+
+
 // ✅ Updated: Full user sync (use sparingly)
 export async function syncCurrentUser(delay = 2000) {
   if (delay > 0) {

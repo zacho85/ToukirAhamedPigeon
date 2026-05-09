@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { requestPayout } from "../api";
-import { dispatchShowToast, syncCurrentUser } from "@/lib/dispatch";
+import { dispatchShowToast, syncUserProfile } from "@/lib/dispatch";
 
 export function PayoutDialog({
   open,
@@ -65,7 +65,7 @@ export function PayoutDialog({
       });
 
       // Update wallet
-      await syncCurrentUser();
+      await syncUserProfile();
 
       onSuccess?.();
       onClose();
