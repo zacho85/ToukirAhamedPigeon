@@ -1,13 +1,15 @@
-import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsIn } from 'class-validator';
 
 export class TransactionHistoryDto {
   @IsOptional()
   @IsString()
-  type?: string; // send | receive | deposit | withdrawal
+  @IsIn(['all', 'topup', 'sent', 'received', 'withdrawal'])
+  type?: string = 'all';
 
   @IsOptional()
   @IsString()
-  status?: string; // completed | pending | failed
+  @IsIn(['all', 'completed', 'pending', 'failed'])
+  status?: string = 'all';
 
   @IsOptional()
   @IsString()

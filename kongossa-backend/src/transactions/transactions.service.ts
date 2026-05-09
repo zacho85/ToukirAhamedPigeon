@@ -30,11 +30,25 @@ export class TransactionsService {
       OR: [{ senderId: userId }, { recipientId: userId }],
     };
 
+    // Enhanced type filtering
     if (type && type !== 'all') {
-      if (type === 'deposit') {
-        where.type = { in: ['wallet_topup', 'deposit'] };
-      } else {
-        where.type = type;
+      switch (type) {
+        case 'topup':
+          where.type = { in: ['wallet_topup', 'deposit'] };
+          break;
+        case 'withdrawal':
+          where.type = { in: ['wallet_payout', 'withdrawal'] };
+          break;
+        case 'received':
+          where.recipientId = userId;
+          where.type = { in: ['wallet_transfer', 'payment_link'] };
+          break;
+        case 'sent':
+          where.senderId = userId;
+          where.type = { in: ['wallet_transfer', 'payment_link'] };
+          break;
+        default:
+          if (type !== 'all') where.type = type;
       }
     }
 
@@ -50,18 +64,32 @@ export class TransactionsService {
       if (toDate) where.createdAt.lte = new Date(toDate);
     }
 
+    // Get transactions with user names
     const [data, total] = await this.prisma.$transaction([
       this.prisma.transaction.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          sender: { select: { fullName: true, id: true } },
+          recipient: { select: { fullName: true, id: true } },
+        },
       }),
       this.prisma.transaction.count({ where }),
     ]);
 
+    // Transform data to include names
+    const transformedData = data.map(transaction => ({
+      ...transaction,
+      amount: Number(transaction.amount),
+      fee: Number(transaction.fee),
+      senderName: transaction.sender?.fullName,
+      recipientName: transaction.recipient?.fullName,
+    }));
+
     return {
-      data,
+      data: transformedData,
       meta: {
         total,
         page,
@@ -69,7 +97,7 @@ export class TransactionsService {
         totalPages: Math.ceil(total / limit),
       },
     };
-  }
+}
 
   async findAll() {
     return this.prisma.transaction.findMany({ orderBy: { createdAt: 'desc' } });

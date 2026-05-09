@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-// import { Transaction, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowUpRight, ArrowDownLeft, Search, Download, Filter } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Search, Download, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { fetchTransactionHistory } from "@/modules/history/api";
 import { formatDateTimeDisplay } from "@/lib/formatDate";
@@ -21,6 +20,15 @@ interface TransactionType {
   description?: string;
   senderId?: number;
   recipientId?: number;
+  senderName?: string;
+  recipientName?: string;
+}
+
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export default function History() {
@@ -33,63 +41,33 @@ export default function History() {
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
+    const [pagination, setPagination] = useState<PaginationMeta>({
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+    });
 
-    useEffect(() => {
-        loadTransactionHistory();
-    }, [filterType, filterStatus]);
-
-    const applyFilters = useCallback(() => {
-        let filtered = transactions;
-
-        // Filter by search term
-        if (searchTerm) {
-            filtered = filtered.filter(t =>
-                t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                t.recipientId?.toString().includes(searchTerm.toLowerCase()) ||
-                t.senderId?.toString().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        // Filter by type
-        if (filterType !== "all") {
-            filtered = filtered.filter(t => t.type === filterType);
-        }
-
-        // Filter by status
-        if (filterStatus !== "all") {
-            filtered = filtered.filter(t => t.status === filterStatus);
-        }
-
-        setFilteredTransactions(filtered);
-    }, [transactions, searchTerm, filterType, filterStatus]);
-
-    useEffect(() => {
-        applyFilters();
-    }, [applyFilters]);
-
-    const normalizeType = (type: string) => {
-        if (type === "wallet_topup") return "deposit";
-        return type;
-    };
-
-    const loadTransactionHistory = async () => {
+    // Load transaction history with pagination
+    const loadTransactionHistory = async (page = 1) => {
         try {
             setIsLoading(true);
             const res = await fetchTransactionHistory({
                 search: searchTerm || undefined,
                 type: filterType !== "all" ? filterType : undefined,
                 status: filterStatus !== "all" ? filterStatus : undefined,
-                page: 1,
-                limit: 50,
+                page,
+                limit: 20,
             });
 
-            const normalized = res.data.map((t: TransactionType) => ({
-                ...t,
-                type: normalizeType(t.type),
-            }));
-
-            setTransactions(normalized);
-            setFilteredTransactions(normalized);
+            setTransactions(res.data);
+            setFilteredTransactions(res.data);
+            setPagination({
+                total: res.meta.total,
+                page: res.meta.page,
+                limit: res.meta.limit,
+                totalPages: res.meta.totalPages,
+            });
         } catch (err) {
             console.error(err);
         } finally {
@@ -97,11 +75,26 @@ export default function History() {
         }
     };
 
-    /**
-     * Determines if the current user is the sender or recipient
-     * Returns 'sent', 'received', or 'unknown'
-     */
+    useEffect(() => {
+        loadTransactionHistory(1);
+    }, [filterType, filterStatus]);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= pagination.totalPages) {
+            loadTransactionHistory(newPage);
+        }
+    };
+
+    const handleSearch = () => {
+        loadTransactionHistory(1);
+    };
+
     const getTransactionDirection = (transaction: TransactionType): 'sent' | 'received' | 'unknown' => {
+        // For wallet_topup, always treat as received (positive amount)
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return 'received';
+        }
+        // For wallet_transfer, check sender/recipient
         if (transaction.senderId === currentUserId) {
             return 'sent';
         }
@@ -111,9 +104,6 @@ export default function History() {
         return 'unknown';
     };
 
-    /**
-     * Returns the appropriate icon based on transaction direction
-     */
     const getTransactionIcon = (transaction: TransactionType) => {
         const direction = getTransactionDirection(transaction);
         
@@ -123,49 +113,39 @@ export default function History() {
         if (direction === 'received') {
             return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
         }
-        // Fallback based on type
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
         }
         return <ArrowUpRight className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
     };
 
-    /**
-     * Returns the formatted amount with +/- sign based on direction
-     */
     const getFormattedAmount = (transaction: TransactionType) => {
-        const direction = getTransactionDirection(transaction);
         const amount = Number(transaction.amount || 0).toFixed(2);
         
+        // For top-ups, always show positive
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return `+$${amount}`;
+        }
+        
+        const direction = getTransactionDirection(transaction);
         if (direction === 'sent') {
             return `-$${amount}`;
         }
         if (direction === 'received') {
             return `+$${amount}`;
         }
-        // Fallback based on type
-        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
-            return `+$${amount}`;
-        }
-        return `-$${amount}`;
+        return `$${amount}`;
     };
 
-    /**
-     * Returns the color class for the amount based on direction
-     */
     const getAmountColorClass = (transaction: TransactionType) => {
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return 'text-green-600 dark:text-green-400';
+        }
         const direction = getTransactionDirection(transaction);
-        
         if (direction === 'sent') {
             return 'text-red-600 dark:text-red-400';
         }
-        if (direction === 'received') {
-            return 'text-green-600 dark:text-green-400';
-        }
-        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
-            return 'text-green-600 dark:text-green-400';
-        }
-        return 'text-red-600 dark:text-red-400';
+        return 'text-green-600 dark:text-green-400';
     };
 
     const getStatusColor = (status: string) => {
@@ -181,10 +161,44 @@ export default function History() {
         }
     };
 
+    const getTransactionTitle = (transaction: TransactionType) => {
+        // Handle top-ups
+        if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return 'Wallet Top Up';
+        }
+        
+        // Handle payouts/withdrawals
+        if (transaction.type === 'withdrawal' || transaction.type === 'wallet_payout') {
+            return 'Withdrawal';
+        }
+        
+        // Handle payment links
+        if (transaction.type === 'payment_link') {
+            const direction = getTransactionDirection(transaction);
+            if (direction === 'received') {
+                return 'Payment Received via Link';
+            }
+            return 'Payment Made via Link';
+        }
+        
+        // Handle transfers
+        const direction = getTransactionDirection(transaction);
+        if (direction === 'sent') {
+            const recipientName = transaction.recipientName || `User ${transaction.recipientId}`;
+            return `Sent to ${recipientName}`;
+        }
+        if (direction === 'received') {
+            const senderName = transaction.senderName || `User ${transaction.senderId}`;
+            return `Received from ${senderName}`;
+        }
+        
+        return transaction.description || `${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} Transaction`;
+    };
+
     const exportTransactions = () => {
         const csvContent = [
             ['Date', 'Type', 'Amount', 'Currency', 'Status', 'Description'],
-            ...filteredTransactions.map(t => [
+            ...transactions.map(t => [
                 formatDateTimeDisplay(t.createdAt),
                 t.type,
                 getFormattedAmount(t).replace('$', ''),
@@ -200,19 +214,6 @@ export default function History() {
         a.href = url;
         a.download = `transactions_${format(new Date(), 'yyyy-MM-dd')}.csv`;
         a.click();
-    };
-
-    // Helper to get transaction title/description
-    const getTransactionTitle = (transaction: TransactionType) => {
-        const direction = getTransactionDirection(transaction);
-        
-        if (direction === 'sent') {
-            return `Sent to ${transaction.recipientId || 'User'}`;
-        }
-        if (direction === 'received') {
-            return `Received from ${transaction.senderId || 'User'}`;
-        }
-        return transaction.description || `${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} Transaction`;
     };
 
     if (isLoading) {
@@ -239,6 +240,7 @@ export default function History() {
                 </Button>
             </div>
 
+            {/* Filter Section */}
             <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                 <CardHeader>
                     <CardTitle className="dark:text-gray-100">Filter & Search</CardTitle>
@@ -253,6 +255,13 @@ export default function History() {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                             />
+                            <Button 
+                                onClick={handleSearch}
+                                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8"
+                                size="sm"
+                            >
+                                Go
+                            </Button>
                         </div>
                         <Select value={filterType} onValueChange={setFilterType}>
                             <SelectTrigger className="w-full md:w-48 dark:bg-gray-700 dark:text-gray-100">
@@ -260,9 +269,9 @@ export default function History() {
                             </SelectTrigger>
                             <SelectContent className="dark:bg-gray-700 dark:text-gray-100">
                                 <SelectItem value="all">All Types</SelectItem>
-                                <SelectItem value="send">Send Money</SelectItem>
-                                <SelectItem value="receive">Receive Money</SelectItem>
-                                <SelectItem value="deposit">Deposits</SelectItem>
+                                <SelectItem value="topup">Top Up / Deposit</SelectItem>
+                                <SelectItem value="sent">Send Money</SelectItem>
+                                <SelectItem value="received">Received Money</SelectItem>
                                 <SelectItem value="withdrawal">Withdrawals</SelectItem>
                             </SelectContent>
                         </Select>
@@ -281,12 +290,13 @@ export default function History() {
                 </CardContent>
             </Card>
 
+            {/* Transactions List */}
             <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                 <CardHeader>
                     <CardTitle className="dark:text-gray-100">
                         All Transactions
                         <Badge variant="outline" className="ml-2">
-                            {filteredTransactions.length} results
+                            {pagination.total} results
                         </Badge>
                     </CardTitle>
                 </CardHeader>
@@ -298,43 +308,70 @@ export default function History() {
                                 <p className="text-slate-500 dark:text-gray-300">No transactions found matching your criteria</p>
                             </div>
                         ) : (
-                            filteredTransactions.map((transaction) => {
-                                const direction = getTransactionDirection(transaction);
-                                const isSent = direction === 'sent';
-                                
-                                return (
-                                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-slate-100 dark:bg-gray-600 rounded-full flex items-center justify-center">
-                                                {getTransactionIcon(transaction)}
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-slate-900 dark:text-gray-100">
-                                                    {getTransactionTitle(transaction)}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <p className="text-sm text-slate-500 dark:text-gray-400">
-                                                        {formatDateTimeDisplay(transaction.createdAt)}
-                                                    </p>
-                                                    <Badge className={getStatusColor(transaction.status)}>
-                                                        {transaction.status}
-                                                    </Badge>
-                                                </div>
-                                            </div>
+                            filteredTransactions.map((transaction) => (
+                                <div key={transaction.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-slate-100 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                            {getTransactionIcon(transaction)}
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`text-lg font-semibold ${getAmountColorClass(transaction)}`}>
-                                                {getFormattedAmount(transaction)}
+                                        <div>
+                                            <p className="font-semibold text-slate-900 dark:text-gray-100">
+                                                {getTransactionTitle(transaction)}
                                             </p>
-                                            <p className="text-sm text-slate-500 dark:text-gray-400">
-                                                {transaction.currency || 'USD'}
-                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <p className="text-sm text-slate-500 dark:text-gray-400">
+                                                    {formatDateTimeDisplay(transaction.createdAt)}
+                                                </p>
+                                                <Badge className={getStatusColor(transaction.status)}>
+                                                    {transaction.status}
+                                                </Badge>
+                                            </div>
+                                            {transaction.description && (
+                                                <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
+                                                    {transaction.description}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-                                );
-                            })
+                                    <div className="text-right">
+                                        <p className={`text-lg font-semibold ${getAmountColorClass(transaction)}`}>
+                                            {getFormattedAmount(transaction)}
+                                        </p>
+                                        <p className="text-sm text-slate-500 dark:text-gray-400">
+                                            {transaction.currency || 'USD'}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))
                         )}
                     </div>
+                    
+                    {/* Pagination */}
+                    {pagination.totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-2 mt-6">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(pagination.page - 1)}
+                                disabled={pagination.page <= 1}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                                Previous
+                            </Button>
+                            <span className="text-sm text-slate-600 dark:text-gray-400">
+                                Page {pagination.page} of {pagination.totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(pagination.page + 1)}
+                                disabled={pagination.page >= pagination.totalPages}
+                            >
+                                Next
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
