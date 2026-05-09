@@ -28,7 +28,30 @@ export class MailService {
 
   async sendOtpEmail(to: string, otpCode: string, purpose: string = 'login') {
     const subject = purpose === 'login' ? '🔐 Login Verification Code' : '📧 Welcome to Kongossa Pay - Verify Your Email';
-    const html = this.getOtpEmailTemplate(otpCode, purpose);
+    
+    // Simple HTML template for testing
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>OTP Verification</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f7fb; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; text-align: center;">
+          <h1 style="color: #1e3c72;">Kongossa Pay</h1>
+          <h2>Your Verification Code</h2>
+          <div style="font-size: 48px; font-weight: bold; letter-spacing: 5px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin: 20px 0;">
+            ${otpCode}
+          </div>
+          <p>This code will expire in 10 minutes.</p>
+          <hr style="margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">Secure Digital Payments Platform</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
     const text = `Your OTP code is: ${otpCode}. It will expire in 10 minutes.`;
     
     return this.sendMail(to, subject, html, text);
