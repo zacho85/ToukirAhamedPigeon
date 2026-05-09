@@ -1,49 +1,61 @@
+// kongossa-backend/src/auth/otp.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { SendOtpDto } from './dto/send-otp.dto';
-import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class OtpService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
-  async sendOtp(data: SendOtpDto) {
+  async sendOtp(email: string, purpose: string, userId?: number) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const codeHash = await bcrypt.hash(code, 10);
 
-    return this.prisma.otp.create({
+    // Save OTP to database (userId is optional)
+    await this.prisma.otp.create({
       data: {
-        email: data.email,
-        purpose: data.purpose,
+        email,
+        purpose,
         codeHash,
-        userId: data.userId,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min expiry
+        userId, // Can be undefined (will be stored as NULL)
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
+
+    await this.mailService.sendOtpEmail(email, code, purpose);
+    
+    return { success: true, message: 'OTP sent to email' };
   }
 
-  async verifyOtp(data: VerifyOtpDto) {
-    try{
-      const otp = await this.prisma.otp.findFirst({
-        where: { email: data.email, purpose: data.purpose, used: false },
-      });
+  async verifyOtp(email: string, code: string, purpose: string) {
+    const otp = await this.prisma.otp.findFirst({
+      where: {
+        email,
+        purpose,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
 
-      if (!otp) throw new Error('OTP not found or already used');
-
-      const isValid = await bcrypt.compare(data.code, otp.codeHash);
-      if (!isValid) throw new Error('Invalid OTP');
-
-      // mark as used
-      await this.prisma.otp.update({
-        where: { id: otp.id },
-        data: { used: true },
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.log(error);
-      return { message: 'OTP verification failed', error: error.message };
+    if (!otp) {
+      throw new Error('OTP not found or expired');
     }
+
+    const isValid = await bcrypt.compare(code, otp.codeHash);
+    if (!isValid) {
+      throw new Error('Invalid OTP');
+    }
+
+    // Mark as used
+    await this.prisma.otp.update({
+      where: { id: otp.id },
+      data: { used: true },
+    });
+
+    return { success: true };
   }
 }
