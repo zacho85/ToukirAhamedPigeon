@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { payQRPayment } from "@/modules/dashboard/api/qrPayments";
-import { syncCurrentUser, dispatchShowToast } from "@/lib/dispatch";
+import { syncCurrentUser, dispatchShowToast, dispatchUpdateWalletBalance } from "@/lib/dispatch";
 
 export default function CompleteQRPaymentDialog({
   open,
@@ -22,11 +22,13 @@ export default function CompleteQRPaymentDialog({
   const handlePay = async () => {
     setLoading(true);
     try {
-      await payQRPayment(qr.id, {
+      const response = await payQRPayment(qr.id, {
         amount: qr.amount ? undefined : Number(amount),
       });
 
-      await syncCurrentUser();
+      if (response.updatedBalance !== undefined) {
+        dispatchUpdateWalletBalance(response.updatedBalance);
+      }
 
       dispatchShowToast({
         type: "success",

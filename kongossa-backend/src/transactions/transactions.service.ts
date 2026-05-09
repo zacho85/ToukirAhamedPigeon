@@ -187,10 +187,71 @@ export class TransactionsService {
     const amount = customAmount || qrPayment.amount;
     if (!amount) throw new BadRequestException('Amount is required');
 
-    return this.sendMoney(senderId, {
-      recipientId: qrPayment.recipientId,
-      amount,
-      description: qrPayment.description || 'QR code payment',
+    // Get sender to check balance
+    const sender = await this.prisma.user.findUnique({ where: { id: senderId } });
+    if (!sender) throw new NotFoundException('Sender not found');
+
+    const settings = await this.prisma.systemSettings.findFirst();
+    if (!settings) throw new BadRequestException('System settings not configured');
+
+    const transferFee = amount * (settings.transferFeePercent / 100);
+    const totalDeduction = amount + transferFee;
+
+    if (sender.walletBalance < totalDeduction) {
+      throw new BadRequestException('Insufficient balance');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1️⃣ Create transaction record
+      const transaction = await tx.transaction.create({
+        data: {
+          transactionId: crypto.randomUUID(),
+          senderId,
+          recipientId: qrPayment.recipientId,
+          amount: amount,
+          fee: transferFee,
+          type: 'wallet_transfer',
+          status: 'completed',
+          description: qrPayment.description || 'QR code payment',
+        },
+      });
+
+      // 2️⃣ Update sender's balance (decrease)
+      const updatedSender = await tx.user.update({
+        where: { id: senderId },
+        data: { walletBalance: { decrement: totalDeduction } },
+      });
+
+      // 3️⃣ Update recipient's balance (increase)
+      await tx.user.update({
+        where: { id: qrPayment.recipientId },
+        data: { walletBalance: { increment: amount } },
+      });
+
+      // 4️⃣ Update QR payment usage count
+      await tx.qRPayment.update({
+        where: { id: qrPaymentId },
+        data: { usageCount: { increment: 1 } },
+      });
+
+      console.log(`QR Payment: Sender ${senderId}: -${totalDeduction}, Recipient ${qrPayment.recipientId}: +${amount}`);
+
+      // 5️⃣ Return with updated balance
+      return {
+        success: true,
+        message: 'QR payment completed successfully',
+        transaction: {
+          id: transaction.id,
+          transactionId: transaction.transactionId,
+          amount: transaction.amount,
+          fee: transaction.fee,
+          type: transaction.type,
+          status: transaction.status,
+          description: transaction.description,
+          createdAt: transaction.createdAt,
+        },
+        updatedBalance: updatedSender.walletBalance,
+      };
     });
   }
 }

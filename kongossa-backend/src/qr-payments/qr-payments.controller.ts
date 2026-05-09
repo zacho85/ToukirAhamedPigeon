@@ -68,10 +68,12 @@ export class QRPaymentsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { amount?: number },
   ) {
-    return this.transactionsService.processQRPayment(
+    const result = await this.transactionsService.processQRPayment(
       req.user.userId,
       id,
       body.amount,
     );
+    
+    return result;
   }
 }
