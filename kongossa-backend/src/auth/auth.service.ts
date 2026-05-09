@@ -528,14 +528,12 @@ export class AuthService {
       const hash = await bcrypt.hash(user.email, 12);
       const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${user.id}/${hash}`;
 
-      await this.mailService.sendMail(
-        email,
-        'Verify Your Email',
-        `Click here to verify your email: ${verificationLink}`
-      );
+      // ✅ Send HTML email
+      await this.mailService.sendEmailVerification(email, verificationLink);
 
       return { message: 'Verification email sent successfully' };
     }
+
 
     async confirmPassword(userId: number, password: string) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });

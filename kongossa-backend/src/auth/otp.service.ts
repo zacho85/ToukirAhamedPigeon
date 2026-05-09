@@ -28,11 +28,8 @@ export class OtpService {
       data: { email, codeHash, purpose, expiresAt, userId: user.id },
     });
 
-    await this.mailService.sendMail(
-      email,
-      'Your OTP Code',
-      `Your OTP code is ${code}. It will expire in 10 minutes.`
-    );
+    // ✅ Send HTML email
+    await this.mailService.sendOtpEmail(email, code, purpose);
 
     return { message: 'OTP sent successfully', otpToken: code };
   }
@@ -63,4 +60,3 @@ export class OtpService {
     return { message: 'OTP verified successfully' };
   }
 }
-
