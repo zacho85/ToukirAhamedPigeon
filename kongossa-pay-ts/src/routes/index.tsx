@@ -121,6 +121,8 @@ export default function AppRoutes() {
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
       <Route path="/pay/:linkId" element={<PublicPaymentPage />} />
+      <Route path="/payment-link/success" element={<PaymentLinkSuccess />} />
+      <Route path="/payment-link/cancel" element={<PaymentLinkCancel />} />
 
       <Route path="/unauthorized" element={<Unauthorized />} />
 
@@ -176,8 +178,7 @@ export default function AppRoutes() {
             <CreatePaymentLink />
           </ProtectedRoute>
         } />
-        <Route path="/payment-link/success" element={<PaymentLinkSuccess />} />
-      <Route path="/payment-link/cancel" element={<PaymentLinkCancel />} />
+        
 
         {/* Contributions */}
         <Route path="tontine-contributions" element={<ProtectedRoute allOf={["read:tontine-contribution"]}><ContributionList /></ProtectedRoute>} />

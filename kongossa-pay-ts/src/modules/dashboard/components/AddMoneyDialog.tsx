@@ -45,8 +45,8 @@ export default function AddMoneyDialog({ isOpen, onClose, onMoneyAdded, user }: 
       });
 
       // Update user's balance
-      const newBalance = (user?.wallet_balance || 0) + parseFloat(amount);
-      await updateUser(String(user?.id || ''), { wallet_balance: newBalance });
+      const newBalance = (user?.walletBalance || 0) + parseFloat(amount);
+      await updateUser(String(user?.id || ''), { walletBalance: newBalance });
 
       onMoneyAdded();
       onClose();

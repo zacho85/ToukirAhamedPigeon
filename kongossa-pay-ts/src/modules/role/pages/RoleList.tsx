@@ -29,6 +29,7 @@ import PageTransition from '@/components/module/admin/layout/PageTransition';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Can } from "@/components/custom/Can";
+
 // ------------------------------------
 // Types
 // ------------------------------------
@@ -56,26 +57,26 @@ export default function RoleList() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(false);
 
- const [permissionsList, setPermissionsList] = useState<Permission[]>([]);
+  const [permissionsList, setPermissionsList] = useState<Permission[]>([]);
 
- const [permissionActions, setPermissionActions] = useState<
-  { label: string; value: string }[]
->([]);
-const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
-const [isEditPermissionModalOpen, setIsEditPermissionModalOpen] = useState(false);
-const [createPermissionForm, setCreatePermissionForm] = useState({
-  actions: [] as string[], // multiple actions for create
-  resource: "",
-  description: "",
-  roles: [] as string[],
-});
+  const [permissionActions, setPermissionActions] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [isEditPermissionModalOpen, setIsEditPermissionModalOpen] = useState(false);
+  const [createPermissionForm, setCreatePermissionForm] = useState({
+    actions: [] as string[],
+    resource: "",
+    description: "",
+    roles: [] as string[],
+  });
 
-const [editPermissionForm, setEditPermissionForm] = useState({
-  action: "", // single action for edit
-  resource: "",
-  description: "",
-  roles: [] as string[],
-});
+  const [editPermissionForm, setEditPermissionForm] = useState({
+    action: "",
+    resource: "",
+    description: "",
+    roles: [] as string[],
+  });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -89,11 +90,8 @@ const [editPermissionForm, setEditPermissionForm] = useState({
 
   const [editingPermission, setEditingPermission] = useState<any>(null);
 
-  const [isDeletePermissionModalOpen, setIsDeletePermissionModalOpen] =
-  useState(false);
+  const [isDeletePermissionModalOpen, setIsDeletePermissionModalOpen] = useState(false);
   const [deletePermissionId, setDeletePermissionId] = useState<string | null>(null);
-
-
 
   const editPermission = (permission: any) => {
     setEditingPermission(permission);
@@ -105,7 +103,6 @@ const [editPermissionForm, setEditPermissionForm] = useState({
     });
     setIsEditPermissionModalOpen(true);
   };
-
 
   // Fetch Roles
   const fetchRoles = async () => {
@@ -149,6 +146,7 @@ const [editPermissionForm, setEditPermissionForm] = useState({
   const fetchPermissionsList = async () => {
     const res = await getAllPermissionsWithRoles();
     setPermissionsList(res);
+    setLoading(false);
   };
 
   const handleCreatePermission = async () => {
@@ -156,7 +154,7 @@ const [editPermissionForm, setEditPermissionForm] = useState({
       await createPermission(createPermissionForm);
       setIsPermissionModalOpen(false);
       setCreatePermissionForm({
-        actions: [] as string[], // <-- change here
+        actions: [] as string[],
         resource: "",
         description: "",
         roles: [],
@@ -171,7 +169,6 @@ const [editPermissionForm, setEditPermissionForm] = useState({
       );
     }
   };
-
 
   useEffect(() => {
     fetchRoles();
@@ -219,15 +216,6 @@ const [editPermissionForm, setEditPermissionForm] = useState({
       permissions: role.permissions.map(p => p.id),
     });
     setIsEditModalOpen(true);
-    dispatch(
-      showToast({
-        type: "info",
-        message: "Edit role: " + role.name,
-        position: "top-right",
-        animation: "slide-right-in",
-        duration: 4000,
-      })
-    );
   };
 
   // Update Role
@@ -279,7 +267,6 @@ const [editPermissionForm, setEditPermissionForm] = useState({
     }
   };
 
-
   // Delete Role
   const handleDeleteRole = async () => {
     if (!deleteRoleId) return;
@@ -311,8 +298,8 @@ const [editPermissionForm, setEditPermissionForm] = useState({
     }
   };
 
-const handleDeletePermission = async () => {
-  if (!deletePermissionId) return;
+  const handleDeletePermission = async () => {
+    if (!deletePermissionId) return;
 
     try {
       await deletePermission(deletePermissionId);
@@ -332,17 +319,13 @@ const handleDeletePermission = async () => {
     } catch (err: any) {
       console.error("Delete permission error:", err);
 
-      // Extract string message safely
       let message = "Permission cannot be deleted";
       const data = err?.response?.data;
 
       if (data) {
-        // If backend sends { message: string, ... }
         if (typeof data.message === "string") {
           message = data.message;
-        }
-        // fallback if backend sends an array of messages
-        else if (Array.isArray(data.message)) {
+        } else if (Array.isArray(data.message)) {
           message = data.message.join(", ");
         }
       } else if (err?.message) {
@@ -361,8 +344,6 @@ const handleDeletePermission = async () => {
     }
   };
 
-
-
   const confirmDeletePermission = (permissionId: string) => {
     setDeletePermissionId(permissionId);
     setIsDeletePermissionModalOpen(true);
@@ -375,246 +356,353 @@ const handleDeletePermission = async () => {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-6 px-3 sm:px-4 md:px-6">
         <Breadcrumbs items={breadcrumbs} />
 
-        {/* Header */}
-        <div className="flex justify-end">
-          {/* <h2 className="text-2xl font-bold tracking-tight">Roles</h2> */}
+        {/* Header Buttons - Responsive */}
+        <div className="flex flex-col sm:flex-row justify-end gap-2">
           <Can anyOf={["create:role"]}>
-            <Button onClick={() => setIsModalOpen(true)} className="mr-2">
+            <Button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Add New Role
             </Button>
           </Can>
           <Can anyOf={["create:permission"]}>
-            <Button onClick={() => setIsPermissionModalOpen(true)}>
+            <Button onClick={() => setIsPermissionModalOpen(true)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add New Permission
             </Button>
           </Can>
         </div>
 
-        {/* Table */}
-        <h2 className="text-xl font-semibold mt-10">Roles</h2>
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-          <div className="p-6">
+        {/* Roles Section - Mobile Optimized */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4 text-foreground">Roles</h2>
+          <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
             {loading ? (
-              <p>Loading...</p>
+              <div className="p-8 text-center text-muted-foreground">Loading roles...</div>
             ) : roles.length === 0 ? (
-              <p>No roles found</p>
+              <div className="p-8 text-center text-muted-foreground">No roles found</div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SL</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Total Users</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roles.map((role, index) => (
-                    <TableRow key={role.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{role.name.charAt(0).toUpperCase() + role.name.slice(1)}</TableCell>
-                      <TableCell>{role.total_users}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {role.permissions.map((perm) => (
-                            <Badge key={perm.id} className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                              {perm.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Can anyOf={["update:role"]}>
-                            <Button variant="outline" size="sm" onClick={() => handleEditRole(role)}>
-                              <Edit className="h-4 w-4 mr-1" /> Edit
-                            </Button>
-                          </Can>
-                          <Can anyOf={["delete:role"]}>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteRoleId(role.id);
-                                setIsDeleteModalOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" /> Delete
-                            </Button>
-                          </Can>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        </div>
-
-        <h2 className="text-xl font-semibold mt-10">Permissions</h2>
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-          <div className="p-6">
-            {loading ? (
-              <p>Loading...</p>
-            ) : roles.length === 0 ? (
-              <p>No roles found</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SL</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Total Roles</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {permissionsList.map((perm, i) => (
-                    <TableRow key={perm.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell>{perm.name}</TableCell>
-                      <TableCell>{perm.roles.length}</TableCell>
-                      <TableCell>{perm.description}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => editPermission(perm)}>
-                            <Edit className="h-4 w-4 mr-1" /> Edit
+              // Mobile Card View (visible on mobile, hidden on desktop)
+              <div className="block md:hidden divide-y divide-border">
+                {roles.map((role, index) => (
+                  <div key={role.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                        <h3 className="font-semibold text-foreground mt-1">
+                          {role.name.charAt(0).toUpperCase() + role.name.slice(1)}
+                        </h3>
+                      </div>
+                      <div className="flex gap-2">
+                        <Can anyOf={["update:role"]}>
+                          <Button variant="outline" size="sm" onClick={() => handleEditRole(role)}>
+                            <Edit className="h-3 w-3" />
                           </Button>
+                        </Can>
+                        <Can anyOf={["delete:role"]}>
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => confirmDeletePermission(perm.id)}
+                            onClick={() => {
+                              setDeleteRoleId(role.id);
+                              setIsDeleteModalOpen(true);
+                            }}
                           >
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            <Trash2 className="h-3 w-3" />
                           </Button>
+                        </Can>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Total Users:</span>
+                        <p className="font-medium text-foreground">{role.total_users}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Permissions:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {role.permissions.length > 0 ? (
+                            <>
+                              {role.permissions.slice(0, 3).map((perm) => (
+                                <Badge key={perm.id} variant="secondary" className="text-xs">
+                                  {perm.name.split(":").pop()}
+                                </Badge>
+                              ))}
+                              {role.permissions.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{role.permissions.length - 3}
+                                </Badge>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </div>
-                      </TableCell>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Desktop Table View (hidden on mobile) */}
+            {!loading && roles.length > 0 && (
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px]">SL</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Total Users</TableHead>
+                      <TableHead>Permissions</TableHead>
+                      <TableHead className="w-[120px]">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {roles.map((role, index) => (
+                      <TableRow key={role.id}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="font-medium">
+                          {role.name.charAt(0).toUpperCase() + role.name.slice(1)}
+                        </TableCell>
+                        <TableCell>{role.total_users}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {role.permissions.slice(0, 3).map((perm) => (
+                              <Badge key={perm.id} variant="secondary" className="text-xs">
+                                {perm.name}
+                              </Badge>
+                            ))}
+                            {role.permissions.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{role.permissions.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Can anyOf={["update:role"]}>
+                              <Button variant="outline" size="sm" onClick={() => handleEditRole(role)}>
+                                <Edit className="h-3 w-3 sm:mr-1" />
+                                <span className="hidden sm:inline"> Edit</span>
+                              </Button>
+                            </Can>
+                            <Can anyOf={["delete:role"]}>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteRoleId(role.id);
+                                  setIsDeleteModalOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3 sm:mr-1" />
+                                <span className="hidden sm:inline"> Delete</span>
+                              </Button>
+                            </Can>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
         </div>
 
-            {/* ================= CREATE PERMISSION MODAL ================= */}
-          <Dialog
-            open={isPermissionModalOpen}
-            onOpenChange={setIsPermissionModalOpen}
-          >
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Add New Permission</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                {/* Action */}
-                <div>
-                  <Label>Action</Label>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {permissionActions.map((a) => (
-                      <label key={a.value} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={createPermissionForm.actions.includes(a.value)}
-                          onCheckedChange={(checked) => {
-                            setCreatePermissionForm({
-                              ...createPermissionForm,
-                              actions: checked
-                                ? [...createPermissionForm.actions, a.value]
-                                : createPermissionForm.actions.filter((v) => v !== a.value),
-                            });
-                          }}
-                        />
-                        <span>{a.label}</span>
-                      </label>
-                    ))}
+        {/* Permissions Section - Mobile Optimized */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4 text-foreground">Permissions</h2>
+          <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center text-muted-foreground">Loading permissions...</div>
+            ) : permissionsList.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">No permissions found</div>
+            ) : (
+              // Mobile Card View (visible on mobile, hidden on desktop)
+              <div className="block md:hidden divide-y divide-border">
+                {permissionsList.map((perm, i) => (
+                  <div key={perm.id} className="p-4 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-xs text-muted-foreground">#{i + 1}</span>
+                        <p className="font-mono text-sm text-foreground mt-1 break-all">{perm.name}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => editPermission(perm)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => confirmDeletePermission(perm.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Total Roles:</span>
+                        <p className="font-medium text-foreground">{perm.roles.length}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Description:</span>
+                        <p className="text-sm text-foreground">{perm.description || "—"}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
+              </div>
+            )}
 
-                {/* Resource */}
-                <div>
-                  <Label>Resource</Label>
-                  <Input
-                    placeholder="e.g. users, orders"
-                    value={createPermissionForm.resource}
-                    onChange={(e) =>
-                      setCreatePermissionForm({
-                        ...createPermissionForm,
-                        resource: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={createPermissionForm.description}
-                    onChange={(e) =>
-                      setCreatePermissionForm({
-                        ...createPermissionForm,
-                        description: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-
-                {/* Roles */}
-                <div>
-                  <Label>Assign to Roles</Label>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {roles.map((role) => (
-                      <label key={role.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={createPermissionForm.roles.includes(role.id)}
-                          onCheckedChange={(checked) => {
-                            setCreatePermissionForm({
-                              ...createPermissionForm,
-                              roles: checked
-                                ? [...createPermissionForm.roles, role.id]
-                                : createPermissionForm.roles.filter((id) => id !== role.id),
-                            });
-                          }}
-                        />
-                        <span>{role.name}</span>
-                      </label>
+            {/* Desktop Table View (hidden on mobile) */}
+            {!loading && permissionsList.length > 0 && (
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px]">SL</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Total Roles</TableHead>
+                      <TableHead className="hidden lg:table-cell">Description</TableHead>
+                      <TableHead className="w-[120px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {permissionsList.map((perm, i) => (
+                      <TableRow key={perm.id}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell className="font-mono text-sm break-all">{perm.name}</TableCell>
+                        <TableCell>{perm.roles.length}</TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground">
+                          {perm.description || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => editPermission(perm)}>
+                              <Edit className="h-3 w-3 sm:mr-1" />
+                              <span className="hidden sm:inline"> Edit</span>
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => confirmDeletePermission(perm.id)}
+                            >
+                              <Trash2 className="h-3 w-3 sm:mr-1" />
+                              <span className="hidden sm:inline"> Delete</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </div>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ================= CREATE PERMISSION MODAL ================= */}
+        <Dialog open={isPermissionModalOpen} onOpenChange={setIsPermissionModalOpen}>
+          <DialogContent className="sm:max-w-[500px] w-[95vw] rounded-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Permission</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Actions</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                  {permissionActions.map((a) => (
+                    <label key={a.value} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={createPermissionForm.actions.includes(a.value)}
+                        onCheckedChange={(checked) => {
+                          setCreatePermissionForm({
+                            ...createPermissionForm,
+                            actions: checked
+                              ? [...createPermissionForm.actions, a.value]
+                              : createPermissionForm.actions.filter((v) => v !== a.value),
+                          });
+                        }}
+                      />
+                      <span className="text-foreground">{a.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              <DialogFooter className="mt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsPermissionModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleCreatePermission}>Create</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              <div>
+                <Label>Resource</Label>
+                <Input
+                  placeholder="e.g. users, orders"
+                  value={createPermissionForm.resource}
+                  onChange={(e) =>
+                    setCreatePermissionForm({
+                      ...createPermissionForm,
+                      resource: e.target.value,
+                    })
+                  }
+                />
+              </div>
 
-          {/* ================= EDIT PERMISSION MODAL ================= */}
-        <Dialog
-          open={isEditPermissionModalOpen}
-          onOpenChange={setIsEditPermissionModalOpen}
-        >
-          <DialogContent className="sm:max-w-[500px]">
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={createPermissionForm.description}
+                  onChange={(e) =>
+                    setCreatePermissionForm({
+                      ...createPermissionForm,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label>Assign to Roles</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2 max-h-[200px] overflow-y-auto">
+                  {roles.map((role) => (
+                    <label key={role.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={createPermissionForm.roles.includes(role.id)}
+                        onCheckedChange={(checked) => {
+                          setCreatePermissionForm({
+                            ...createPermissionForm,
+                            roles: checked
+                              ? [...createPermissionForm.roles, role.id]
+                              : createPermissionForm.roles.filter((id) => id !== role.id),
+                          });
+                        }}
+                      />
+                      <span className="text-foreground">{role.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsPermissionModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreatePermission}>Create</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ================= EDIT PERMISSION MODAL ================= */}
+        <Dialog open={isEditPermissionModalOpen} onOpenChange={setIsEditPermissionModalOpen}>
+          <DialogContent className="sm:max-w-[500px] w-[95vw] rounded-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Permission</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
-              {/* Action */}
               <div>
                 <Label>Action</Label>
                 <Select
@@ -624,7 +712,7 @@ const handleDeletePermission = async () => {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select action" />
                   </SelectTrigger>
                   <SelectContent>
                     {permissionActions.map((a) => (
@@ -636,7 +724,6 @@ const handleDeletePermission = async () => {
                 </Select>
               </div>
 
-              {/* Resource */}
               <div>
                 <Label>Resource</Label>
                 <Input
@@ -650,7 +737,6 @@ const handleDeletePermission = async () => {
                 />
               </div>
 
-              {/* Description */}
               <div>
                 <Label>Description</Label>
                 <Textarea
@@ -664,12 +750,11 @@ const handleDeletePermission = async () => {
                 />
               </div>
 
-              {/* Roles */}
               <div>
                 <Label>Assigned Roles</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 mt-2 max-h-[200px] overflow-y-auto">
                   {roles.map((role) => (
-                    <label key={role.id} className="flex items-center gap-2">
+                    <label key={role.id} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={editPermissionForm.roles.includes(role.id)}
                         onCheckedChange={(checked) => {
@@ -681,18 +766,15 @@ const handleDeletePermission = async () => {
                           });
                         }}
                       />
-                      <span>{role.name}</span>
+                      <span className="text-foreground">{role.name}</span>
                     </label>
                   ))}
                 </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setIsEditPermissionModalOpen(false)}
-              >
+            <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsEditPermissionModalOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleUpdatePermission}>Update</Button>
@@ -700,12 +782,9 @@ const handleDeletePermission = async () => {
           </DialogContent>
         </Dialog>
 
-
-
         {/* Create Role Modal */}
-
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px] w-[95vw] rounded-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Role</DialogTitle>
             </DialogHeader>
@@ -723,7 +802,7 @@ const handleDeletePermission = async () => {
 
               <div className="space-y-2">
                 <Label>Permissions</Label>
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
                   {permissions.map((perm) => (
                     <div key={perm.id} className="flex items-center gap-2">
                       <Checkbox
@@ -736,23 +815,25 @@ const handleDeletePermission = async () => {
                           setFormData({ ...formData, permissions: updated });
                         }}
                       />
-                      <Label htmlFor={perm.id}>{perm.name}</Label>
+                      <Label htmlFor={perm.id} className="text-sm text-foreground">
+                        {perm.name}
+                      </Label>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
                 <Button type="submit">Create Role</Button>
-              </div>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
 
         {/* Edit Role Modal */}
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px] w-[95vw] rounded-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Role</DialogTitle>
             </DialogHeader>
@@ -770,7 +851,7 @@ const handleDeletePermission = async () => {
 
               <div className="space-y-2">
                 <Label>Permissions</Label>
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
                   {permissions.map((perm) => (
                     <div key={perm.id} className="flex items-center gap-2">
                       <Checkbox
@@ -783,64 +864,57 @@ const handleDeletePermission = async () => {
                           setEditFormData({ ...editFormData, permissions: updated });
                         }}
                       />
-                      <Label htmlFor={`edit-${perm.id}`}>{perm.name}</Label>
+                      <Label htmlFor={`edit-${perm.id}`} className="text-sm text-foreground">
+                        {perm.name}
+                      </Label>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
                 <Button type="submit">Save Changes</Button>
-              </div>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation */}
-        {isDeleteModalOpen && (
-          <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-            <DialogContent className="sm:max-w-[400px]">
-              <DialogHeader>
-                <DialogTitle>Delete Role</DialogTitle>
-              </DialogHeader>
-              <p>Are you sure you want to delete this role? This action cannot be undone.</p>
-              <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Cancel</Button>
-                <Button variant="destructive" onClick={handleDeleteRole}>Delete Role</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      {isDeletePermissionModalOpen && (
-        <Dialog
-          open={isDeletePermissionModalOpen}
-          onOpenChange={setIsDeletePermissionModalOpen}
-        >
-          <DialogContent className="sm:max-w-[400px]">
+        {/* Delete Role Confirmation */}
+        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+          <DialogContent className="sm:max-w-[400px] w-[95vw] rounded-lg">
+            <DialogHeader>
+              <DialogTitle>Delete Role</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground">
+              Are you sure you want to delete this role? This action cannot be undone.
+            </p>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDeleteRole}>Delete Role</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Permission Confirmation */}
+        <Dialog open={isDeletePermissionModalOpen} onOpenChange={setIsDeletePermissionModalOpen}>
+          <DialogContent className="sm:max-w-[400px] w-[95vw] rounded-lg">
             <DialogHeader>
               <DialogTitle>Delete Permission</DialogTitle>
             </DialogHeader>
-
-            <p>
-              Are you sure you want to delete this permission? This action cannot be
-              undone.
+            <p className="text-muted-foreground">
+              Are you sure you want to delete this permission? This action cannot be undone.
             </p>
-
-            <div className="flex justify-end gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setIsDeletePermissionModalOpen(false)}
-              >
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Button variant="outline" onClick={() => setIsDeletePermissionModalOpen(false)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeletePermission}>
                 Delete
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
       </div>
     </PageTransition>
   );

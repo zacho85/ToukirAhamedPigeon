@@ -19,11 +19,8 @@ export function TopUpDialog({
   onSuccess,
 }: any) {
   const stripe = useStripe();
-
-  // 🔑 amount must be string for proper UX
   const [amount, setAmount] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
-
   const [loading, setLoading] = useState(false);
 
   const parsedAmount = Number(amount);
@@ -41,19 +38,13 @@ export function TopUpDialog({
 
     setLoading(true);
     try {
-      // 1️⃣ Create intent
       const { clientSecret } = await createTopUpIntent({
         amount: parsedAmount,
         paymentMethodId,
         remarks,
       });
 
-      console.log('🔍 createTopUpIntent response:', { clientSecret });
-
-      // 2️⃣ Confirm payment
-      const { error, paymentIntent } =
-        await stripe.confirmCardPayment(clientSecret);
-      console.log('🔍 confirmCardPayment response:', { error, paymentIntent });
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret);
         
       if (error) {
         console.error('❌ Payment error:', error);
@@ -65,23 +56,18 @@ export function TopUpDialog({
       }
 
       if (paymentIntent?.status === "succeeded") {
-        console.log('✅ Payment succeeded:', paymentIntent.id, paymentIntent.status);
         dispatchShowToast({
           message: "Top up successful! Updating wallet…",
           type: "success",
         });
 
-        // 🔄 wait for webhook
-         setTimeout(async () => {
+        setTimeout(async () => {
           await syncUserProfile();
           onSuccess();
           onClose();
           setAmount("");
           setRemarks("");
         }, 3000);
-      }
-      else{
-        console.log('⚠️ Payment not succeeded, status:', paymentIntent?.status);
       }
     } catch (err: any) {
       console.error("Top up failed:", err);
@@ -96,19 +82,17 @@ export function TopUpDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Top Up Wallet</DialogTitle>
         </DialogHeader>
 
-        {/* Amount */}
         <Input
           type="text"
           inputMode="decimal"
           placeholder="Enter amount"
           value={amount}
           onChange={(e) => {
-            // allow empty or numeric
             const value = e.target.value;
             if (/^\d*\.?\d*$/.test(value)) {
               setAmount(value);
@@ -116,7 +100,6 @@ export function TopUpDialog({
           }}
         />
 
-        {/* Remarks */}
         <Textarea
           placeholder="Remarks (optional)"
           value={remarks}
@@ -127,6 +110,7 @@ export function TopUpDialog({
         <Button
           onClick={handleTopUp}
           disabled={loading || !stripe || !isValidAmount}
+          className="w-full"
         >
           {loading ? "Processing…" : "Top Up"}
         </Button>

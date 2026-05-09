@@ -16,6 +16,7 @@ import { sendMoney } from "@/modules/history/api";
 import { getWalletStats } from "@/modules/wallet/api";
 import { TopUpDialog } from "@/modules/wallet/components/TopUpDialog";
 import { dispatchShowToast, dispatchUpdateWalletBalance } from "@/lib/dispatch";
+import type { DashboardUser } from "@/modules/dashboard/types";
 
 interface Contact {
   id: number;
@@ -30,7 +31,7 @@ interface SystemSettings {
 
 export default function SendMoney() {
   const navigate = useNavigate();
-  const user = useAppSelector((state) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user as DashboardUser);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);

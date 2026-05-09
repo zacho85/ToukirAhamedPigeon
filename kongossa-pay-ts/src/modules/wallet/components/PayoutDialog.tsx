@@ -16,7 +16,7 @@ export function PayoutDialog({
   onClose,
   onSuccess,
   maxAmount,
-  hasPendingPayout // optional: wallet balance
+  hasPendingPayout
 }: {
   open: boolean;
   onClose: () => void;
@@ -28,14 +28,10 @@ export function PayoutDialog({
   const [remarks, setRemarks] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  const FEE = 1; // flat fee in USD
-
+  const FEE = 1;
   const parsedAmount = Number(amount);
-
-  // Compute net amount the user will actually receive
   const netAmount = !isNaN(parsedAmount) ? Math.max(parsedAmount - FEE, 0) : 0;
 
-  // Valid if positive amount, under wallet limit, and net > 0
   const isValidAmount =
     amount !== "" &&
     !isNaN(parsedAmount) &&
@@ -54,19 +50,14 @@ export function PayoutDialog({
 
     setLoading(true);
     try {
-      // Send original amount to backend; backend handles fee
       await requestPayout(parsedAmount);
 
       dispatchShowToast({
-        message: `Withdrawal request submitted. You will receive $${netAmount.toFixed(
-          2
-        )} after fees.`,
+        message: `Withdrawal request submitted. You will receive $${netAmount.toFixed(2)} after fees.`,
         type: "success",
       });
 
-      // Update wallet
       await syncUserProfile();
-
       onSuccess?.();
       onClose();
       setAmount("");
@@ -74,9 +65,7 @@ export function PayoutDialog({
     } catch (err: any) {
       console.error("Payout failed:", err);
       dispatchShowToast({
-        message:
-          err?.response?.data?.message ||
-          "Withdrawal request failed",
+        message: err?.response?.data?.message || "Withdrawal request failed",
         type: "danger",
       });
     } finally {
@@ -86,12 +75,11 @@ export function PayoutDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Withdraw Funds</DialogTitle>
         </DialogHeader>
 
-        {/* Amount input */}
         <Input
           type="text"
           inputMode="decimal"
@@ -105,22 +93,19 @@ export function PayoutDialog({
           }}
         />
 
-        {/* Wallet balance */}
         {maxAmount !== undefined && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Available: ${maxAmount.toFixed(2)}
           </p>
         )}
 
-        {/* Show net amount dynamically */}
         {parsedAmount > 0 && (
-          <p className="text-xs text-slate-700">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
             You will receive:{" "}
             <span className="font-semibold">${netAmount.toFixed(2)}</span> after ${FEE} fee
           </p>
         )}
 
-        {/* Remarks */}
         <Textarea
           placeholder="Remarks (optional)"
           value={remarks}
@@ -128,18 +113,17 @@ export function PayoutDialog({
           rows={3}
         />
 
-        {/* Pending payout warning */}
         {hasPendingPayout && (
-          <p className="text-xs text-red-500">
+          <p className="text-xs text-red-500 dark:text-red-400">
             You already have a withdrawal in progress.
           </p>
         )}
 
-        {/* Withdraw button */}
         <Button
           onClick={handlePayout}
           disabled={loading || !isValidAmount || hasPendingPayout}
           variant="destructive"
+          className="w-full"
         >
           {loading ? "Processing…" : "Withdraw"}
         </Button>

@@ -1,4 +1,3 @@
-// PublicPaymentPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,15 +45,12 @@ export default function PublicPaymentPage() {
       return;
     }
 
-    // For flexible amount, we need to create a custom session
     if (paymentLink.type === 'flexible_amount') {
       const amount = parseFloat(customAmount);
       if (isNaN(amount) || amount < 0.5) {
         setError('Please enter a valid amount (minimum $0.50)');
         return;
       }
-      // Here you would call an API to create a custom checkout session
-      // For now, redirect with amount parameter
       window.location.href = `${paymentLink.stripeCheckoutUrl}?amount=${amount}`;
     } else {
       setRedirecting(true);
@@ -76,8 +72,8 @@ export default function PublicPaymentPage() {
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Payment Link Error</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Payment Link Error</h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{error}</p>
             <Button variant="outline" onClick={() => navigate('/')}>
               Go to Home
             </Button>
@@ -88,54 +84,54 @@ export default function PublicPaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
-        <CardContent className="p-6">
+        <CardContent className="p-4 md:p-6">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold">Payment Request</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Payment Request</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               from {paymentLink?.merchantName}
             </p>
             {paymentLink?.type === 'quantity_limited' && paymentLink.quantityRemaining !== undefined && (
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {paymentLink.quantityRemaining} payments remaining
               </p>
             )}
           </div>
 
-          <div className="bg-muted rounded-lg p-4 mb-6 text-center">
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-6 text-center">
             {paymentLink?.type === 'flexible_amount' ? (
               <>
-                <p className="text-sm text-muted-foreground mb-2">Enter Amount</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Enter Amount</p>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
                   <Input
                     type="number"
                     step="0.01"
                     min="0.5"
                     placeholder="0.00"
-                    className="pl-7 text-center text-2xl h-14"
+                    className="pl-7 text-center text-xl md:text-2xl h-12 md:h-14"
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Minimum amount: $0.50</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Minimum amount: $0.50</p>
               </>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">Amount</p>
-                <p className="text-3xl font-bold">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Amount</p>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                   {paymentLink?.currency} {paymentLink?.amount?.toFixed(2)}
                 </p>
                 {paymentLink?.type === 'subscription' && (
-                  <p className="text-xs text-muted-foreground mt-1">Monthly recurring</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Monthly recurring</p>
                 )}
               </>
             )}
             {paymentLink?.description && (
               <>
-                <p className="text-sm text-muted-foreground mt-2">For</p>
-                <p className="font-medium">{paymentLink?.description}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">For</p>
+                <p className="font-medium text-gray-900 dark:text-white">{paymentLink?.description}</p>
               </>
             )}
           </div>
@@ -156,7 +152,7 @@ export default function PublicPaymentPage() {
             )}
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground mt-4">
+          <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">
             Secure payment powered by Stripe. No account required.
           </p>
         </CardContent>

@@ -48,7 +48,6 @@ export default function CreatePaymentLink() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check if amount is required
     const amountRequired = ['fixed_amount', 'quantity_limited', 'subscription'].includes(linkType);
     if (amountRequired) {
       const amount = parseFloat(form.amount);
@@ -94,42 +93,43 @@ export default function CreatePaymentLink() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => navigate('/payment-links')}>
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
+      {/* Header - Responsive */}
+      <div className="flex items-center gap-3 mb-4 md:mb-6">
+        <Button variant="outline" size="icon" onClick={() => navigate('/payment-links')} className="shrink-0">
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <h1 className="text-2xl font-bold">Create Payment Link</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Create Payment Link</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Payment Details</CardTitle>
+          <CardTitle className="text-lg md:text-xl text-gray-900 dark:text-white">Payment Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
             {/* Link Type */}
             <div>
-              <Label>Link Type</Label>
+              <Label className="text-gray-700 dark:text-gray-300">Link Type</Label>
               <RadioGroup value={linkType} onValueChange={setLinkType} className="mt-2 space-y-2">
                 {LINK_TYPES.map((type) => (
-                  <div key={type.value} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <RadioGroupItem value={type.value} id={type.value} />
+                  <div key={type.value} className="flex items-start space-x-3 p-3 border rounded-lg dark:border-gray-700">
+                    <RadioGroupItem value={type.value} id={type.value} className="mt-0.5" />
                     <Label htmlFor={type.value} className="flex-1 cursor-pointer">
-                      <div className="font-medium">{type.label}</div>
-                      <div className="text-sm text-muted-foreground">{type.description}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{type.label}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{type.description}</div>
                     </Label>
                   </div>
                 ))}
               </RadioGroup>
             </div>
 
-            {/* Amount - Show for fixed_amount, quantity_limited, subscription */}
+            {/* Amount */}
             {['fixed_amount', 'quantity_limited', 'subscription'].includes(linkType) && (
               <div>
-                <Label htmlFor="amount">Amount *</Label>
+                <Label htmlFor="amount" className="text-gray-700 dark:text-gray-300">Amount *</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
                   <Input
                     id="amount"
                     type="number"
@@ -141,14 +141,14 @@ export default function CreatePaymentLink() {
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Minimum amount: $0.50</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Minimum amount: $0.50</p>
               </div>
             )}
 
-            {/* Quantity - Only for quantity_limited */}
+            {/* Quantity */}
             {linkType === 'quantity_limited' && (
               <div>
-                <Label htmlFor="quantity">Number of payments *</Label>
+                <Label htmlFor="quantity" className="text-gray-700 dark:text-gray-300">Number of payments *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -157,7 +157,7 @@ export default function CreatePaymentLink() {
                   value={form.quantity}
                   onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Maximum number of times this link can be used
                 </p>
               </div>
@@ -165,7 +165,7 @@ export default function CreatePaymentLink() {
 
             {/* Description */}
             <div>
-              <Label htmlFor="description">Description (optional)</Label>
+              <Label htmlFor="description" className="text-gray-700 dark:text-gray-300">Description (optional)</Label>
               <Textarea
                 id="description"
                 placeholder="What is this payment for? (e.g., Web Design, Course, Consultation)"
@@ -177,7 +177,7 @@ export default function CreatePaymentLink() {
 
             {/* Expiry */}
             <div>
-              <Label htmlFor="expiry">Link Expiry</Label>
+              <Label htmlFor="expiry" className="text-gray-700 dark:text-gray-300">Link Expiry</Label>
               <Select
                 value={form.expiresInDays.toString()}
                 onValueChange={(val) => setForm({ ...form, expiresInDays: parseInt(val) })}
@@ -193,14 +193,14 @@ export default function CreatePaymentLink() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 After expiry, customers cannot make payments using this link.
               </p>
             </div>
 
-            {/* Customer Email (optional) */}
+            {/* Customer Email */}
             <div>
-              <Label htmlFor="email">Customer Email (optional)</Label>
+              <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Customer Email (optional)</Label>
               <Input
                 id="email"
                 type="email"
@@ -208,7 +208,7 @@ export default function CreatePaymentLink() {
                 value={form.customerEmail}
                 onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Pre-fill customer email on Stripe checkout.
               </p>
             </div>

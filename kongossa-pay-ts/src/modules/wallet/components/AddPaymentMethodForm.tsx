@@ -31,16 +31,12 @@ export default function AddPaymentMethodForm({
 
     setLoading(true);
     try {
-      // Create a fresh SetupIntent
       const { clientSecret } = await createSetupIntent();
       
       if (!clientSecret) {
         throw new Error("Failed to create setup intent");
       }
 
-      console.log("SetupIntent client secret received");
-
-      // Confirm the card setup immediately
       const result = await stripe.confirmCardSetup(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
@@ -65,7 +61,6 @@ export default function AddPaymentMethodForm({
 
       const paymentMethodId = result.setupIntent.payment_method as string;
 
-      // Attach payment method to your backend
       await attachPaymentMethod(paymentMethodId, {
         accountName: meta.accountName,
         bankName: meta.bankName,
@@ -120,12 +115,12 @@ export default function AddPaymentMethodForm({
         />
       </div>
 
-      <div className="flex gap-3 pt-4">
+      <div className="flex flex-col sm:flex-row gap-3 pt-4">
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="flex-1"
+          className="flex-1 order-2 sm:order-1"
         >
           Cancel
         </Button>
@@ -133,7 +128,7 @@ export default function AddPaymentMethodForm({
         <Button
           onClick={saveCard}
           disabled={!stripe || loading}
-          className="flex-1 bg-linear-to-r from-blue-600 to-purple-600"
+          className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 order-1 sm:order-2"
         >
           {loading ? "Saving..." : "Save Card"}
         </Button>

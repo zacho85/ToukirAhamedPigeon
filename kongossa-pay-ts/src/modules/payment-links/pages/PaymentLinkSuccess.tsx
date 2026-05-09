@@ -1,3 +1,4 @@
+// PaymentLinkSuccess.tsx
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
@@ -7,13 +8,10 @@ import { Button } from '@/components/ui/button';
 export default function PaymentLinkSuccess() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-
   const sessionId = searchParams.get('session_id');
-  const linkId = searchParams.get('link_id');
 
   useEffect(() => {
     if (sessionId) {
-      // Optionally verify the payment with your backend
       setStatus('success');
     } else {
       setStatus('error');
@@ -30,15 +28,15 @@ export default function PaymentLinkSuccess() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
             <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Payment Error</h1>
-            <p className="text-muted-foreground mb-6">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2">Payment Error</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
               There was an issue processing your payment. Please try again.
             </p>
-            <Button asChild>
+            <Button asChild variant="outline">
               <Link to="/dashboard">Go to Dashboard</Link>
             </Button>
           </CardContent>
@@ -48,19 +46,14 @@ export default function PaymentLinkSuccess() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardContent className="p-6 text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Payment Successful!</h1>
-          <p className="text-muted-foreground mb-2">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2">Payment Successful!</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
             Your payment has been processed successfully.
           </p>
-          {linkId && (
-            <p className="text-xs text-muted-foreground mb-6">
-              Transaction ID: {linkId}
-            </p>
-          )}
           <Button asChild>
             <Link to="/dashboard">Go to Dashboard</Link>
           </Button>

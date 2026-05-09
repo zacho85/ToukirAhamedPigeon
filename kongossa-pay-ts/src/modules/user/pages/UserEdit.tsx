@@ -32,7 +32,6 @@ import { getAllRoles } from "../api/roles";
 import { showToast } from "@/redux/slices/toastSlice";
 import { useDispatch } from "react-redux";
 import PageTransition from '@/components/module/admin/layout/PageTransition';
-/* ------------------------- Type Definitions ------------------------- */
 
 interface UserRole {
   id: number;
@@ -56,17 +55,6 @@ interface UserData {
   businessDescription: string;
   legalFormDocument: File | string | null;
 }
-
-interface ApiErrorResponse {
-  response?: {
-    data?: {
-      errors?: Record<string, string>;
-      message?: string;
-    };
-  };
-}
-
-/* --------------------------- Component --------------------------- */
 
 export default function UserEdit() {
   const { id } = useParams<{ id: string }>();
@@ -103,8 +91,6 @@ export default function UserEdit() {
     { label: "Users", href: "/admin/users" },
     { label: "Edit" },
   ];
-
-  /* ----------------------------- Fetch Data ----------------------------- */
 
   useEffect(() => {
     const fetchData = async () => {
@@ -145,8 +131,6 @@ export default function UserEdit() {
     fetchData();
   }, [id]);
 
-  /* ---------------------------- Handlers ---------------------------- */
-
   const handleChange = (key: keyof UserData, value: any) => {
     setData((prev) => ({ ...prev, [key]: value }));
   };
@@ -170,31 +154,11 @@ export default function UserEdit() {
 
     try {
       await updateUser(id!, data);
-
-      dispatch(
-        showToast({
-          type: "success",
-          message: "User updated successfully",
-          position: "top-right",
-          animation: "slide-right-in",
-          duration: 4000,
-        })
-      );
-
+      dispatch(showToast({ type: "success", message: "User updated successfully" }));
       navigate(`/admin/users/${id}`);
     } catch (err: ApiErrorResponse | any) {
       console.error("Update failed:", err);
-
-      dispatch(
-        showToast({
-          type: "danger",
-          message: "Failed to update user. Please try again.",
-          position: "top-right",
-          animation: "slide-right-in",
-          duration: 4000,
-        })
-      );
-
+      dispatch(showToast({ type: "danger", message: "Failed to update user. Please try again." }));
       if (err.response?.data?.errors) {
         setErrors(err.response.data.errors);
       }
@@ -203,36 +167,31 @@ export default function UserEdit() {
     }
   };
 
-  /* ---------------------------- Loading ---------------------------- */
-
   if (loading) {
-    return <p className="text-center py-10">Loading user...</p>;
+    return <p className="text-center py-10 text-muted-foreground">Loading user...</p>;
   }
 
-  /* ---------------------------- UI Render ---------------------------- */
-
   return (
-        <PageTransition>
-      <div className="space-y-6">
+    <PageTransition>
+      <div className="space-y-6 px-4 sm:px-0">
         <Breadcrumb items={breadcrumbs} title="Edit User" />
 
         <div className="max-w-4xl mx-auto">
           <Card>
-            <CardHeader>
+            <CardHeader className="px-4 sm:px-6">
               <CardTitle>Edit User</CardTitle>
               <CardDescription>Update user information and settings</CardDescription>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Basic Info */}
+                {/* Basic Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Basic Information</h3>
+                  <h3 className="text-lg font-medium text-foreground">Basic Information</h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Full Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Full Name</Label>
+                      <Label className="text-foreground">Full Name</Label>
                       <Input
                         value={data.fullName}
                         onChange={(e) => handleChange("fullName", e.target.value)}
@@ -240,9 +199,8 @@ export default function UserEdit() {
                       />
                     </div>
 
-                    {/* Email */}
                     <div className="space-y-2">
-                      <Label>Email</Label>
+                      <Label className="text-foreground">Email</Label>
                       <Input
                         type="email"
                         value={data.email}
@@ -251,9 +209,8 @@ export default function UserEdit() {
                       />
                     </div>
 
-                    {/* Phone */}
                     <div className="space-y-2">
-                      <Label>Phone</Label>
+                      <Label className="text-foreground">Phone</Label>
                       <Input
                         value={data.phoneNumber}
                         onChange={(e) => handleChange("phoneNumber", e.target.value)}
@@ -261,9 +218,8 @@ export default function UserEdit() {
                       />
                     </div>
 
-                    {/* User Type */}
                     <div className="space-y-2">
-                      <Label>User Type</Label>
+                      <Label className="text-foreground">User Type</Label>
                       <Select
                         value={data.userType}
                         onValueChange={(v) => handleChange("userType", v)}
@@ -277,7 +233,6 @@ export default function UserEdit() {
                               <UserIcon className="w-4 h-4" /> Personal
                             </div>
                           </SelectItem>
-
                           <SelectItem value="business_merchant">
                             <div className="flex items-center gap-2">
                               <Building2 className="w-4 h-4" /> Business
@@ -287,9 +242,8 @@ export default function UserEdit() {
                       </Select>
                     </div>
 
-                    {/* Status */}
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label className="text-foreground">Status</Label>
                       <Select
                         value={data.status}
                         onValueChange={(v) => handleChange("status", v)}
@@ -304,9 +258,8 @@ export default function UserEdit() {
                       </Select>
                     </div>
 
-                    {/* Role */}
                     <div className="space-y-2">
-                      <Label>Role</Label>
+                      <Label className="text-foreground">Role</Label>
                       <Select value={data.role} onValueChange={(v) => handleChange("role", v)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
@@ -325,11 +278,11 @@ export default function UserEdit() {
 
                 {/* Password */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Change Password (Optional)</h3>
+                  <h3 className="text-lg font-medium text-foreground">Change Password (Optional)</h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>New Password</Label>
+                      <Label className="text-foreground">New Password</Label>
                       <Input
                         type="password"
                         value={data.password}
@@ -338,111 +291,92 @@ export default function UserEdit() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Confirm Password</Label>
+                      <Label className="text-foreground">Confirm Password</Label>
                       <Input
                         type="password"
                         value={data.password_confirmation}
-                        onChange={(e) =>
-                          handleChange("password_confirmation", e.target.value)
-                        }
+                        onChange={(e) => handleChange("password_confirmation", e.target.value)}
                         className={errors.password_confirmation ? "border-red-500" : ""}
                       />
                       {errors.password_confirmation && (
-                        <p className="text-sm text-red-500">
-                          {errors.password_confirmation}
-                        </p>
+                        <p className="text-sm text-red-500">{errors.password_confirmation}</p>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Business Info */}
+                {/* Business Information */}
                 {isBusinessUser && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
+                    <h3 className="text-lg font-medium flex items-center gap-2 text-foreground">
                       <Building2 className="w-5 h-5" /> Business Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Company Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Company Name</Label>
+                        <Label className="text-foreground">Company Name</Label>
                         <Input
                           value={data.companyName}
-                          onChange={(e) =>
-                            handleChange("companyName", e.target.value)
-                          }
+                          onChange={(e) => handleChange("companyName", e.target.value)}
                         />
                       </div>
 
-                      {/* Legal Form */}
                       <div className="space-y-2">
-                        <Label>Legal Form</Label>
+                        <Label className="text-foreground">Legal Form</Label>
                         <Input
                           value={data.legalForm}
                           onChange={(e) => handleChange("legalForm", e.target.value)}
                         />
                       </div>
 
-                      {/* Manager Name */}
                       <div className="space-y-2">
-                        <Label>Manager Name</Label>
+                        <Label className="text-foreground">Manager Name</Label>
                         <Input
                           value={data.managerName}
-                          onChange={(e) =>
-                            handleChange("managerName", e.target.value)
-                          }
+                          onChange={(e) => handleChange("managerName", e.target.value)}
                         />
                       </div>
 
-                      {/* Company Phone */}
                       <div className="space-y-2">
-                        <Label>Company Phone</Label>
+                        <Label className="text-foreground">Company Phone</Label>
                         <Input
                           value={data.companyPhone}
-                          onChange={(e) =>
-                            handleChange("companyPhone", e.target.value)
-                          }
+                          onChange={(e) => handleChange("companyPhone", e.target.value)}
                         />
                       </div>
 
-                      {/* Address */}
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Company Address</Label>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-foreground">Company Address</Label>
                         <Textarea
                           value={data.companyAddress}
-                          onChange={(e) =>
-                            handleChange("companyAddress", e.target.value)
-                          }
+                          onChange={(e) => handleChange("companyAddress", e.target.value)}
                           rows={3}
+                          className="w-full"
                         />
                       </div>
 
-                      {/* Description */}
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Business Description</Label>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-foreground">Business Description</Label>
                         <Textarea
                           value={data.businessDescription}
-                          onChange={(e) =>
-                            handleChange("businessDescription", e.target.value)
-                          }
+                          onChange={(e) => handleChange("businessDescription", e.target.value)}
                           rows={3}
+                          className="w-full"
                         />
                       </div>
 
-                      {/* Legal Document */}
-                      <div className="space-y-2 md:col-span-2">
-                        <Label className="flex items-center gap-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="flex items-center gap-2 text-foreground">
                           <FileText className="w-4 h-4" /> Legal Form Document
                         </Label>
                         <Input
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png"
                           onChange={handleFileChange}
+                          className="w-full"
                         />
-
                         {selectedFile && (
-                          <p className="text-sm text-green-600">
+                          <p className="text-sm text-green-600 dark:text-green-400">
                             Selected: {selectedFile.name}
                           </p>
                         )}
@@ -451,16 +385,14 @@ export default function UserEdit() {
                   </div>
                 )}
 
-                {/* Submit */}
-                <div className="flex justify-end space-x-4 pt-6">
-                  <Button variant="outline" type="button" onClick={() => navigate(-1)}>
+                {/* Submit Buttons */}
+                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6">
+                  <Button variant="outline" type="button" onClick={() => navigate(-1)} className="w-full sm:w-auto order-2 sm:order-1">
                     Cancel
                   </Button>
 
-                  <Button type="submit" disabled={processing}>
-                    {processing && (
-                      <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
-                    )}
+                  <Button type="submit" disabled={processing} className="w-full sm:w-auto order-1 sm:order-2">
+                    {processing && <LoaderCircle className="w-4 h-4 animate-spin mr-2" />}
                     Update User
                   </Button>
                 </div>
@@ -469,6 +401,15 @@ export default function UserEdit() {
           </Card>
         </div>
       </div>
-      </PageTransition>
+    </PageTransition>
   );
+}
+
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      errors?: Record<string, string>;
+      message?: string;
+    };
+  };
 }

@@ -21,7 +21,6 @@ interface QuickActionsGridProps {
 }
 
 const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
-
   const quickActions: QuickAction[] = [
     {
       key: "send",
@@ -29,8 +28,8 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       description: "Transfer funds",
       icon: Send,
       url: "/send-money",
-      bgColor: "bg-blue-100",
-      textColor: "text-blue-600",
+      bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      textColor: "text-blue-600 dark:text-blue-400",
     },
     {
       key: "receive",
@@ -38,17 +37,17 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       description: "Request payment",
       icon: ArrowDownLeft,
       action: onShowQR,
-      bgColor: "bg-green-100",
-      textColor: "text-green-600",
+      bgColor: "bg-green-100 dark:bg-green-900/30",
+      textColor: "text-green-600 dark:text-green-400",
     },
     {
-      key: "payment-link", // New option - Create Payment Link
+      key: "payment-link",
       title: "Payment Link",
       description: "Create payment link",
       icon: LinkIcon,
       url: "/payment-links/create",
-      bgColor: "bg-indigo-100",
-      textColor: "text-indigo-600",
+      bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
+      textColor: "text-indigo-600 dark:text-indigo-400",
     },
     {
       key: "deposit",
@@ -56,8 +55,8 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       description: "Add funds",
       icon: Plus,
       url: "/wallet",
-      bgColor: "bg-purple-100",
-      textColor: "text-purple-600",
+      bgColor: "bg-purple-100 dark:bg-purple-900/30",
+      textColor: "text-purple-600 dark:text-purple-400",
     },
     {
       key: "withdraw",
@@ -65,8 +64,8 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       description: "Cash out",
       icon: Minus,
       url: "/withdraw",
-      bgColor: "bg-orange-100",
-      textColor: "text-orange-600",
+      bgColor: "bg-orange-100 dark:bg-orange-900/30",
+      textColor: "text-orange-600 dark:text-orange-400",
     },
   ];
 
@@ -80,49 +79,47 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-slate-900 mb-4 dark:text-slate-100">
+      <h2 className="text-base sm:text-lg font-semibold text-foreground mb-3 sm:mb-4">
         Quick Actions
       </h2>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {quickActions.map(
-          ({ key, icon: Icon, disabled, ...action }) => {
-            const Wrapper = action.url ? Link : "button";
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        {quickActions.map(({ key, icon: Icon, disabled, ...action }) => {
+          const Wrapper = action.url ? Link : "button";
 
-            return (
-              <Wrapper
-                key={key}
-                to={action.url as never}
-                onClick={() => handleClick(action.action, disabled)}
-                className={clsx(
-                  "focus:outline-none",
-                  disabled && "pointer-events-none opacity-60"
-                )}
-              >
-                <Card className="group transition-all duration-300 hover:shadow-lg hover:-translate-y-1 rounded-2xl cursor-pointer">
-                  <CardContent className="p-6 text-center">
-                    <div
-                      className={clsx(
-                        "w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3",
-                        action.bgColor,
-                        "group-hover:scale-110 transition-transform duration-200"
-                      )}
-                    >
-                      <Icon className={clsx("w-6 h-6", action.textColor)} />
-                    </div>
+          return (
+            <Wrapper
+              key={key}
+              to={action.url as never}
+              onClick={() => handleClick(action.action, disabled)}
+              className={clsx(
+                "focus:outline-none",
+                disabled && "pointer-events-none opacity-60"
+              )}
+            >
+              <Card className="group transition-all duration-300 hover:shadow-lg hover:-translate-y-1 rounded-xl sm:rounded-2xl cursor-pointer">
+                <CardContent className="p-3 sm:p-4 md:p-6 text-center">
+                  <div
+                    className={clsx(
+                      "w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center mx-auto mb-2 sm:mb-3",
+                      action.bgColor,
+                      "group-hover:scale-110 transition-transform duration-200"
+                    )}
+                  >
+                    <Icon className={clsx("w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6", action.textColor)} />
+                  </div>
 
-                    <h3 className="font-semibold text-slate-900 mb-1 text-sm dark:text-slate-100">
-                      {action.title}
-                    </h3>
-                    <p className="text-slate-500 text-xs dark:text-slate-400">
-                      {action.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Wrapper>
-            );
-          }
-        )}
+                  <h3 className="font-semibold text-foreground mb-0.5 text-xs sm:text-sm">
+                    {action.title}
+                  </h3>
+                  <p className="text-muted-foreground text-[10px] sm:text-xs hidden sm:block">
+                    {action.description}
+                  </p>
+                </CardContent>
+              </Card>
+            </Wrapper>
+          );
+        })}
       </div>
     </section>
   );

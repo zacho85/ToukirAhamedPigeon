@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { sendMoney } from "@/modules/history/api";
 import { getQRUser } from "@/modules/dashboard/api";
 import { getSystemSettings } from "@/modules/fee-management/api";
-// import { getWalletStats } from "@/modules/wallet/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@radix-ui/react-dropdown-menu";
 import { Check } from "lucide-react";
@@ -27,26 +26,23 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isSuccess, setIsSuccess] = useState(false);
 
-
   const qrRef = useRef<HTMLDivElement>(null);
   const qrInstance = useRef<Html5Qrcode | null>(null);
   const isRunning = useRef(false);
 
   useEffect(() => {
-  if (!open) return;
+    if (!open) return;
 
-  const load = async () => {
-    const currentUser = await getCurrentUser();
-    const [fees] = await Promise.all([
-      getSystemSettings(),
-    ]);
+    const load = async () => {
+      const currentUser = await getCurrentUser();
+      const [fees] = await Promise.all([getSystemSettings()]);
 
-    setSettings(fees);
-    setWalletBalance(currentUser.walletBalance);
-  };
+      setSettings(fees);
+      setWalletBalance(currentUser.walletBalance);
+    };
 
-  load();
-}, [open]);
+    load();
+  }, [open]);
 
   // ---------- START SCANNER ----------
   useEffect(() => {
@@ -58,7 +54,6 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
 
     const startScanner = async () => {
       try {
-        // wait for DOM paint (CRITICAL)
         await new Promise((r) => requestAnimationFrame(r));
 
         if (!qrRef.current || cancelled) return;
@@ -73,27 +68,25 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
         }
 
         await scanner.start(
-        { facingMode: "environment" }, // camera config
-        { fps: 10, qrbox: 250 },       // scan config
-        async (decodedText) => {
-            // Success
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          async (decodedText) => {
             if (!isRunning.current) return;
             isRunning.current = false;
 
             try {
-            await scanner.stop();
-            await scanner.clear();
+              await scanner.stop();
+              await scanner.clear();
 
-            const res = await getQRUser(decodedText);
-            setRecipient(res.user); // ✅ Make sure API returns user
+              const res = await getQRUser(decodedText);
+              setRecipient(res.user);
             } catch (err) {
-            console.error("QR processing failed:", err);
+              console.error("QR processing failed:", err);
             }
-        },
-        (errorMessage) => {
-            // Error callback (mandatory)
+          },
+          (errorMessage) => {
             console.log("QR scan frame error:", errorMessage);
-        }
+          }
         );
 
         isRunning.current = true;
@@ -113,7 +106,7 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
       isRunning.current = false;
       qrInstance.current = null;
     };
-  }, [open]);
+  }, [open, recipient]);
 
   // ---------- CLOSE ----------
   const handleClose = async () => {
@@ -139,19 +132,17 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
 
     setIsSending(true);
     try {
-        await sendMoney({
+      await sendMoney({
         recipientId: recipient.id,
         amount: amountNum,
         description: remarks,
-        });
+      });
 
-      
-
-        setIsSuccess(true);
+      setIsSuccess(true);
     } finally {
-        setIsSending(false);
+      setIsSending(false);
     }
- };
+  };
 
   if (!open) return null;
 
@@ -160,43 +151,38 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
   const total = amountNum + fee;
   const remainingBalance = walletBalance - total;
 
+  const canSend = recipient && amountNum > 0 && walletBalance >= total && !isSending;
 
-  const canSend =
-    recipient &&
-    amountNum > 0 &&
-    walletBalance >= total &&
-    !isSending;
-
-    if (isSuccess) {
+  if (isSuccess) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <Card className="max-w-md w-full text-center p-8">
-            <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Money Sent!</h2>
-            <p className="text-muted-foreground mb-6">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <Card className="max-w-sm w-full text-center p-4 sm:p-8">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-3 sm:mb-4">
+            <Check className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Money Sent!</h2>
+          <p className="text-muted-foreground text-sm sm:text-base mb-4 sm:mb-6">
             You sent ${amountNum.toFixed(2)} to {recipient.fullName}
-            </p>
-
-            <Button className="w-full" onClick={handleClose}>
+          </p>
+          <Button className="w-full" onClick={handleClose}>
             Done
-            </Button>
+          </Button>
         </Card>
-        </div>
+      </div>
     );
-    }
-
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-lg p-6">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-base sm:text-lg font-semibold text-foreground">
             {recipient ? "Send Money" : "Scan QR Code"}
           </h2>
-          <button onClick={handleClose} className="text-xl">&times;</button>
+          <button onClick={handleClose} className="text-xl text-muted-foreground hover:text-foreground">
+            &times;
+          </button>
         </div>
 
         {!recipient ? (
@@ -208,17 +194,19 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
         ) : (
           <div className="space-y-4">
             <div className="flex gap-3 items-center">
-              <Avatar>
+              <Avatar className="w-10 h-10 sm:w-12 sm:h-12">
                 {recipient.profileImage ? (
                   <AvatarImage
                     src={`${import.meta.env.VITE_APP_API_URL}${recipient.profileImage}`}
                   />
                 ) : (
-                  <AvatarFallback>{recipient.fullName[0]}</AvatarFallback>
+                  <AvatarFallback className="text-sm sm:text-base">
+                    {recipient.fullName?.[0] || "U"}
+                  </AvatarFallback>
                 )}
               </Avatar>
               <div>
-                <p className="font-semibold">{recipient.fullName}</p>
+                <p className="font-semibold text-foreground text-sm sm:text-base">{recipient.fullName}</p>
                 <p className="text-xs text-muted-foreground">QR Recipient</p>
               </div>
             </div>
@@ -228,38 +216,43 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
               placeholder="Amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              className="text-sm sm:text-base"
             />
 
             <Textarea
               placeholder="Remarks (optional)"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
+              rows={3}
+              className="text-sm sm:text-base"
             />
 
             <Card>
-                <CardContent className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                        <span>Amount</span>
-                        <span>${amountNum.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span>Fee</span>
-                        <span>${fee.toFixed(2)}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-semibold">
-                        <span>Total</span>
-                        <span>${total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Current Wallet Balance</span>
-                        <span>${walletBalance.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Wallet After Deduction</span>
-                        <span>${remainingBalance.toFixed(2)}</span>
-                    </div>
-                </CardContent>
+              <CardContent className="p-3 sm:p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="text-foreground">${amountNum.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Fee</span>
+                  <span className="text-foreground">${fee.toFixed(2)}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex justify-between font-semibold text-sm">
+                  <span className="text-foreground">Total</span>
+                  <span className="text-foreground">${total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Wallet Balance</span>
+                  <span>${walletBalance.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>After Deduction</span>
+                  <span className={remainingBalance < 0 ? "text-red-500" : "text-green-500"}>
+                    ${remainingBalance.toFixed(2)}
+                  </span>
+                </div>
+              </CardContent>
             </Card>
 
             <Button

@@ -67,7 +67,6 @@ export default function Wallet() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPayout, setShowPayout] = useState(false);
 
-
   /* ---------------- Loaders ---------------- */
 
   useEffect(() => {
@@ -96,7 +95,6 @@ export default function Wallet() {
   };
 
   const loadWalletData = async () => {
-    setIsLoading(true);
     try {
       const [stats, platform, methods] = await Promise.all([
         getWalletStats(),
@@ -108,8 +106,6 @@ export default function Wallet() {
       setPaymentMethods(methods);
     } catch (error) {
       console.error('Failed to load wallet data:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -117,12 +113,12 @@ export default function Wallet() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6 animate-pulse">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="h-40 bg-gray-200 rounded-xl" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="p-4 md:p-6 space-y-6 animate-pulse">
+        <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="h-40 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {Array(3).fill(0).map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 rounded-xl" />
+            <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl" />
           ))}
         </div>
       </div>
@@ -132,28 +128,29 @@ export default function Wallet() {
   /* ---------------- UI ---------------- */
 
   return (
-    <div className="p-2 space-y-8 min-w-full mx-auto">
+    <div className="p-3 md:p-6 space-y-6 md:space-y-8 w-full max-w-7xl mx-auto">
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* Header - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">My Wallet</h1>
-          <p className="text-slate-500">Manage your balance and payment methods</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">My Wallet</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Manage your balance and payment methods</p>
         </div>
 
-        <div className="flex gap-4">
-            <Button
-                variant="destructive"
-                onClick={() => setShowPayout(true)}
-                >
-                <ArrowUpFromLine className="w-4 h-4 mr-2" />
-                Withdraw
-            </Button>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Button
+            variant="destructive"
+            onClick={() => setShowPayout(true)}
+            className="w-full sm:w-auto"
+          >
+            <ArrowUpFromLine className="w-4 h-4 mr-2" />
+            Withdraw
+          </Button>
 
-            <Button onClick={() => setShowAddMethod(true)}>
+          <Button onClick={() => setShowAddMethod(true)} className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Add Payment Method
-            </Button>
+          </Button>
         </div>
       </div>
 
@@ -161,19 +158,19 @@ export default function Wallet() {
       <WalletBalance user={currentUser} stats={walletStats} />
 
       {/* Platform Section */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <PlatformBalanceCard stats={platformStats} />
         <TransactionFeeCard stats={platformStats} />
       </div>
 
       {/* Payment Methods */}
       <div className="space-y-4">
-        <div className="flex justify-between">
-          <h2 className="text-xl font-semibold">Payment Methods</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-100">Payment Methods</h2>
           <Badge variant="outline">{paymentMethods.length}</Badge>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {paymentMethods.map((method) => (
             <PaymentMethodCard
               key={method.id}
@@ -184,11 +181,11 @@ export default function Wallet() {
         </div>
       </div>
 
-      {/* Security */}
-      <Card className="bg-green-50 border-green-200">
-        <CardContent className="p-6 flex gap-4">
-          <Shield className="text-green-600" />
-          <p className="text-green-700 text-sm">
+      {/* Security - Dark mode text fix */}
+      <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+        <CardContent className="p-4 md:p-6 flex gap-3 md:gap-4">
+          <Shield className="text-green-600 dark:text-green-400 w-5 h-5 md:w-6 md:h-6 flex-shrink-0" />
+          <p className="text-green-700 dark:text-green-300 text-xs md:text-sm">
             Your payment info is encrypted and tokenized with bank-level security.
           </p>
         </CardContent>
@@ -196,7 +193,7 @@ export default function Wallet() {
 
       {/* Dialog */}
       <Dialog open={showAddMethod} onOpenChange={setShowAddMethod}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Payment Method</DialogTitle>
           </DialogHeader>
@@ -216,7 +213,7 @@ export default function Wallet() {
         maxAmount={currentUser?.walletBalance || 0}
         onSuccess={loadAll}
         hasPendingPayout={walletStats.pendingPayoutAmount > 0}
-    />
+      />
     </div>
   );
 }

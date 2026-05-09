@@ -3,8 +3,8 @@ export interface DashboardUser {
   fullName?: string;
   email?: string;
   profile_image?: string;
-  wallet_balance?: number;
-  rewards_points?: number;
+  walletBalance?: number;
+  rewardsPoints?: number;
   currency?: string;
 }
 

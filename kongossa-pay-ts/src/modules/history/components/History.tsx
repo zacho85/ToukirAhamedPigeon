@@ -48,7 +48,6 @@ export default function History() {
         totalPages: 1,
     });
 
-    // Load transaction history with pagination
     const loadTransactionHistory = async (page = 1) => {
         try {
             setIsLoading(true);
@@ -90,18 +89,15 @@ export default function History() {
     };
 
     const getTransactionDirection = (transaction: TransactionType): 'sent' | 'received' | 'unknown' => {
-        // For wallet_topup, always treat as received (positive amount)
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return 'received';
         }
-        // For payment_link: if current user is recipient, show as received
         if (transaction.type === 'payment_link') {
             if (transaction.recipientId === currentUserId) {
                 return 'received';
             }
             return 'unknown';
         }
-        // For wallet_transfer, check sender/recipient
         if (transaction.senderId === currentUserId) {
             return 'sent';
         }
@@ -115,30 +111,26 @@ export default function History() {
         const direction = getTransactionDirection(transaction);
         
         if (direction === 'sent') {
-            return <ArrowUpRight className="w-5 h-5 text-red-600 dark:text-red-400" />;
+            return <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />;
         }
         if (direction === 'received') {
-            return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
+            return <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />;
         }
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
-            return <ArrowDownLeft className="w-5 h-5 text-green-600 dark:text-green-400" />;
+            return <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />;
         }
-        return <ArrowUpRight className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+        return <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />;
     };
 
     const getFormattedAmount = (transaction: TransactionType) => {
         const amount = Number(transaction.amount || 0).toFixed(2);
         
-        // For top-ups, always show positive
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return `+$${amount}`;
         }
-        
-        // For payment links where user is recipient
         if (transaction.type === 'payment_link' && transaction.recipientId === currentUserId) {
             return `+$${amount}`;
         }
-        
         const direction = getTransactionDirection(transaction);
         if (direction === 'sent') {
             return `-$${amount}`;
@@ -166,28 +158,23 @@ export default function History() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'completed':
-                return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-400';
+                return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
             case 'pending':
-                return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-400';
+                return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
             case 'failed':
-                return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-400';
+                return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
             default:
-                return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+                return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
         }
     };
 
     const getTransactionTitle = (transaction: TransactionType) => {
-        // Handle top-ups
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return 'Wallet Top Up';
         }
-        
-        // Handle payouts/withdrawals
         if (transaction.type === 'withdrawal' || transaction.type === 'wallet_payout') {
             return 'Withdrawal';
         }
-        
-        // Handle payment links
         if (transaction.type === 'payment_link') {
             const direction = getTransactionDirection(transaction);
             if (direction === 'received') {
@@ -195,8 +182,6 @@ export default function History() {
             }
             return 'Payment Link Transaction';
         }
-        
-        // Handle transfers
         const direction = getTransactionDirection(transaction);
         if (direction === 'sent') {
             const recipientName = transaction.recipientName || `User ${transaction.recipientId}`;
@@ -206,7 +191,6 @@ export default function History() {
             const senderName = transaction.senderName || `User ${transaction.senderId}`;
             return `Received from ${senderName}`;
         }
-        
         return transaction.description || `${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} Transaction`;
     };
 
@@ -233,126 +217,135 @@ export default function History() {
 
     if (isLoading) {
         return (
-            <div className="p-6 space-y-6 bg-slate-50 dark:bg-gray-900 min-h-screen">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 bg-slate-50 dark:bg-gray-900 min-h-screen">
                 <div className="animate-pulse space-y-4">
-                    <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-64"></div>
-                    <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="h-7 sm:h-8 bg-gray-200 dark:bg-gray-700 rounded w-48 sm:w-64"></div>
+                    <div className="h-48 sm:h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="p-6 space-y-6 bg-slate-50 dark:bg-gray-900 min-h-screen">
-            <div className="flex justify-between items-center">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 bg-slate-50 dark:bg-gray-900 min-h-screen">
+            {/* Header - Mobile Responsive */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-gray-100">Transaction History</h1>
-                    <p className="text-slate-600 dark:text-gray-300">Complete record of your financial activities</p>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-gray-100">Transaction History</h1>
+                    <p className="text-sm sm:text-base text-slate-600 dark:text-gray-400 mt-1">Complete record of your financial activities</p>
                 </div>
-                <Button onClick={exportTransactions} variant="outline">
+                <Button onClick={exportTransactions} variant="outline" size="sm" className="sm:size-default">
                     <Download className="w-4 h-4 mr-2" />
                     Export CSV
                 </Button>
             </div>
 
-            {/* Filter Section */}
+            {/* Filter Section - Mobile Responsive */}
             <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                <CardHeader>
-                    <CardTitle className="dark:text-gray-100">Filter & Search</CardTitle>
+                <CardHeader className="pb-3 sm:pb-4">
+                    <CardTitle className="text-base sm:text-lg dark:text-gray-100">Filter & Search</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-400" />
+                    <div className="flex flex-col gap-3">
+                        {/* Search input with button - stacked on mobile */}
+                        <div className="relative w-full">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
                             <Input
                                 placeholder="Search transactions..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+                                className="pl-9 pr-20 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
                             />
                             <Button 
                                 onClick={handleSearch}
-                                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8"
+                                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 px-3 text-xs"
                                 size="sm"
                             >
                                 Go
                             </Button>
                         </div>
-                        <Select value={filterType} onValueChange={setFilterType}>
-                            <SelectTrigger className="w-full md:w-48 dark:bg-gray-700 dark:text-gray-100">
-                                <SelectValue placeholder="Filter by type" />
-                            </SelectTrigger>
-                            <SelectContent className="dark:bg-gray-700 dark:text-gray-100">
-                                <SelectItem value="all">All Types</SelectItem>
-                                <SelectItem value="topup">Top Up / Deposit</SelectItem>
-                                <SelectItem value="sent">Send Money</SelectItem>
-                                <SelectItem value="received">Received Money</SelectItem>
-                                <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
-                            <SelectTrigger className="w-full md:w-48 dark:bg-gray-700 dark:text-gray-100">
-                                <SelectValue placeholder="Filter by status" />
-                            </SelectTrigger>
-                            <SelectContent className="dark:bg-gray-700 dark:text-gray-100">
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="completed">Completed</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="failed">Failed</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        
+                        {/* Filter selects - stacked on mobile, side by side on tablet/desktop */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Select value={filterType} onValueChange={setFilterType}>
+                                <SelectTrigger className="w-full sm:w-40 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600">
+                                    <SelectValue placeholder="Filter by type" />
+                                </SelectTrigger>
+                                <SelectContent className="dark:bg-gray-800 dark:text-gray-100">
+                                    <SelectItem value="all">All Types</SelectItem>
+                                    <SelectItem value="topup">Top Up / Deposit</SelectItem>
+                                    <SelectItem value="sent">Send Money</SelectItem>
+                                    <SelectItem value="received">Received Money</SelectItem>
+                                    <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                <SelectTrigger className="w-full sm:w-40 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600">
+                                    <SelectValue placeholder="Filter by status" />
+                                </SelectTrigger>
+                                <SelectContent className="dark:bg-gray-800 dark:text-gray-100">
+                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="failed">Failed</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Transactions List */}
+            {/* Transactions List - Mobile Responsive */}
             <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                <CardHeader>
-                    <CardTitle className="dark:text-gray-100">
-                        All Transactions
-                        <Badge variant="outline" className="ml-2">
+                <CardHeader className="pb-3 sm:pb-4">
+                    <CardTitle className="text-base sm:text-lg dark:text-gray-100 flex flex-wrap items-center gap-2">
+                        <span>All Transactions</span>
+                        <Badge variant="outline" className="text-xs">
                             {pagination.total} results
                         </Badge>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                         {filteredTransactions.length === 0 ? (
-                            <div className="text-center py-12">
-                                <Filter className="w-12 h-12 text-slate-400 dark:text-gray-400 mx-auto mb-4" />
-                                <p className="text-slate-500 dark:text-gray-300">No transactions found matching your criteria</p>
+                            <div className="text-center py-8 sm:py-12">
+                                <Filter className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400 dark:text-gray-500 mx-auto mb-3 sm:mb-4" />
+                                <p className="text-sm sm:text-base text-slate-500 dark:text-gray-400">No transactions found matching your criteria</p>
                             </div>
                         ) : (
                             filteredTransactions.map((transaction) => (
-                                <div key={transaction.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-slate-100 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                <div key={transaction.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow gap-3">
+                                    {/* Left side - Icon and details */}
+                                    <div className="flex items-center gap-3 sm:gap-4">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
                                             {getTransactionIcon(transaction)}
                                         </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-900 dark:text-gray-100">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm sm:text-base text-slate-900 dark:text-gray-100 truncate max-w-[180px] sm:max-w-none">
                                                 {getTransactionTitle(transaction)}
                                             </p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <p className="text-sm text-slate-500 dark:text-gray-400">
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
                                                     {formatDateTimeDisplay(transaction.createdAt)}
                                                 </p>
-                                                <Badge className={getStatusColor(transaction.status)}>
+                                                <Badge className={`text-xs ${getStatusColor(transaction.status)}`}>
                                                     {transaction.status}
                                                 </Badge>
                                             </div>
                                             {transaction.description && (
-                                                <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
+                                                <p className="text-xs text-slate-400 dark:text-gray-500 mt-1 truncate max-w-[200px] sm:max-w-none">
                                                     {transaction.description}
                                                 </p>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className={`text-lg font-semibold ${getAmountColorClass(transaction)}`}>
+                                    
+                                    {/* Right side - Amount */}
+                                    <div className="text-left sm:text-right pl-14 sm:pl-0">
+                                        <p className={`text-base sm:text-lg font-semibold ${getAmountColorClass(transaction)}`}>
                                             {getFormattedAmount(transaction)}
                                         </p>
-                                        <p className="text-sm text-slate-500 dark:text-gray-400">
+                                        <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
                                             {transaction.currency || 'USD'}
                                         </p>
                                     </div>
@@ -361,7 +354,7 @@ export default function History() {
                         )}
                     </div>
                     
-                    {/* Pagination */}
+                    {/* Pagination - Mobile Responsive */}
                     {pagination.totalPages > 1 && (
                         <div className="flex justify-center items-center gap-2 mt-6">
                             <Button
@@ -369,21 +362,24 @@ export default function History() {
                                 size="sm"
                                 onClick={() => handlePageChange(pagination.page - 1)}
                                 disabled={pagination.page <= 1}
+                                className="px-2 sm:px-3"
                             >
-                                <ChevronLeft className="w-4 h-4" />
-                                Previous
+                                <ChevronLeft className="w-4 h-4 mr-0 sm:mr-1" />
+                                <span className="hidden sm:inline">Previous</span>
                             </Button>
-                            <span className="text-sm text-slate-600 dark:text-gray-400">
-                                Page {pagination.page} of {pagination.totalPages}
+                            <span className="text-xs sm:text-sm text-slate-600 dark:text-gray-400">
+                                <span className="sm:hidden">{pagination.page}/{pagination.totalPages}</span>
+                                <span className="hidden sm:inline">Page {pagination.page} of {pagination.totalPages}</span>
                             </span>
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handlePageChange(pagination.page + 1)}
                                 disabled={pagination.page >= pagination.totalPages}
+                                className="px-2 sm:px-3"
                             >
-                                Next
-                                <ChevronRight className="w-4 h-4" />
+                                <span className="hidden sm:inline">Next</span>
+                                <ChevronRight className="w-4 h-4 ml-0 sm:ml-1" />
                             </Button>
                         </div>
                     )}

@@ -31,9 +31,6 @@ import { createUser } from "../api";
 import { useDispatch } from "react-redux";
 import { showToast } from "@/redux/slices/toastSlice";
 import PageTransition from '@/components/module/admin/layout/PageTransition';
-// ---------------------------
-// Types
-// ---------------------------
 
 interface UserFormData {
   fullName: string;
@@ -53,7 +50,7 @@ interface UserFormData {
   legalFormDocument: File | null;
 }
 
-export default function UserCreate(){
+export default function UserCreate() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -75,7 +72,6 @@ export default function UserCreate(){
     legalFormDocument: null,
   });
 
-  // const [roles] = useState<string[]>(["user", "business_merchant"]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [processing, setProcessing] = useState<boolean>(false);
 
@@ -86,26 +82,21 @@ export default function UserCreate(){
     { label: "Create" },
   ];
 
-  // Change handler
   const handleChange = (key: keyof UserFormData, value: any) => {
     setData((prev) => ({ ...prev, [key]: value }));
   };
 
-  // File change handler
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setSelectedFile(file);
     setData((prev) => ({ ...prev, legalFormDocument: file }));
   };
 
-  // Submit handler
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (data.password !== data.password_confirmation) {
-      dispatch(
-        showToast({ type: "danger", message: "Passwords do not match" })
-      );
+      dispatch(showToast({ type: "danger", message: "Passwords do not match" }));
       return;
     }
 
@@ -126,21 +117,14 @@ export default function UserCreate(){
 
       await createUser(formData);
 
-      dispatch(
-        showToast({
-          type: "success",
-          message: "User created successfully",
-        })
-      );
-
+      dispatch(showToast({ type: "success", message: "User created successfully" }));
       navigate("/admin/users");
     } catch (err: any) {
       console.error(err);
       dispatch(
         showToast({
           type: "danger",
-          message:
-            err?.response?.data?.message || "Failed to create user",
+          message: err?.response?.data?.message || "Failed to create user",
         })
       );
     } finally {
@@ -150,69 +134,57 @@ export default function UserCreate(){
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-6 px-4 sm:px-0">
         <Breadcrumb items={breadcrumbs} title="Create New User" />
 
         <div className="max-w-4xl mx-auto">
           <Card>
-            <CardHeader>
+            <CardHeader className="px-4 sm:px-6">
               <CardTitle>Create New User</CardTitle>
-              <CardDescription>
-                Add a new user to the system
-              </CardDescription>
+              <CardDescription>Add a new user to the system</CardDescription>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* --------------------------------------- */}
-                {/* PERSON INFO */}
-                {/* --------------------------------------- */}
+                {/* Personal Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium flex items-center gap-2">
+                  <h3 className="text-lg font-medium flex items-center gap-2 text-foreground">
                     <UserIcon className="w-5 h-5" /> Personal Information
                   </h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Full Name</Label>
+                      <Label className="text-foreground">Full Name</Label>
                       <Input
                         value={data.fullName}
-                        onChange={(e) =>
-                          handleChange("fullName", e.target.value)
-                        }
+                        onChange={(e) => handleChange("fullName", e.target.value)}
+                        className="w-full"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Email</Label>
+                      <Label className="text-foreground">Email</Label>
                       <Input
                         type="email"
                         value={data.email}
-                        onChange={(e) =>
-                          handleChange("email", e.target.value)
-                        }
+                        onChange={(e) => handleChange("email", e.target.value)}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Phone Number</Label>
+                      <Label className="text-foreground">Phone Number</Label>
                       <Input
                         value={data.phoneNumber}
-                        onChange={(e) =>
-                          handleChange("phoneNumber", e.target.value)
-                        }
+                        onChange={(e) => handleChange("phoneNumber", e.target.value)}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>User Type</Label>
+                      <Label className="text-foreground">User Type</Label>
                       <Select
                         value={data.userType}
                         onValueChange={(v) =>
-                          handleChange(
-                            "userType",
-                            v as "personal" | "business_merchant"
-                          )
+                          handleChange("userType", v as "personal" | "business_merchant")
                         }
                       >
                         <SelectTrigger>
@@ -234,12 +206,10 @@ export default function UserCreate(){
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label className="text-foreground">Status</Label>
                       <Select
                         value={data.status}
-                        onValueChange={(v) =>
-                          handleChange("status", v as "active" | "inactive")
-                        }
+                        onValueChange={(v) => handleChange("status", v as "active" | "inactive")}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
@@ -253,129 +223,101 @@ export default function UserCreate(){
                   </div>
                 </div>
 
-                {/* --------------------------------------- */}
-                {/* SECURITY */}
-                {/* --------------------------------------- */}
+                {/* Security */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Security</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h3 className="text-lg font-medium text-foreground">Security</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Password</Label>
+                      <Label className="text-foreground">Password</Label>
                       <Input
                         type="password"
                         value={data.password}
-                        onChange={(e) =>
-                          handleChange("password", e.target.value)
-                        }
+                        onChange={(e) => handleChange("password", e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Confirm Password</Label>
+                      <Label className="text-foreground">Confirm Password</Label>
                       <Input
                         type="password"
                         value={data.password_confirmation}
-                        onChange={(e) =>
-                          handleChange(
-                            "password_confirmation",
-                            e.target.value
-                          )
-                        }
+                        onChange={(e) => handleChange("password_confirmation", e.target.value)}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* --------------------------------------- */}
-                {/* BUSINESS INFO */}
-                {/* --------------------------------------- */}
+                {/* Business Information */}
                 {isBusinessUser && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
+                    <h3 className="text-lg font-medium flex items-center gap-2 text-foreground">
                       <Building2 className="w-5 h-5" /> Business Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Company Name</Label>
+                        <Label className="text-foreground">Company Name</Label>
                         <Input
                           value={data.companyName}
-                          onChange={(e) =>
-                            handleChange("companyName", e.target.value)
-                          }
+                          onChange={(e) => handleChange("companyName", e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Legal Form</Label>
+                        <Label className="text-foreground">Legal Form</Label>
                         <Input
                           value={data.legalForm}
-                          onChange={(e) =>
-                            handleChange("legalForm", e.target.value)
-                          }
+                          onChange={(e) => handleChange("legalForm", e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Manager Name</Label>
+                        <Label className="text-foreground">Manager Name</Label>
                         <Input
                           value={data.managerName}
-                          onChange={(e) =>
-                            handleChange("managerName", e.target.value)
-                          }
+                          onChange={(e) => handleChange("managerName", e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Company Phone</Label>
+                        <Label className="text-foreground">Company Phone</Label>
                         <Input
                           value={data.companyPhone}
-                          onChange={(e) =>
-                            handleChange(
-                              "companyPhone",
-                              e.target.value
-                            )
-                          }
+                          onChange={(e) => handleChange("companyPhone", e.target.value)}
                         />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Company Address</Label>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-foreground">Company Address</Label>
                         <Textarea
                           rows={3}
                           value={data.companyAddress}
-                          onChange={(e) =>
-                            handleChange("companyAddress", e.target.value)
-                          }
+                          onChange={(e) => handleChange("companyAddress", e.target.value)}
+                          className="w-full"
                         />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Business Description</Label>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-foreground">Business Description</Label>
                         <Textarea
                           rows={3}
                           value={data.businessDescription}
-                          onChange={(e) =>
-                            handleChange(
-                              "businessDescription",
-                              e.target.value
-                            )
-                          }
+                          onChange={(e) => handleChange("businessDescription", e.target.value)}
+                          className="w-full"
                         />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
-                        <Label className="flex items-center gap-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="flex items-center gap-2 text-foreground">
                           <FileText className="w-4 h-4" /> Legal Form Document
                         </Label>
-
                         <Input
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png"
                           onChange={handleFileChange}
+                          className="w-full"
                         />
-
                         {selectedFile && (
-                          <p className="text-sm text-green-600">
+                          <p className="text-sm text-green-600 dark:text-green-400">
                             Selected: {selectedFile.name}
                           </p>
                         )}
@@ -384,18 +326,14 @@ export default function UserCreate(){
                   </div>
                 )}
 
-                {/* --------------------------------------- */}
-                {/* ACTION BUTTONS */}
-                {/* --------------------------------------- */}
-                <div className="flex justify-end space-x-4 pt-6">
-                  <Button variant="outline" type="button" onClick={() => navigate(-1)}>
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6">
+                  <Button variant="outline" type="button" onClick={() => navigate(-1)} className="w-full sm:w-auto order-2 sm:order-1">
                     Cancel
                   </Button>
 
-                  <Button type="submit" disabled={processing}>
-                    {processing && (
-                      <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
-                    )}
+                  <Button type="submit" disabled={processing} className="w-full sm:w-auto order-1 sm:order-2">
+                    {processing && <LoaderCircle className="w-4 h-4 animate-spin mr-2" />}
                     Create User
                   </Button>
                 </div>
@@ -404,6 +342,6 @@ export default function UserCreate(){
           </Card>
         </div>
       </div>
-      </PageTransition>
+    </PageTransition>
   );
 }
