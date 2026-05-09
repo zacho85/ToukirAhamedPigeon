@@ -289,21 +289,51 @@ export class AuthService {
     }
 
   async revokeRefreshToken(refreshToken: string) {
-    try{
-    const tokens = await this.prisma.refreshToken.findMany();
-    for (const stored of tokens) {
-      const valid = await bcrypt.compare(refreshToken, stored.tokenHash);
-      if (valid) {
-        await this.prisma.refreshToken.update({
-          where: { id: stored.id },
-          data: { revoked: true },
-        });
-        return true;
+    try {
+      // OPTIMIZED: Only get recent valid tokens (not all)
+      const validTokens = await this.prisma.refreshToken.findMany({
+        where: {
+          expiresAt: { gt: new Date() },
+          revoked: false,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50, // Limit to 50 most recent tokens
+      });
+
+      for (const stored of validTokens) {
+        const isValid = await bcrypt.compare(refreshToken, stored.tokenHash);
+        if (isValid) {
+          await this.prisma.refreshToken.update({
+            where: { id: stored.id },
+            data: { revoked: true },
+          });
+          return true;
+        }
       }
-    }
-    return false;
-    }
-    catch (error) {
+      
+      // Also check if token is expired but still needs revocation
+      const expiredTokens = await this.prisma.refreshToken.findMany({
+        where: {
+          expiresAt: { lte: new Date() },
+          revoked: false,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      for (const stored of expiredTokens) {
+        const isValid = await bcrypt.compare(refreshToken, stored.tokenHash);
+        if (isValid) {
+          await this.prisma.refreshToken.update({
+            where: { id: stored.id },
+            data: { revoked: true },
+          });
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
       console.log('Revoke refresh token error:', error.message);
       throw new Error(error.message);
     }
