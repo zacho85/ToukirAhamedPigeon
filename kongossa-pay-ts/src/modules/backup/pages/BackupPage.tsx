@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Download, Trash2, Database, RefreshCw } from 'lucide-react';
-import { createBackup, listBackups, deleteBackup, downloadBackup, type BackupFile } from '../api';
+import { createBackup, listBackups, deleteBackup, type BackupFile } from '../api';
 import { dispatchShowToast } from '@/lib/dispatch';
 import { format } from 'date-fns';
 import Breadcrumb from '@/components/module/admin/layout/Breadcrumb';
@@ -14,6 +14,7 @@ export default function BackupPage() {
   const [backups, setBackups] = useState<BackupFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const loadBackups = async () => {
     setIsLoading(true);
@@ -35,12 +36,53 @@ export default function BackupPage() {
       dispatchShowToast({ type: 'success', message: `Backup created: ${result.filename}` });
       await loadBackups();
       
-      // Auto download after creation
-      window.open(downloadBackup(result.filename), '_blank');
+      // Auto download after creation using authenticated fetch
+      await handleDownload(result.filename);
     } catch (error: any) {
       dispatchShowToast({ type: 'danger', message: error.response?.data?.message || 'Failed to create backup' });
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleDownload = async (filename: string) => {
+    setDownloading(filename);
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        dispatchShowToast({ type: 'danger', message: 'Not authenticated' });
+        return;
+      }
+
+      const apiUrl = import.meta.env.VITE_APP_API_URL;
+      const response = await fetch(`${apiUrl}/backup/download/${filename}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      dispatchShowToast({ type: 'success', message: 'Download started' });
+    } catch (error: any) {
+      console.error('Download failed:', error);
+      dispatchShowToast({ type: 'danger', message: error.message || 'Failed to download backup' });
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -144,9 +186,14 @@ export default function BackupPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => window.open(downloadBackup(backup.filename), '_blank')}
+                          onClick={() => handleDownload(backup.filename)}
+                          disabled={downloading === backup.filename}
                         >
-                          <Download className="w-4 h-4" />
+                          {downloading === backup.filename ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

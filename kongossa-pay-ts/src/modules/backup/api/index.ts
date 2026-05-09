@@ -22,6 +22,4 @@ export const deleteBackup = async (filename: string): Promise<void> => {
   await api.delete(`/backup/${filename}`);
 };
 
-export const downloadBackup = (filename: string): string => {
-  return `${import.meta.env.VITE_APP_API_URL}/backup/download/${filename}`;
-};
+// Note: downloadBackup function removed - now using handleDownload with fetch
