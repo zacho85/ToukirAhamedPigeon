@@ -22,10 +22,12 @@ export class BackupService {
   constructor(private prisma: PrismaService) {}
 
   async createBackup(userId: number, userRole: string) {
+    // Only superadmin can create backups
     if (userRole !== 'superadmin') {
       throw new ForbiddenException('Only superadmin can create backups');
     }
 
+    // Ensure backup directory exists
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
     }
@@ -34,31 +36,11 @@ export class BackupService {
     const filename = `backup_${timestamp}.sql`;
     const filepath = path.join(this.backupDir, filename);
 
-    // ✅ Fix: Properly parse DATABASE_URL
-    const databaseUrl = process.env.DATABASE_URL;
-    // Example: postgresql://kongossa_user:password@postgres:5432/kongossa_db
-    const urlParts = databaseUrl?.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
-    
-    if (!urlParts) {
-      throw new Error('Invalid DATABASE_URL format');
-    }
-
-    const user = urlParts[1];
-    const password = urlParts[2];
-    const host = urlParts[3];
-    const port = urlParts[4];
-    const dbName = urlParts[5];
-
-    // Set PGPASSWORD environment variable
-    process.env.PGPASSWORD = password;
-
-    // ✅ Use /bin/sh instead of /bin/bash (Alpine Linux)
-    const shell = '/bin/sh';
-
+    // Use docker exec to run pg_dump from postgres container (no host parsing needed)
     try {
-      // Run pg_dump with proper shell
-      const command = `pg_dump -h ${host} -p ${port} -U ${user} -d ${dbName} --no-owner --no-privileges > ${filepath}`;
-      await execAsync(command, { shell });
+      // This command runs inside the host, so it has access to docker socket
+      const command = `docker exec kongossa-postgres pg_dump -U kongossa_user -d kongossa_db --no-owner --no-privileges > ${filepath}`;
+      await execAsync(command, { shell: '/bin/sh' });
 
       const stats = fs.statSync(filepath);
 
@@ -73,8 +55,6 @@ export class BackupService {
     } catch (error) {
       console.error('Backup failed:', error);
       throw new Error('Backup creation failed');
-    } finally {
-      delete process.env.PGPASSWORD;
     }
   }
 
@@ -112,6 +92,7 @@ export class BackupService {
 
     const filepath = path.join(this.backupDir, filename);
     
+    // Security: Prevent path traversal
     if (!filepath.startsWith(this.backupDir)) {
       throw new ForbiddenException('Invalid filename');
     }
