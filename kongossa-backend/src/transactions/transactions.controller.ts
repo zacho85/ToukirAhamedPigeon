@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, UseGuards, Req, BadRequestException } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -64,13 +64,28 @@ export class TransactionsController {
 
   @UseGuards(JwtAuthGuard)
   @Post('send')
-    async sendMoney(@Req() req: any, @Body() dto: {
-        recipientId: number;
-        amount: number;
-        paymentMethodId?: number;
-        description?: string;
-    }) {
-        return this.transactionsService.sendMoney(req.user.userId, dto);
-    }
+  async sendMoney(@Req() req: any, @Body() dto: {
+      recipientId: number;
+      amount: number;
+      paymentMethodId?: number;
+      description?: string;
+  }) {
+      try {
+          const result = await this.transactionsService.sendMoney(req.user.userId, {
+              recipientId: dto.recipientId,
+              amount: dto.amount,
+              description: dto.description,
+          });
+          
+          return {
+              success: true,
+              message: result.message || 'Money sent successfully',
+              transaction: result.transaction,
+              updatedBalance: result.updatedBalance,
+          };
+      } catch (error: any) {
+          throw new BadRequestException(error.message || 'Failed to send money');
+      }
+  }
 
 }

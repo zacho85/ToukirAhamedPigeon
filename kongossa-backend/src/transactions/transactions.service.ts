@@ -114,9 +114,7 @@ export class TransactionsService {
     const transferFee = dto.amount * (settings.transferFeePercent / 100);
     const totalDeduction = dto.amount + transferFee;
 
-    // Get current balances from User table (not recomputed)
     const senderCurrentBalance = sender.walletBalance;
-    const recipientCurrentBalance = recipient.walletBalance;
 
     console.log('Sender balance:', senderCurrentBalance);
     console.log('Transfer amount:', dto.amount);
@@ -127,7 +125,7 @@ export class TransactionsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1️⃣ Create transaction record (for sender as debit, recipient as credit)
+      // 1️⃣ Create transaction record
       const transaction = await tx.transaction.create({
         data: {
           transactionId: crypto.randomUUID(),
@@ -142,7 +140,7 @@ export class TransactionsService {
       });
 
       // 2️⃣ Update sender's balance (decrease)
-      await tx.user.update({
+      const updatedSender = await tx.user.update({
         where: { id: senderId },
         data: { walletBalance: { decrement: totalDeduction } },
       });
@@ -156,7 +154,22 @@ export class TransactionsService {
       console.log(`Sender ${senderId}: -${totalDeduction}`);
       console.log(`Recipient ${dto.recipientId}: +${dto.amount}`);
 
-      return transaction;
+      // ✅ Return transaction with updated sender balance
+      return {
+        success: true,
+        message: 'Money sent successfully',
+        transaction: {
+          id: transaction.id,
+          transactionId: transaction.transactionId,
+          amount: transaction.amount,
+          fee: transaction.fee,
+          type: transaction.type,
+          status: transaction.status,
+          description: transaction.description,
+          createdAt: transaction.createdAt,
+        },
+        updatedBalance: updatedSender.walletBalance,
+      };
     });
   }
   async processQRPayment(senderId: number, qrPaymentId: number, customAmount?: number) {

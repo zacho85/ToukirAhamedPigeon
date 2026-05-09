@@ -2,14 +2,9 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, TrendingUp, ArrowUpRight, ArrowDownLeft } from "lucide-react";
-import { syncCurrentUser } from "@/lib/dispatch";
 
 export default function WalletBalance({ user, stats }: { user: any, stats: any }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
-
-  useEffect(() => {
-    syncCurrentUser(0); // 0 delay = immediate fetch
-  }, []);
 
   return (
     <>

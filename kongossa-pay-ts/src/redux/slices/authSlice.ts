@@ -26,7 +26,7 @@ export interface AuthState {
   user: User | null;
   refreshTokenExpire: string | null;
   loading: boolean;
-  error: string | null;  // ✅ Changed from string to string | null
+  error: string | null;
   isLoggedOut: boolean;
 }
 
@@ -36,15 +36,15 @@ const initialState: AuthState = {
   user: null,
   refreshTokenExpire: null,
   loading: false,
-  error: null,  // ✅ Changed from "" to null
+  error: null,
   isLoggedOut: false,
 };
 
 // 🔹 Async thunk for refreshing access token
 export const refreshAccessToken = createAsyncThunk<
-  string,  // Return type
-  void,    // Argument type
-  { rejectValue: string }  // Reject value type
+  string,
+  void,
+  { rejectValue: string }
 >(
   "auth/refreshToken",
   async (_, { rejectWithValue, dispatch }) => {
@@ -112,6 +112,12 @@ export const authSlice = createSlice({
         } as User;
       }
     },
+    // ✅ New action: Update only wallet balance
+    updateWalletBalance: (state, action: PayloadAction<number>) => {
+      if (state.user) {
+        state.user.walletBalance = action.payload;
+      }
+    },
     setRefreshTokenExpires: (state, action: PayloadAction<string>) => {
       localStorage.setItem("refreshTokenExpires", action.payload);
       state.refreshTokenExpire = action.payload;
@@ -132,7 +138,7 @@ export const authSlice = createSlice({
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.loading = false;
-        state.accessToken = action.payload;  // ✅ Store the new token
+        state.accessToken = action.payload;
         state.error = null;
       })
       .addCase(refreshAccessToken.rejected, (state, action) => {
@@ -146,5 +152,12 @@ export const authSlice = createSlice({
 });
 
 // 🔹 Export actions and reducer
-export const { logout, setAccessToken, setUser, setRefreshTokenExpires } = authSlice.actions;
+export const { 
+  logout, 
+  setAccessToken, 
+  setUser, 
+  updateWalletBalance,  // ✅ Export the new action
+  setRefreshTokenExpires 
+} = authSlice.actions;
+
 export default authSlice.reducer;

@@ -15,7 +15,7 @@ import { getSystemSettings } from "@/modules/fee-management/api";
 import { sendMoney } from "@/modules/history/api";
 import { getWalletStats } from "@/modules/wallet/api";
 import { TopUpDialog } from "@/modules/wallet/components/TopUpDialog";
-import { dispatchShowToast, syncCurrentUser } from "@/lib/dispatch";
+import { dispatchSetUser, dispatchShowToast, dispatchUpdateWalletBalance, syncCurrentUser } from "@/lib/dispatch";
 
 interface Contact {
   id: number;
@@ -91,25 +91,26 @@ export default function SendMoney() {
 
     setIsSending(true);
     try {
-      await sendMoney({
+      const response = await sendMoney({
         recipientId: selectedContact.id,
         amount: amountNum,
         description: remarks,
       });
 
-      // ✅ No syncCurrentUser needed
+      // ✅ Update Redux with the returned balance
+      if (response.updatedBalance !== undefined) {
+        dispatchUpdateWalletBalance(response.updatedBalance);
+      }
+
       dispatchShowToast({
         type: "success",
-        message: "Money sent successfully!",
-        position: "top-right",
-        duration: 4000,
+        message: response.message || "Money sent successfully!",
       });
       setIsSuccess(true);
     } catch (error: any) {
       dispatchShowToast({
         type: "danger",
         message: error.response?.data?.message || "Failed to send money",
-        position: "top-right",
       });
     } finally {
       setIsSending(false);

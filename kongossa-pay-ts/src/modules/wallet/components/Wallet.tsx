@@ -23,6 +23,7 @@ import {
   listPaymentMethods
 } from "../api";
 import { PayoutDialog } from "./PayoutDialog";
+import { syncWalletBalance  } from "@/lib/dispatch";
 
 /* ---------------- Types ---------------- */
 
@@ -75,6 +76,7 @@ export default function Wallet() {
 
   const loadAll = async () => {
     setIsLoading(true);
+    await syncWalletBalance();
     await Promise.all([
       loadWalletStats(),
       loadPlatformStats(),
@@ -94,9 +96,21 @@ export default function Wallet() {
   };
 
   const loadWalletData = async () => {
-    if (!currentUser) return;
-    const methods = await listPaymentMethods();
-    setPaymentMethods(methods);
+    setIsLoading(true);
+    try {
+      const [stats, platform, methods] = await Promise.all([
+        getWalletStats(),
+        getPlatformStats(),
+        listPaymentMethods(),
+      ]);
+      setWalletStats(stats);
+      setPlatformStats(platform);
+      setPaymentMethods(methods);
+    } catch (error) {
+      console.error('Failed to load wallet data:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ---------------- Loading UI ---------------- */

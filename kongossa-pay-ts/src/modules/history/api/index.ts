@@ -10,6 +10,6 @@ export const sendMoney = async (payload: {
   amount: number;
   description?: string;
 }) => {
-  const res = await api.post('/transactions/send', payload);
-  return res.data;
+  const response = await api.post('/transactions/send', payload);
+  return response.data; // { success, message, transaction, updatedBalance }
 };

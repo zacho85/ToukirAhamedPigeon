@@ -84,5 +84,6 @@ export const setPassword = async (password: string) => {
 
 export const getCurrentUser = async () => {
   const res = await api.get("/auth/me");
+  console.log(res.data);
   return res.data;
 };
