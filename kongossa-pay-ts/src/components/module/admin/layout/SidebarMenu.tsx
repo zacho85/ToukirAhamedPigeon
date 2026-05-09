@@ -16,6 +16,7 @@ import {
   Bitcoin,
   DollarSign,
   History,
+  Database,
   // User,
   Send,
   // Fence,
@@ -155,6 +156,12 @@ const menu = [
     url: "/admin/roles",
     icon: Shield,
     permission: ["read:role"],
+  },
+  {
+    title: "Database Backup",
+    url: "/admin/backup",
+    icon: Database,
+    permission: ["read:backup"],
   },
   {
     title: "Settings",

@@ -70,6 +70,7 @@ import RoleList from "@/modules/role/pages/RoleList";
 import Profile from "@/modules/settings/pages/Profile";
 import Appearance from "@/modules/settings/pages/Appearance";
 import Password from "@/modules/settings/pages/Password";
+import BackupPage from '@/modules/backup/pages/BackupPage';
 
 // Public misc
 import Terms from "@/modules/public/pages/Terms";
@@ -199,6 +200,11 @@ export default function AppRoutes() {
         <Route path="admin/users/create" element={<ProtectedRoute allOf={["create:user"]}><UserCreate /></ProtectedRoute>} />
         <Route path="admin/users/:id" element={<ProtectedRoute allOf={["read:user"]}><UserShow /></ProtectedRoute>} />
         <Route path="admin/users/:id/edit" element={<ProtectedRoute allOf={["update:user"]}><UserEdit /></ProtectedRoute>} />
+        <Route path="admin/backup" element={
+          <ProtectedRoute allOf={["read:backup"]}>
+            <BackupPage />
+          </ProtectedRoute>
+        } />
 
         {/* Roles */}
         <Route path="admin/roles" element={<ProtectedRoute allOf={["read:role"]}><RoleList /></ProtectedRoute>} />

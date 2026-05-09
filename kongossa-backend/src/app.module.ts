@@ -38,6 +38,7 @@ import { WalletTopUpModule } from './wallet-topup/wallet-topup.module';
 import { UploadModule } from './upload/upload.module';
 import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
 import { PaymentLinksModule } from './payment-links/payment-links.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PaymentLinksModule } from './payment-links/payment-links.module';
       serveRoot: '/uploads',
     }),
     AppConfigModule,
+    BackupModule,
     PrismaModule,
     AuthModule,
     UsersModule,
