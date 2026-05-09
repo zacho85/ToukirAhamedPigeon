@@ -27,9 +27,9 @@ export class MailService {
   }
 
   async sendOtpEmail(to: string, otpCode: string, purpose: string = 'login') {
-    const subject = purpose === 'login' ? '🔐 Login Verification Code' : '📧 Welcome to Kongossa Pay - Verify Your Email';
+    const subject = purpose === 'login' ? '🔐 Login Verification Code' : '📧 Welcome to Kongossa Pay';
     
-    // Simple HTML template for testing
+    // Gmail-friendly HTML (no complex CSS, inline styles only)
     const html = `
       <!DOCTYPE html>
       <html>
@@ -37,17 +37,62 @@ export class MailService {
         <meta charset="UTF-8">
         <title>OTP Verification</title>
       </head>
-      <body style="font-family: Arial, sans-serif; background-color: #f4f7fb; padding: 20px;">
-        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; text-align: center;">
-          <h1 style="color: #1e3c72;">Kongossa Pay</h1>
-          <h2>Your Verification Code</h2>
-          <div style="font-size: 48px; font-weight: bold; letter-spacing: 5px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin: 20px 0;">
-            ${otpCode}
-          </div>
-          <p>This code will expire in 10 minutes.</p>
-          <hr style="margin: 20px 0;">
-          <p style="color: #666; font-size: 12px;">Secure Digital Payments Platform</p>
-        </div>
+      <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f7fb;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f7fb; padding: 20px;">
+          <tr>
+            <td align="center">
+              <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif;">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Secure Digital Payments</p>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 30px 20px;">
+                    <h2 style="color: #2d3748; margin: 0 0 16px 0; font-size: 22px; text-align: center;">Your Verification Code</h2>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 24px 0; text-align: center;">
+                      Use the code below to complete your ${purpose === 'login' ? 'login' : 'registration'}.
+                    </p>
+                    
+                    <!-- OTP Code Box -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #1e3c72; border-radius: 8px;">
+                      <tr>
+                        <td align="center" style="padding: 20px;">
+                          <span style="font-size: 42px; font-weight: bold; letter-spacing: 8px; color: #ffffff; font-family: monospace;">${otpCode}</span>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <p style="color: #718096; font-size: 13px; margin: 24px 0 0 0; text-align: center;">
+                      ⏰ This code will expire in <strong>10 minutes</strong>.
+                    </p>
+                    <p style="color: #a0aec0; font-size: 12px; margin: 16px 0 0 0; text-align: center;">
+                      If you didn't request this, please ignore this email.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f7fafc; border-radius: 0 0 12px 12px; padding: 16px 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #718096; font-size: 12px; margin: 0;">
+                      &copy; ${new Date().getFullYear()} Kongossa Pay. All rights reserved.
+                    </p>
+                    <p style="color: #a0aec0; font-size: 11px; margin: 4px 0 0 0;">
+                      Secure Digital Payments Platform
+                    </p>
+                  </td>
+                </tr>
+                
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     `;
