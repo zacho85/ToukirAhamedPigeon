@@ -10,7 +10,6 @@ import { getSystemSettings } from "@/modules/fee-management/api";
 // import { getWalletStats } from "@/modules/wallet/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@radix-ui/react-dropdown-menu";
-import { syncCurrentUser } from "@/lib/dispatch";
 import { Check } from "lucide-react";
 import { getCurrentUser } from "@/modules/auth/api";
 
@@ -146,8 +145,7 @@ export default function ScanQrSendMoneyModal({ open, onClose }: Props) {
         description: remarks,
         });
 
-        // 🔥 THIS FIXES BALANCE
-        await syncCurrentUser();
+      
 
         setIsSuccess(true);
     } finally {

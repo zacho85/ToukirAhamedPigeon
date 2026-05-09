@@ -15,7 +15,7 @@ import { getSystemSettings } from "@/modules/fee-management/api";
 import { sendMoney } from "@/modules/history/api";
 import { getWalletStats } from "@/modules/wallet/api";
 import { TopUpDialog } from "@/modules/wallet/components/TopUpDialog";
-import { dispatchSetUser, dispatchShowToast, dispatchUpdateWalletBalance, syncCurrentUser } from "@/lib/dispatch";
+import { dispatchShowToast, dispatchUpdateWalletBalance } from "@/lib/dispatch";
 
 interface Contact {
   id: number;
