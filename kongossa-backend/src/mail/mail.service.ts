@@ -1,4 +1,3 @@
-// kongossa-backend/src/mail/mail.service.ts
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
@@ -28,7 +27,7 @@ export class MailService {
   }
 
   async sendOtpEmail(to: string, otpCode: string, purpose: string = 'login') {
-    const subject = purpose === 'login' ? 'Login Verification Code' : 'Welcome to Kongossa Pay - Verify Your Email';
+    const subject = purpose === 'login' ? '🔐 Login Verification Code' : '📧 Welcome to Kongossa Pay - Verify Your Email';
     const html = this.getOtpEmailTemplate(otpCode, purpose);
     const text = `Your OTP code is: ${otpCode}. It will expire in 10 minutes.`;
     
@@ -36,7 +35,7 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, resetUrl: string) {
-    const subject = 'Reset Your Kongossa Pay Password';
+    const subject = '🔐 Reset Your Kongossa Pay Password';
     const html = this.getPasswordResetEmailTemplate(resetUrl);
     const text = `Click this link to reset your password: ${resetUrl}`;
     
@@ -44,7 +43,7 @@ export class MailService {
   }
 
   async sendEmailVerification(to: string, verificationLink: string) {
-    const subject = 'Verify Your Email Address';
+    const subject = '📧 Verify Your Email Address';
     const html = this.getEmailVerificationTemplate(verificationLink);
     const text = `Click here to verify your email: ${verificationLink}`;
     
@@ -52,7 +51,7 @@ export class MailService {
   }
 
   async sendWelcomeEmail(to: string, name: string) {
-    const subject = 'Welcome to Kongossa Pay!';
+    const subject = '🎉 Welcome to Kongossa Pay!';
     const html = this.getWelcomeEmailTemplate(name);
     const text = `Welcome to Kongossa Pay! Start managing your finances today.`;
     
@@ -75,9 +74,11 @@ export class MailService {
       from: `"${fromName}" <${fromEmail}>`,
       to,
       subject,
-      html,
+      html,  // ✅ HTML version
       text: text || html.replace(/<[^>]*>/g, ''), // Plain text fallback
     };
+    
+    console.log('Mail options - HTML length:', html.length);
     
     try {
       const result = await this.transporter.sendMail(mailOptions);
@@ -106,7 +107,7 @@ export class MailService {
           body {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: #f4f7fb;
           }
           .container {
@@ -173,21 +174,6 @@ export class MailService {
             font-size: 12px;
             color: #718096;
           }
-          .button {
-            display: inline-block;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            text-decoration: none;
-            padding: 12px 32px;
-            border-radius: 8px;
-            margin-top: 16px;
-          }
-          @media (max-width: 600px) {
-            .otp-code {
-              font-size: 32px;
-              letter-spacing: 4px;
-            }
-          }
         </style>
       </head>
       <body>
@@ -232,7 +218,7 @@ export class MailService {
           body {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: #f4f7fb;
           }
           .container {
@@ -263,11 +249,6 @@ export class MailService {
           .content {
             padding: 32px 24px;
           }
-          .message {
-            color: #4a5568;
-            line-height: 1.6;
-            margin-bottom: 24px;
-          }
           .button {
             display: inline-block;
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -277,14 +258,6 @@ export class MailService {
             border-radius: 8px;
             margin: 20px 0;
             font-weight: 600;
-          }
-          .warning {
-            background-color: #fff5f5;
-            border-left: 4px solid #e53e3e;
-            padding: 12px;
-            margin: 20px 0;
-            font-size: 12px;
-            color: #718096;
           }
           .footer {
             background-color: #f7fafc;
@@ -305,13 +278,15 @@ export class MailService {
             </div>
             <div class="content">
               <h2 style="color: #2d3748; margin-bottom: 16px;">Reset Your Password</h2>
-              <p class="message">We received a request to reset the password for your Kongossa Pay account. Click the button below to create a new password.</p>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 24px;">
+                We received a request to reset the password for your Kongossa Pay account. Click the button below to create a new password.
+              </p>
               <div style="text-align: center;">
                 <a href="${resetUrl}" class="button">Reset Password</a>
               </div>
-              <div class="warning">
-                ⚠️ This password reset link will expire in <strong>1 hour</strong>.
-              </div>
+              <p style="font-size: 12px; color: #a0aec0; text-align: center; margin-top: 24px;">
+                This password reset link will expire in <strong>1 hour</strong>.
+              </p>
               <p style="font-size: 12px; color: #a0aec0; text-align: center;">
                 If you didn't request this, please ignore this email. Your password will remain unchanged.
               </p>
@@ -338,7 +313,7 @@ export class MailService {
           body {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: #f4f7fb;
           }
           .container {
@@ -398,7 +373,9 @@ export class MailService {
             </div>
             <div class="content">
               <h2 style="color: #2d3748; margin-bottom: 16px;">Verify Your Email Address</h2>
-              <p class="message">Thanks for signing up! Please verify your email address to get started with Kongossa Pay.</p>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 24px;">
+                Thanks for signing up! Please verify your email address to get started with Kongossa Pay.
+              </p>
               <div style="text-align: center;">
                 <a href="${verificationLink}" class="button">Verify Email</a>
               </div>
@@ -428,7 +405,7 @@ export class MailService {
           body {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: #f4f7fb;
           }
           .container {
@@ -459,24 +436,6 @@ export class MailService {
           .content {
             padding: 32px 24px;
           }
-          .features {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            margin: 24px 0;
-          }
-          .feature {
-            flex: 1;
-            min-width: 120px;
-            text-align: center;
-            padding: 16px;
-            background-color: #f7fafc;
-            border-radius: 8px;
-          }
-          .feature-icon {
-            font-size: 32px;
-            margin-bottom: 8px;
-          }
           .footer {
             background-color: #f7fafc;
             padding: 20px;
@@ -496,21 +455,9 @@ export class MailService {
             </div>
             <div class="content">
               <h2 style="color: #2d3748;">Welcome aboard, ${name}! 🎉</h2>
-              <p class="message">We're excited to have you on board. Kongossa Pay makes it easy to send money, make payments, and manage your finances securely.</p>
-              <div class="features">
-                <div class="feature">
-                  <div class="feature-icon">💰</div>
-                  <div>Instant Transfers</div>
-                </div>
-                <div class="feature">
-                  <div class="feature-icon">🔒</div>
-                  <div>Bank-Level Security</div>
-                </div>
-                <div class="feature">
-                  <div class="feature-icon">💳</div>
-                  <div>Multiple Payment Methods</div>
-                </div>
-              </div>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 24px;">
+                We're excited to have you on board. Kongossa Pay makes it easy to send money, make payments, and manage your finances securely.
+              </p>
               <div style="text-align: center;">
                 <a href="${process.env.FRONTEND_URL}/dashboard" style="display: inline-block; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; text-decoration: none; padding: 12px 32px; border-radius: 8px;">Go to Dashboard</a>
               </div>
