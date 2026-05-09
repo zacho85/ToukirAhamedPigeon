@@ -94,6 +94,13 @@ export default function History() {
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return 'received';
         }
+        // For payment_link: if current user is recipient, show as received
+        if (transaction.type === 'payment_link') {
+            if (transaction.recipientId === currentUserId) {
+                return 'received';
+            }
+            return 'unknown';
+        }
         // For wallet_transfer, check sender/recipient
         if (transaction.senderId === currentUserId) {
             return 'sent';
@@ -127,6 +134,11 @@ export default function History() {
             return `+$${amount}`;
         }
         
+        // For payment links where user is recipient
+        if (transaction.type === 'payment_link' && transaction.recipientId === currentUserId) {
+            return `+$${amount}`;
+        }
+        
         const direction = getTransactionDirection(transaction);
         if (direction === 'sent') {
             return `-$${amount}`;
@@ -139,6 +151,9 @@ export default function History() {
 
     const getAmountColorClass = (transaction: TransactionType) => {
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
+            return 'text-green-600 dark:text-green-400';
+        }
+        if (transaction.type === 'payment_link' && transaction.recipientId === currentUserId) {
             return 'text-green-600 dark:text-green-400';
         }
         const direction = getTransactionDirection(transaction);
@@ -178,7 +193,7 @@ export default function History() {
             if (direction === 'received') {
                 return 'Payment Received via Link';
             }
-            return 'Payment Made via Link';
+            return 'Payment Link Transaction';
         }
         
         // Handle transfers

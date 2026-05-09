@@ -193,11 +193,13 @@ export class PaymentLinksService {
       });
       this.logger.log(`💰 Merchant wallet balance after: $${merchantAfter?.walletBalance}`);
 
-      // 5. Create transaction record
+      // 5. Create transaction record with CORRECT direction
+      // Sender = null (external customer), Recipient = merchant
       const transaction = await tx.transaction.create({
         data: {
           transactionId: `paylink_${linkId}_${Date.now()}`,
-          senderId: link.merchantId,
+          senderId: null,  // ✅ External customer (no account in system)
+          recipientId: link.merchantId,  // ✅ Merchant receives money
           amount: link.amount,
           currency: link.currency,
           type: 'payment_link',

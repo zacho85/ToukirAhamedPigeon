@@ -104,7 +104,7 @@ model TransactionLimits {
 model Transaction {
   id              Int      @id @default(autoincrement())
   transactionId   String   @unique
-  senderId        Int
+  senderId        Int?
   recipientId     Int?
   amount          Decimal? @db.Decimal(10,2)
   currency        String   @default("USD")
@@ -119,7 +119,7 @@ model Transaction {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  sender    User  @relation("SentTransactions", fields: [senderId], references: [id])
+  sender    User?  @relation("SentTransactions", fields: [senderId], references: [id])
   recipient User? @relation("ReceivedTransactions", fields: [recipientId], references: [id])
 
   @@map("Transaction")
