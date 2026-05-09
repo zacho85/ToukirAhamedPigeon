@@ -9,12 +9,16 @@ import { createBackup, listBackups, deleteBackup, type BackupFile } from '../api
 import { dispatchShowToast } from '@/lib/dispatch';
 import { format } from 'date-fns';
 import Breadcrumb from '@/components/module/admin/layout/Breadcrumb';
+import { useAppSelector } from '@/hooks/useRedux';
 
 export default function BackupPage() {
   const [backups, setBackups] = useState<BackupFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  // ✅ Get token from Redux store
+  const accessToken = useAppSelector((state) => state.auth.accessToken);
 
   const loadBackups = async () => {
     setIsLoading(true);
@@ -48,9 +52,9 @@ export default function BackupPage() {
   const handleDownload = async (filename: string) => {
     setDownloading(filename);
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        dispatchShowToast({ type: 'danger', message: 'Not authenticated' });
+      // ✅ Use token from Redux
+      if (!accessToken) {
+        dispatchShowToast({ type: 'danger', message: 'Not authenticated. Please log in again.' });
         return;
       }
 
@@ -58,11 +62,15 @@ export default function BackupPage() {
       const response = await fetch(`${apiUrl}/backup/download/${filename}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          dispatchShowToast({ type: 'danger', message: 'Session expired. Please refresh the page.' });
+          return;
+        }
         const error = await response.json();
         throw new Error(error.message || 'Download failed');
       }
