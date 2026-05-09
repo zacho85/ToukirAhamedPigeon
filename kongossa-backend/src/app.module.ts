@@ -7,6 +7,7 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { RolesModule } from './roles/roles.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
 import { AppConfigModule } from './config/config.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -64,6 +65,7 @@ import { BackupModule } from './backup/backup.module';
     PaymentMethodsModule,
     SupportTicketsModule,
     TontinesModule,
+    MailModule,
     SystemSettingsModule,
     SettingsModule,
     BudgetsModule,
