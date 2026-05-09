@@ -72,12 +72,13 @@ export function TopUpDialog({
         });
 
         // 🔄 wait for webhook
-        await syncUserProfile();
-
-        onSuccess();
-        onClose();
-        setAmount("");
-        setRemarks("");
+         setTimeout(async () => {
+          await syncUserProfile();
+          onSuccess();
+          onClose();
+          setAmount("");
+          setRemarks("");
+        }, 3000);
       }
       else{
         console.log('⚠️ Payment not succeeded, status:', paymentIntent?.status);
