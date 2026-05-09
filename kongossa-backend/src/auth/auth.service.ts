@@ -214,13 +214,25 @@ export class AuthService {
 
     // Refresh token
     async refreshAccessToken(refreshToken: string) {
-      const tokens = await this.prisma.refreshToken.findMany();
-      for (const stored of tokens) {
-        const valid = await bcrypt.compare(refreshToken, stored.tokenHash);
-        if (valid && stored.expiresAt > new Date() && !stored.revoked) {
-          const user = await this.prisma.user.findUnique({
-            where: { id: stored.userId },
-          });
+      // Step 1: Find all NON-expired, NON-revoked tokens (much smaller set)
+      const validTokens = await this.prisma.refreshToken.findMany({
+        where: {
+          expiresAt: { gt: new Date() },
+          revoked: false,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: {
+          user: true,
+        },
+      });
+
+      // Step 2: Check each token (still need bcrypt compare)
+      for (const stored of validTokens) {
+        const isValid = await bcrypt.compare(refreshToken, stored.tokenHash);
+        
+        if (isValid) {
+          const user = stored.user;
           if (!user) throw new UnauthorizedException('User not found');
 
           const payload = { sub: user.id, email: user.email, role: user.role };
@@ -230,6 +242,7 @@ export class AuthService {
             expiresIn: (process.env.JWT_ACCESS_EXPIRATION as StringValue) || '15m'
           });
 
+          // Fetch user roles and permissions
           const userRoles = await this.prisma.userRole.findMany({
             where: { userId: user.id },
             include: {
@@ -246,29 +259,34 @@ export class AuthService {
             },
           });
 
-      const roles = userRoles.map((ur) => ur.role.name);
-      const permissions = userRoles.flatMap((ur) =>
-        ur.role.rolePermissions.map(
-          (rp) => rp.permission.action + ':' + rp.permission.resource
-        )
-      );
+          const roles = userRoles.map((ur) => ur.role.name);
+          const permissions = userRoles.flatMap((ur) =>
+            ur.role.rolePermissions.map(
+              (rp) => rp.permission.action + ':' + rp.permission.resource
+            )
+          );
 
-      const userInfo = {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        profileImage: user.profileImage,
-        role: roles,
-        permissions,
-        walletBalance: user.walletBalance,
-        currency: user.currency,
-      };
+          const userInfo = {
+            id: user.id,
+            email: user.email,
+            fullName: user.fullName,
+            profileImage: user.profileImage,
+            role: roles,
+            permissions,
+            walletBalance: user.walletBalance,
+            currency: user.currency,
+          };
 
-        return { accessToken: newAccessToken, refreshTokenExpires: stored.expiresAt, user:userInfo };
+          return { 
+            accessToken: newAccessToken, 
+            refreshTokenExpires: stored.expiresAt, 
+            user: userInfo 
+          };
+        }
       }
+      
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
-    throw new UnauthorizedException('Invalid or expired refresh token');
-  }
 
   async revokeRefreshToken(refreshToken: string) {
     try{

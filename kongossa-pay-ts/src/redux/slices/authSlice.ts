@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/tool
 import axios from "axios";
 
 const apiUrl = import.meta.env.VITE_APP_API_URL;
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
 
 // 🔹 Define the User type returned from your backend
 export interface User {
@@ -24,7 +26,7 @@ export interface AuthState {
   user: User | null;
   refreshTokenExpire: string | null;
   loading: boolean;
-  error: string;
+  error: string | null;  // ✅ Changed from string to string | null
   isLoggedOut: boolean;
 }
 
@@ -34,47 +36,61 @@ const initialState: AuthState = {
   user: null,
   refreshTokenExpire: null,
   loading: false,
-  error: "",
+  error: null,  // ✅ Changed from "" to null
   isLoggedOut: false,
 };
 
 // 🔹 Async thunk for refreshing access token
 export const refreshAccessToken = createAsyncThunk<
-  string, // Return type
-  void,   // Argument type
-  { rejectValue: string; dispatch: any } // ThunkAPI types
+  string,  // Return type
+  void,    // Argument type
+  { rejectValue: string }  // Reject value type
 >(
   "auth/refreshToken",
   async (_, { rejectWithValue, dispatch }) => {
-    try {
-      const refreshExpireStr = localStorage.getItem("refreshTokenExpires");
-      if (!refreshExpireStr) {
-        dispatch(logout());
-        return rejectWithValue("Refresh token missing");
-      }
-
-      const expireDate = new Date(refreshExpireStr);
-      if (expireDate <= new Date()) {
-        dispatch(logout());
-        return rejectWithValue("Refresh token expired");
-      }
-
-      const { data } = await axios.post(
-        `${apiUrl}/auth/refresh-token`,
-        {},
-        { withCredentials: true }
-      );
-      console.log(data);
-
-      if (data.accessToken) dispatch(setAccessToken(data.accessToken));
-      if (data.user) dispatch(setUser(data.user as User));
-      if (data.refreshTokenExpires) dispatch(setRefreshTokenExpires(data.refreshTokenExpires));
-
-      return data.accessToken;
-    } catch (err: any) {
-      dispatch(logout());
-      return rejectWithValue(err.response?.data?.message || "Failed to refresh token");
+    // Prevent multiple concurrent refresh requests
+    if (isRefreshing && refreshPromise) {
+      return refreshPromise;
     }
+
+    isRefreshing = true;
+    refreshPromise = new Promise<string>(async (resolve, reject) => {
+      try {
+        const refreshExpireStr = localStorage.getItem("refreshTokenExpires");
+        if (!refreshExpireStr) {
+          dispatch(logout());
+          reject("Refresh token missing");
+          return;
+        }
+
+        const expireDate = new Date(refreshExpireStr);
+        if (expireDate <= new Date()) {
+          dispatch(logout());
+          reject("Refresh token expired");
+          return;
+        }
+
+        const { data } = await axios.post(
+          `${apiUrl}/auth/refresh-token`,
+          {},
+          { withCredentials: true, timeout: 5000 }
+        );
+
+        if (data.accessToken) dispatch(setAccessToken(data.accessToken));
+        if (data.user) dispatch(setUser(data.user as User));
+        if (data.refreshTokenExpires) dispatch(setRefreshTokenExpires(data.refreshTokenExpires));
+
+        resolve(data.accessToken);
+      } catch (err: any) {
+        dispatch(logout());
+        reject(err.response?.data?.message || "Failed to refresh token");
+      } finally {
+        isRefreshing = false;
+        refreshPromise = null;
+      }
+    });
+
+    return refreshPromise;
   }
 );
 
@@ -87,14 +103,14 @@ export const authSlice = createSlice({
       state.accessToken = action.payload;
     },
     setUser: (state, action: PayloadAction<Partial<User> | null>) => {
-        if (!action.payload) {
-            state.user = null;
-        } else {
-            state.user = {
-            ...state.user,
-            ...action.payload,
-            } as User;
-        }
+      if (!action.payload) {
+        state.user = null;
+      } else {
+        state.user = {
+          ...state.user,
+          ...action.payload,
+        } as User;
+      }
     },
     setRefreshTokenExpires: (state, action: PayloadAction<string>) => {
       localStorage.setItem("refreshTokenExpires", action.payload);
@@ -112,10 +128,12 @@ export const authSlice = createSlice({
     builder
       .addCase(refreshAccessToken.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
-      .addCase(refreshAccessToken.fulfilled, (state) => {
+      .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.loading = false;
-        state.error = "";
+        state.accessToken = action.payload;  // ✅ Store the new token
+        state.error = null;
       })
       .addCase(refreshAccessToken.rejected, (state, action) => {
         state.loading = false;

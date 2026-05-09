@@ -113,6 +113,8 @@ export default function SendMoney() {
     }
   };
 
+  console.log(isSuccess);
+
   /* ---------------- SUCCESS ---------------- */
   if (isSuccess) {
     return (

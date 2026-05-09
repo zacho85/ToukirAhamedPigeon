@@ -29,12 +29,27 @@ export async function syncCurrentUser(delay = 2000) {
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
-  const currentUser = await getCurrentUser();
-
-  if (currentUser) {
-    dispatchSetUser({
-      walletBalance: currentUser.walletBalance,
-      rewards_points: currentUser.rewards_points,
-    });
+  try {
+    const currentUser = await getCurrentUser();
+    
+    if (currentUser) {
+      // Update redux store with full user data including walletBalance
+      dispatchSetUser({
+        id: currentUser.id,
+        email: currentUser.email,
+        fullName: currentUser.fullName,
+        phoneNumber: currentUser.phoneNumber,
+        profileImage: currentUser.profileImage,
+        walletBalance: currentUser.walletBalance,
+        currency: currentUser.currency,
+        rewards_points: currentUser.rewardsPoints,
+        role: currentUser.role,
+        permissions: currentUser.permissions,
+      });
+    }
+  } catch (error) {
+    console.error('Failed to sync user:', error);
   }
 }
+
+
