@@ -21,14 +21,17 @@ export interface PaymentLink {
 }
 
 // ✅ Add this type for public payment page
+// api/index.ts
 export interface PublicPaymentLink {
   id: string;
+  type?: string;  // ✅ Add type
   amount: number;
   currency: string;
   description: string | null;
   merchantName: string;
   status: string;
   stripeCheckoutUrl: string;
+  quantityRemaining?: number;  // ✅ Add quantityRemaining
 }
 
 export const createPaymentLink = async (data: CreatePaymentLinkData): Promise<PaymentLink> => {

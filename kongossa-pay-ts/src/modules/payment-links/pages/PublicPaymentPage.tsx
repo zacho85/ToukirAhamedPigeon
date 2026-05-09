@@ -1,8 +1,9 @@
+// PublicPaymentPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-// import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import { getPublicPaymentLink, type PublicPaymentLink } from '../api';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -16,6 +17,7 @@ export default function PublicPaymentPage() {
   const [paymentLink, setPaymentLink] = useState<PublicPaymentLink | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [customAmount, setCustomAmount] = useState('');
 
   useEffect(() => {
     if (!linkId) {
@@ -44,9 +46,20 @@ export default function PublicPaymentPage() {
       return;
     }
 
-    setRedirecting(true);
-    // Redirect to Stripe Checkout
-    window.location.href = paymentLink.stripeCheckoutUrl;
+    // For flexible amount, we need to create a custom session
+    if (paymentLink.type === 'flexible_amount') {
+      const amount = parseFloat(customAmount);
+      if (isNaN(amount) || amount < 0.5) {
+        setError('Please enter a valid amount (minimum $0.50)');
+        return;
+      }
+      // Here you would call an API to create a custom checkout session
+      // For now, redirect with amount parameter
+      window.location.href = `${paymentLink.stripeCheckoutUrl}?amount=${amount}`;
+    } else {
+      setRedirecting(true);
+      window.location.href = paymentLink.stripeCheckoutUrl;
+    }
   };
 
   if (loading) {
@@ -83,13 +96,42 @@ export default function PublicPaymentPage() {
             <p className="text-muted-foreground">
               from {paymentLink?.merchantName}
             </p>
+            {paymentLink?.type === 'quantity_limited' && paymentLink.quantityRemaining !== undefined && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {paymentLink.quantityRemaining} payments remaining
+              </p>
+            )}
           </div>
 
           <div className="bg-muted rounded-lg p-4 mb-6 text-center">
-            <p className="text-sm text-muted-foreground">Amount</p>
-            <p className="text-3xl font-bold">
-              {paymentLink?.currency} {paymentLink?.amount?.toFixed(2)}
-            </p>
+            {paymentLink?.type === 'flexible_amount' ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-2">Enter Amount</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.5"
+                    placeholder="0.00"
+                    className="pl-7 text-center text-2xl h-14"
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Minimum amount: $0.50</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">Amount</p>
+                <p className="text-3xl font-bold">
+                  {paymentLink?.currency} {paymentLink?.amount?.toFixed(2)}
+                </p>
+                {paymentLink?.type === 'subscription' && (
+                  <p className="text-xs text-muted-foreground mt-1">Monthly recurring</p>
+                )}
+              </>
+            )}
             {paymentLink?.description && (
               <>
                 <p className="text-sm text-muted-foreground mt-2">For</p>
@@ -100,7 +142,7 @@ export default function PublicPaymentPage() {
 
           <Button
             onClick={handlePay}
-            disabled={redirecting}
+            disabled={redirecting || (paymentLink?.type === 'flexible_amount' && !customAmount)}
             className="w-full"
             size="lg"
           >

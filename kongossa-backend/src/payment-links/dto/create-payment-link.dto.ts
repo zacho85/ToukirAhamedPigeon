@@ -1,12 +1,18 @@
-import { IsNumber, IsOptional, IsString, IsPositive, Min, IsEmail, IsInt } from 'class-validator';
+// dto/create-payment-link.dto.ts
+import { IsNumber, IsOptional, IsString, IsPositive, Min, IsEmail, IsInt, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePaymentLinkDto {
+  @IsString()
+  @IsIn(['fixed_amount', 'flexible_amount', 'quantity_limited', 'subscription'])
+  type: string = 'fixed_amount';
+
+  @IsOptional()
   @IsNumber()
   @IsPositive()
   @Min(0.5)
   @Type(() => Number)
-  amount: number;
+  amount?: number;
 
   @IsString()
   @IsOptional()
@@ -14,27 +20,21 @@ export class CreatePaymentLinkDto {
 
   @IsString()
   @IsOptional()
-  currency?: string; // default USD
+  currency?: string;
 
   @IsInt()
   @IsOptional()
   @Min(1)
   @Type(() => Number)
-  expiresInDays?: number; // optional: 1,2,3,7 (default 7)
+  expiresInDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  quantity?: number; // For quantity_limited type
 
   @IsEmail()
   @IsOptional()
-  customerEmail?: string; // pre-fill email on checkout
-}
-
-export class PaymentLinkResponseDto {
-  id: string;
-  amount: number;
-  currency: string;
-  description: string | null;
-  status: string;
-  paymentUrl: string;
-  expiresAt: Date | null;
-  createdAt: Date;
-  stripeCheckoutUrl: string | null;
+  customerEmail?: string;
 }

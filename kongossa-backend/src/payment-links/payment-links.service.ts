@@ -1,3 +1,4 @@
+// payment-links.service.ts
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -26,23 +27,56 @@ export class PaymentLinksService {
     const expiresAt = expiresInDays > 0 ? addDays(new Date(), expiresInDays) : null;
 
     const linkId = this.generateLinkId();
-    this.logger.log(`Creating payment link with ID: ${linkId} for merchant: ${merchantId}`);
+    this.logger.log(`Creating payment link with ID: ${linkId} for merchant: ${merchantId}, Type: ${dto.type}`);
 
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: (dto.currency || 'USD').toLowerCase(),
-            product_data: {
-              name: dto.description || 'Payment',
-            },
-            unit_amount: Math.round(dto.amount * 100),
-          },
-          quantity: 1,
+    let session: Stripe.Checkout.Session;
+    let lineItems: any[] = [];
+
+    // Build line items based on payment link type
+    if (dto.type === 'fixed_amount') {
+      lineItems = [{
+        price_data: {
+          currency: (dto.currency || 'USD').toLowerCase(),
+          product_data: { name: dto.description || 'Payment' },
+          unit_amount: Math.round((dto.amount || 0) * 100),
         },
-      ],
+        quantity: 1,
+      }];
+    } else if (dto.type === 'flexible_amount') {
+      lineItems = [{
+        price_data: {
+          currency: (dto.currency || 'USD').toLowerCase(),
+          product_data: { name: dto.description || 'Payment' },
+          unit_amount: 100, // Placeholder
+        },
+        quantity: 1,
+      }];
+    } else if (dto.type === 'quantity_limited') {
+      lineItems = [{
+        price_data: {
+          currency: (dto.currency || 'USD').toLowerCase(),
+          product_data: { name: dto.description || 'Payment' },
+          unit_amount: Math.round((dto.amount || 0) * 100),
+        },
+        quantity: dto.quantity || 1,
+      }];
+    } else {
+      // subscription type
+      lineItems = [{
+        price_data: {
+          currency: (dto.currency || 'USD').toLowerCase(),
+          product_data: { name: dto.description || 'Subscription' },
+          unit_amount: Math.round((dto.amount || 0) * 100),
+          recurring: { interval: 'month' },
+        },
+        quantity: 1,
+      }];
+    }
+
+    const sessionConfig: any = {
+      payment_method_types: ['card'],
+      mode: dto.type === 'subscription' ? 'subscription' : 'payment',
+      line_items: lineItems,
       customer_email: dto.customerEmail,
       success_url: `${this.config.get('FRONTEND_URL')}/payment-link/success?session_id={CHECKOUT_SESSION_ID}&link_id=${linkId}`,
       cancel_url: `${this.config.get('FRONTEND_URL')}/payment-link/cancel`,
@@ -50,27 +84,33 @@ export class PaymentLinksService {
         payment_link: 'true',
         link_id: linkId,
         merchant_id: String(merchantId),
+        link_type: dto.type,
       },
-    });
+    };
 
+    if (dto.type === 'flexible_amount') {
+      sessionConfig.mode = 'payment';
+    }
+
+    session = await this.stripe.checkout.sessions.create(sessionConfig);
     this.logger.log(`Stripe session created: ${session.id}`);
 
     const paymentLink = await this.prisma.paymentLink.create({
       data: {
         id: linkId,
         merchantId,
-        amount: dto.amount,
+        type: dto.type,
+        amount: dto.amount || null,
         currency: dto.currency || 'USD',
         description: dto.description,
         status: 'active',
         expiresAt,
+        quantityTotal: dto.quantity || null,
         stripeSessionId: session.id,
         stripeCheckoutUrl: session.url,
         customerEmail: dto.customerEmail,
       },
     });
-
-    this.logger.log(`Payment link saved to database: ${paymentLink.id}`);
 
     return {
       ...paymentLink,
@@ -110,18 +150,30 @@ export class PaymentLinksService {
       throw new BadRequestException('This payment link has expired');
     }
 
-    if (link.status === 'paid') {
+    if (link.type === 'quantity_limited' && link.quantityTotal && link.quantityUsed >= link.quantityTotal) {
+      throw new BadRequestException('This payment link has reached its usage limit');
+    }
+
+    // For non-quantity links, check if paid
+    if (link.type !== 'quantity_limited' && link.status === 'paid') {
       throw new BadRequestException('This payment link has already been paid');
     }
 
+    // For partially paid quantity links, still show as active
+    const status = link.type === 'quantity_limited' && link.status === 'partially_paid' ? 'active' : link.status;
+
     return {
       id: link.id,
+      type: link.type,
       amount: link.amount,
       currency: link.currency,
       description: link.description,
       merchantName: link.merchant.fullName,
-      status: link.status,
+      status: status,
       stripeCheckoutUrl: link.stripeCheckoutUrl,
+      quantityRemaining: link.type === 'quantity_limited' && link.quantityTotal 
+        ? link.quantityTotal - link.quantityUsed 
+        : undefined,
     };
   }
 
@@ -137,10 +189,6 @@ export class PaymentLinksService {
     return link;
   }
 
-  /**
-   * Mark payment link as paid - called from webhook
-   * This is the critical method that credits the wallet
-   */
   async markAsPaid(linkId: string, paymentIntentId: string) {
     this.logger.log(`🔵 markAsPaid called for linkId: ${linkId}, paymentIntentId: ${paymentIntentId}`);
 
@@ -153,16 +201,64 @@ export class PaymentLinksService {
       return { success: false, message: 'Payment link not found' };
     }
 
+    // Handle quantity limited payment links
+    if (link.type === 'quantity_limited') {
+      const newQuantityUsed = (link.quantityUsed || 0) + 1;
+      const quantityTotal = link.quantityTotal || 1;
+      const newStatus = newQuantityUsed >= quantityTotal ? 'paid' : 'partially_paid';
+
+      this.logger.log(`📊 Quantity limited: ${newQuantityUsed}/${quantityTotal}, new status: ${newStatus}`);
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.paymentLink.update({
+          where: { id: linkId },
+          data: {
+            quantityUsed: newQuantityUsed,
+            status: newStatus,
+            stripePaymentIntentId: paymentIntentId,
+            paymentIntentStatus: 'succeeded',
+          },
+        });
+
+        await tx.user.update({
+          where: { id: link.merchantId },
+          data: { walletBalance: { increment: link.amount || 0 } },
+        });
+
+        await tx.transaction.create({
+          data: {
+            transactionId: `paylink_${linkId}_${Date.now()}`,
+            senderId: undefined,
+            recipientId: link.merchantId,
+            amount: link.amount || 0,
+            currency: link.currency,
+            type: 'payment_link',
+            status: 'completed',
+            paymentMethod: 'stripe',
+            description: `Payment received via link: ${link.description || 'Payment'} (${newQuantityUsed}/${quantityTotal})`,
+          },
+        });
+      });
+
+      const updatedMerchant = await this.prisma.user.findUnique({
+        where: { id: link.merchantId },
+        select: { walletBalance: true },
+      });
+
+      return { 
+        success: true, 
+        message: `Payment ${newQuantityUsed}/${quantityTotal} completed`,
+        updatedBalance: updatedMerchant?.walletBalance,
+      };
+    }
+
+    // Handle single payment links (fixed_amount, flexible_amount, subscription)
     if (link.status === 'paid') {
-      this.logger.warn(`⚠️ Payment link ${linkId} already paid, ignoring duplicate webhook`);
+      this.logger.warn(`⚠️ Payment link ${linkId} already paid`);
       return { success: true, message: 'Already paid' };
     }
 
-    this.logger.log(`💰 Processing payment: Amount $${link.amount}, Merchant ID: ${link.merchantId}`);
-
-    // Use a transaction to ensure all operations succeed or fail together
     await this.prisma.$transaction(async (tx) => {
-      // 1. Update link status
       await tx.paymentLink.update({
         where: { id: linkId },
         data: {
@@ -171,36 +267,18 @@ export class PaymentLinksService {
           paymentIntentStatus: 'succeeded',
         },
       });
-      this.logger.log(`✅ Payment link ${linkId} status updated to 'paid'`);
 
-      // 2. Get current wallet balance before update
-      const merchantBefore = await tx.user.findUnique({
-        where: { id: link.merchantId },
-        select: { walletBalance: true, fullName: true },
-      });
-      this.logger.log(`💰 Merchant ${merchantBefore?.fullName} wallet balance before: $${merchantBefore?.walletBalance}`);
-
-      // 3. Credit merchant's wallet
       await tx.user.update({
         where: { id: link.merchantId },
-        data: { walletBalance: { increment: link.amount } },
+        data: { walletBalance: { increment: link.amount || 0 } },
       });
 
-      // 4. Get updated wallet balance
-      const merchantAfter = await tx.user.findUnique({
-        where: { id: link.merchantId },
-        select: { walletBalance: true },
-      });
-      this.logger.log(`💰 Merchant wallet balance after: $${merchantAfter?.walletBalance}`);
-
-      // 5. Create transaction record with CORRECT direction
-      // Sender = null (external customer), Recipient = merchant
-      const transaction = await tx.transaction.create({
+      await tx.transaction.create({
         data: {
           transactionId: `paylink_${linkId}_${Date.now()}`,
-          senderId: null,  // ✅ External customer (no account in system)
-          recipientId: link.merchantId,  // ✅ Merchant receives money
-          amount: link.amount,
+          senderId: undefined,
+          recipientId: link.merchantId,
+          amount: link.amount || 0,
           currency: link.currency,
           type: 'payment_link',
           status: 'completed',
@@ -208,16 +286,23 @@ export class PaymentLinksService {
           description: `Payment received via link: ${link.description || 'Payment'}`,
         },
       });
-      this.logger.log(`✅ Transaction created: ${transaction.transactionId}`);
     });
 
-    this.logger.log(`🎉 Payment link ${linkId} successfully processed!`);
-    return { success: true, message: 'Payment link marked as paid' };
+    const updatedMerchant = await this.prisma.user.findUnique({
+      where: { id: link.merchantId },
+      select: { walletBalance: true },
+    });
+
+    return {
+      success: true,
+      message: 'Payment link marked as paid',
+      updatedBalance: updatedMerchant?.walletBalance,
+    };
   }
 
   async cancelPaymentLink(linkId: string, merchantId: number) {
     const link = await this.prisma.paymentLink.findFirst({
-      where: { id: linkId, merchantId, status: 'active' },
+      where: { id: linkId, merchantId, status: { in: ['active', 'partially_paid'] } },
     });
 
     if (!link) {

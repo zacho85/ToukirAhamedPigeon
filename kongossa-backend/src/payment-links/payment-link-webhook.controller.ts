@@ -53,23 +53,20 @@ export class PaymentLinkWebhookController {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      this.logger.log(`💰 Checkout session completed: ${session.id}`);
-      this.logger.log(`Metadata: ${JSON.stringify(session.metadata)}`);
       
       if (session.metadata?.payment_link === 'true') {
         const linkId = session.metadata?.link_id;
         const paymentIntentId = session.payment_intent as string;
         
-        this.logger.log(`🎯 Payment link detected! linkId: ${linkId}, paymentIntentId: ${paymentIntentId}`);
-        
         if (linkId && paymentIntentId) {
           const result = await this.paymentLinksService.markAsPaid(linkId, paymentIntentId);
           this.logger.log(`📊 markAsPaid result: ${JSON.stringify(result)}`);
-        } else {
-          this.logger.error(`Missing linkId or paymentIntentId: linkId=${linkId}, paymentIntentId=${paymentIntentId}`);
+          
+          // For quantity_limited, check if already partially paid
+          if (result.message?.includes('2/10') || result.message?.includes('partially')) {
+            // Link still active for more payments
+          }
         }
-      } else {
-        this.logger.log(`Session metadata does not contain payment_link flag`);
       }
     } else {
       this.logger.log(`Ignoring event type: ${event.type}`);

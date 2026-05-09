@@ -643,16 +643,19 @@ model WalletPayout {
 model PaymentLink {
   id                  String   @id @default(cuid())
   merchantId          Int
-  amount              Float
+  type                String   @default("fixed_amount") // fixed_amount, flexible_amount, quantity_limited, subscription
+  amount              Float?   // Null for flexible_amount
   currency            String   @default("USD")
   description         String?
-  status              String   @default("active") // active, paid, expired, cancelled
+  quantityTotal       Int?     // For quantity_limited type
+  quantityUsed        Int      @default(0) // For quantity_limited type
+  status              String   @default("active") // active, paid, expired, cancelled, partially_paid
   expiresAt           DateTime? // null = never expires
-  stripeCheckoutUrl   String?  // Stripe hosted payment page URL
-  stripeSessionId     String?  @unique // Stripe Checkout Session ID
-  stripePaymentIntentId String? // For tracking
-  paymentIntentStatus String?  // succeeded, pending, failed
-  customerEmail       String?  // Optional: pre-fill customer email
+  stripeCheckoutUrl   String?
+  stripeSessionId     String?  @unique
+  stripePaymentIntentId String?
+  paymentIntentStatus String?
+  customerEmail       String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -662,6 +665,7 @@ model PaymentLink {
   @@index([merchantId])
   @@index([status])
   @@index([expiresAt])
+  @@index([type])
   @@map("PaymentLink")
 }
 
