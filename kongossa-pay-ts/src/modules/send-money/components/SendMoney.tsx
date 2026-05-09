@@ -94,20 +94,23 @@ export default function SendMoney() {
       await sendMoney({
         recipientId: selectedContact.id,
         amount: amountNum,
-        description: remarks, // ✅ Save remarks in backend
+        description: remarks,
       });
 
-      // 🔄 wait for webhook
-      await syncCurrentUser();
-
+      // ✅ No syncCurrentUser needed
       dispatchShowToast({
         type: "success",
         message: "Money sent successfully!",
         position: "top-right",
-        animation: "slide-right-in",
         duration: 4000,
       });
       setIsSuccess(true);
+    } catch (error: any) {
+      dispatchShowToast({
+        type: "danger",
+        message: error.response?.data?.message || "Failed to send money",
+        position: "top-right",
+      });
     } finally {
       setIsSending(false);
     }
