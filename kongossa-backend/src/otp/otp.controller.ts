@@ -1,19 +1,26 @@
-import { Controller, Post, Body } from '@nestjs/common';
+// otp.controller.ts
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { OtpService } from './otp.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('otp')
 export class OtpController {
   constructor(private readonly otpService: OtpService) {}
 
   @Post('send')
+  // @UseGuards(JwtAuthGuard) // Optional: remove if you want public access
   async sendOtp(@Body() dto: SendOtpDto) {
-    return this.otpService.sendOtp(dto);
+    // Extract email and purpose from DTO
+    const { email, purpose } = dto;
+    return this.otpService.sendOtp(email, purpose);
   }
 
   @Post('verify')
   async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.otpService.verifyOtp(dto);
+    // Extract email, code, purpose from DTO
+    const { email, code, purpose } = dto;
+    return this.otpService.verifyOtp(email, code, purpose);
   }
 }
