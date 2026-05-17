@@ -1,18 +1,25 @@
+# .github/workflows/deploy.yml
 name: Deploy to Hetzner Production
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+    paths-ignore:
+      - 'docker-compose.prod.yml'
+      - 'kongossa-pay-ts/nginx.conf'
+      - 'kongossa-pay-ts/Dockerfile.prod'
+      - 'kongossa-backend/.env'
+      - '.env'
+      - '**.md'
   workflow_dispatch:
 
 env:
   DOCKER_REGISTRY: ghcr.io
-  # ছোট হাতের অক্ষরে repository name দিন
   IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
-  deploy:
-    name: 🚀 Deploy to Hetzner
+  build-and-deploy:
+    name: 🚀 Build and Deploy to Hetzner
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,7 +29,6 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      # Step 1: Docker Build & Push
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -33,26 +39,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_TOKEN }}
 
-      # Repository name lowercase করতে হবে
+      # Build Backend
       - name: 🏷️ Extract metadata for Backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ github.event.repository.name }}/backend
+          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/kongossa-backend
           tags: |
             type=raw,value=latest
             type=sha,format=short
 
-      - name: 🏷️ Extract metadata for Frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ github.event.repository.name }}/frontend
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-
-      # Backend build (cache সরিয়ে দেওয়া হয়েছে)
       - name: 🛠️ Build and push Backend image
         uses: docker/build-push-action@v6
         with:
@@ -61,8 +57,19 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Frontend build (cache সরিয়ে দেওয়া হয়েছে)
+      # Build Frontend
+      - name: 🏷️ Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/kongossa-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
       - name: 🛠️ Build and push Frontend image
         uses: docker/build-push-action@v6
         with:
@@ -71,8 +78,13 @@ jobs:
           push: true
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
+          build-args: |
+            VITE_APP_API_URL=https://api.kongossapay.com
+            VITE_APP_DOMAIN=https://kongossapay.com
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Step 2: Deploy to Hetzner
+      # Deploy to Hetzner (NO CONFIG FILE COPYING)
       - name: 🔐 Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -83,37 +95,19 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 📋 Copy docker-compose and env template
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          port: 22
-          source: "docker-compose.prod.yml,.env.prod.template"
-          target: "/var/www/kongossa-pay"
-
-      - name: 🚀 SSH and Deploy
+      - name: 🚀 Deploy on Hetzner Server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: 22
-          envs: DB_PASSWORD,JWT_SECRET,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,GITHUB_SHA
           script: |
             set -e
             cd /var/www/kongossa-pay
 
-            # Git pull latest code
-            git pull origin main
-
-            # Create .env file from template
-            cp .env.prod.template .env
-            sed -i "s|{{DB_PASSWORD}}|$DB_PASSWORD|g" .env
-            sed -i "s|{{JWT_SECRET}}|$JWT_SECRET|g" .env
-            sed -i "s|{{STRIPE_SECRET_KEY}}|$STRIPE_SECRET_KEY|g" .env
-            sed -i "s|{{STRIPE_WEBHOOK_SECRET}}|$STRIPE_WEBHOOK_SECRET|g" .env
+            # Git pull latest code (excluding config files - they are in .gitignore)
+            git pull origin main --no-ff
 
             # Login to GitHub Container Registry
             echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -121,16 +115,13 @@ jobs:
             # Pull latest images
             docker compose -f docker-compose.prod.yml pull
 
-            # Stop and remove old containers
-            docker compose -f docker-compose.prod.yml down
-
-            # Start new containers
+            # Restart containers
             docker compose -f docker-compose.prod.yml up -d
 
-            # Clean up old images
-            docker system prune -f
-
-            # Run migrations
+            # Run database migrations (only if schema changed)
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+
+            # Clean up old images
+            docker system prune -f -a --filter "until=24h"
 
             echo "✅ Deployment completed successfully!"
