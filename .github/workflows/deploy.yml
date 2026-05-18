@@ -1,17 +1,13 @@
-# .github/workflows/deploy.yml
 name: Deploy to Hetzner Production
 
 on:
   push:
-    branches: [main, master]
-    paths-ignore:
-      - 'docker-compose.prod.yml'
-      - 'kongossa-pay-ts/nginx.conf'
-      - 'kongossa-pay-ts/Dockerfile.prod'
-      - 'kongossa-backend/.env'
-      - '.env'
-      - '**.md'
+    branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
 
 env:
   DOCKER_REGISTRY: ghcr.io
@@ -24,7 +20,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
       - name: 📥 Checkout code
@@ -38,7 +33,7 @@ jobs:
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GH_TOKEN }}
+          password: ${{ secrets.GH_TOKEN_PAT }}  # ✅ Using PAT
 
       # Build Backend
       - name: 🏷️ Extract metadata for Backend
@@ -85,7 +80,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Deploy to Hetzner (NO CONFIG FILE COPYING)
+      # Deploy to Hetzner
       - name: 🔐 Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -107,11 +102,11 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
 
-            # Git pull latest code (excluding config files - they are in .gitignore)
+            # Git pull latest code
             git pull origin main --no-ff
 
-            # Login to GitHub Container Registry
-            echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Login to GitHub Container Registry with PAT
+            echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Pull latest images
             docker compose -f docker-compose.prod.yml pull
@@ -119,7 +114,7 @@ jobs:
             # Restart containers
             docker compose -f docker-compose.prod.yml up -d
 
-            # Run database migrations (only if schema changed)
+            # Run database migrations
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
 
             # Clean up old images
