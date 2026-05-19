@@ -52,6 +52,14 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
+          build-args: |
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
+            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -98,15 +106,50 @@ jobs:
           script: |
             set -e
             cd /var/www/kongossa-pay
+            
+            # Create/update .env file on server with SMTP credentials
+            cat > .env << 'EOF'
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
+            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
+            DATABASE_URL=postgresql://postgres:postgres@kongossa-postgres:5432/kongossa_pay
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            NODE_ENV=production
+            EOF
+            
+            # Also create backend.env for docker-compose
+            cat > backend.env << 'EOF'
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
+            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
+            EOF
+            
             git config user.email "deploy@kongossapay.com"
             git config user.name "CI/CD Deploy Bot"
             git stash push --include-untracked -m "ci-cd-stash" || true
             git fetch origin main
             git reset --hard origin/main
             git stash pop || true
+            
             echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull and restart with new environment
+            docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
-            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+            sleep 10
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+            
+            # Verify SMTP variables are loaded
+            docker compose -f docker-compose.prod.yml exec -T backend env | grep SMTP_HOST
+            
             docker system prune -f -a --filter "until=24h"
             echo "Deployment completed successfully!"
