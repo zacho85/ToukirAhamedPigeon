@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: kongossa-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: kongossa_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: kongossa_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kongossa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kongossa_user -d kongossa_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./kongossa-backend
+      dockerfile: Dockerfile.prod
+    container_name: kongossa-backend
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://kongossa_user:${DB_PASSWORD}@postgres:5432/kongossa_db
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_EXPIRATION=15m
+      - JWT_REFRESH_TTL_DAYS=7
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET}
+      - CORS_ORIGIN=https://kongossapay.com
+      - FRONTEND_URL=https://kongossapay.com
+      # SMTP Configuration
+      - SMTP_HOST=smtp-relay.brevo.com
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - SMTP_USER=a64003001@smtp-brevo.com
+      - SMTP_PASSWORD=j8EvwPSxA1kUztGV
+      - SMTP_FROM=info@kongossapay.com
+      - SMTP_FROM_NAME=Kongossa Pay
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kongossa-network
+    volumes:
+      - ./kongossa-backend/uploads:/app/uploads
+      - ./kongossa-backend/backups:/app/backups
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  frontend:
+    build:
+      context: ./kongossa-pay-ts
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_APP_API_URL: https://api.kongossapay.com
+        VITE_APP_DOMAIN: https://kongossapay.com
+    container_name: kongossa-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./kongossa-backend/uploads:/backend-uploads:ro   # ✅ Fixed: maps to host directory
+    depends_on:
+      - backend
+    networks:
+      - kongossa-network
+
+networks:
+  kongossa-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  # backend_uploads volume removed - using host directory instead
