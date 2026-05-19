@@ -79,7 +79,7 @@ export default function BudgetsList() {
       setBudgets(data);
     } catch (err) {
       console.error(err);
-      setError("Failed to load budgets. Please try again.");
+      setError("Failed to load budgets, Please try again.");
     } finally {
       setLoading(false);
     }
