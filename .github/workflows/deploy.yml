@@ -33,7 +33,7 @@ jobs:
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GH_TOKEN_PAT }}  # ✅ Using PAT
+          password: ${{ secrets.GH_TOKEN_PAT }}
 
       # Build Backend
       - name: 🏷️ Extract metadata for Backend
@@ -101,6 +101,10 @@ jobs:
           script: |
             set -e
             cd /var/www/kongossa-pay
+
+            # Configure Git identity (required for pull)
+            git config user.email "deploy@kongossapay.com"
+            git config user.name "CI/CD Deploy Bot"
 
             # Git pull latest code
             git pull origin main --no-ff
