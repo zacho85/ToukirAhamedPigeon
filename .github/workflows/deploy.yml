@@ -52,7 +52,7 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-          # SMTP build arguments removed - they come from server .env file
+          # REMOVED: SMTP build arguments - they come from server .env
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -100,20 +100,22 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            # Update non-SMTP variables only
+            # Only update database and JWT in .env (preserve SMTP)
             if [ -f .env ]; then
               sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
               sed -i "s/JWT_SECRET=.*/JWT_SECRET=${{ secrets.JWT_SECRET }}/" .env
+              sed -i "s/JWT_ACCESS_SECRET=.*/JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}/" .env
+              sed -i "s/JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}/" .env
               sed -i "s/STRIPE_SECRET_KEY=.*/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}/" .env
               sed -i "s/STRIPE_WEBHOOK_SECRET=.*/STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}/" .env
-              sed -i "s/STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=.*/STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}/" .env
+              # DO NOT touch SMTP lines
             fi
             
             # Pull latest code
             git fetch origin main
             git reset --hard origin/main
             
-            # Restart only backend and postgres
+            # Restart only backend and postgres (keep frontend running)
             docker compose -f docker-compose.prod.yml stop backend postgres || true
             docker compose -f docker-compose.prod.yml rm -f backend postgres || true
             
