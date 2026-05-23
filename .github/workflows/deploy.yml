@@ -100,16 +100,8 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            # Only update database and JWT in .env (preserve SMTP)
-            if [ -f .env ]; then
-              sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
-              sed -i "s/JWT_SECRET=.*/JWT_SECRET=${{ secrets.JWT_SECRET }}/" .env
-              sed -i "s/JWT_ACCESS_SECRET=.*/JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}/" .env
-              sed -i "s/JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}/" .env
-              sed -i "s/STRIPE_SECRET_KEY=.*/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}/" .env
-              sed -i "s/STRIPE_WEBHOOK_SECRET=.*/STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}/" .env
-              # DO NOT touch SMTP lines
-            fi
+            # .env file is immutable and contains production config
+            # DO NOT modify it - it's locked on purpose
             
             # Pull latest code
             git fetch origin main
@@ -126,7 +118,7 @@ jobs:
             docker compose -f docker-compose.prod.yml pull backend postgres
             docker compose -f docker-compose.prod.yml up -d backend postgres
             
-            # Wait and migrate
+            # Wait and run migrations
             sleep 15
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             
