@@ -107,63 +107,56 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            echo "=== Creating .env file ==="
-            cat > .env << 'ENVEOF'
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}
-            JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-            STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}
-            SMTP_HOST=${{ secrets.SMTP_HOST }}
-            SMTP_PORT=${{ secrets.SMTP_PORT }}
-            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
-            SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-            SMTP_FROM=${{ secrets.SMTP_FROM }}
-            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
-            NODE_ENV=production
-            ENVEOF
+            # Create .env file
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+            echo "STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}" >> .env
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
+            echo "SMTP_SECURE=${{ secrets.SMTP_SECURE }}" >> .env
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
+            echo "SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}" >> .env
+            echo "NODE_ENV=production" >> .env
             
-            echo "=== Creating backend.env for docker-compose ==="
-            cat > backend.env << 'BENVEOF'
-            SMTP_HOST=${{ secrets.SMTP_HOST }}
-            SMTP_PORT=${{ secrets.SMTP_PORT }}
-            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
-            SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-            SMTP_FROM=${{ secrets.SMTP_FROM }}
-            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
-            BENVEOF
+            # Create backend.env
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" > backend.env
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> backend.env
+            echo "SMTP_SECURE=${{ secrets.SMTP_SECURE }}" >> backend.env
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> backend.env
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> backend.env
+            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> backend.env
+            echo "SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}" >> backend.env
             
-            echo "=== Pulling latest code ==="
+            # Pull latest code
             git fetch origin main
             git reset --hard origin/main
             
-            echo "=== Stopping old containers ==="
-            docker compose -f docker-compose.prod.yml down || true
+            # Stop and remove only backend and postgres (keep frontend running)
+            docker compose -f docker-compose.prod.yml stop backend postgres
+            docker compose -f docker-compose.prod.yml rm -f backend postgres
             
-            echo "=== Pulling latest images ==="
+            # Login to registry
             echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker-compose.prod.yml pull
             
-            echo "=== Starting new containers ==="
-            docker compose -f docker-compose.prod.yml up -d
+            # Pull latest images
+            docker compose -f docker-compose.prod.yml pull backend postgres
             
-            echo "=== Waiting for database to be ready ==="
+            # Start containers
+            docker compose -f docker-compose.prod.yml up -d backend postgres
+            
+            # Wait for database
             sleep 15
             
-            echo "=== Running database migrations ==="
-            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "No migrations to run"
+            # Run migrations
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             
-            echo "=== Checking service status ==="
-            docker ps | grep kongossa
+            # Cleanup
+            docker system prune -f --filter "until=24h"
             
-            echo "=== Testing backend health ==="
-            curl -f http://localhost:3000/health || echo "Health check endpoint not available"
-            
-            echo "=== Cleaning up old images ==="
-            docker system prune -f -a --filter "until=24h"
-            
-            echo "=== Deployment completed successfully! ==="
+            echo "Deployment completed successfully!"
