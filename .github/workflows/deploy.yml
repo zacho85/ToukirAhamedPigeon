@@ -52,14 +52,7 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-          build-args: |
-            SMTP_HOST=${{ secrets.SMTP_HOST }}
-            SMTP_PORT=${{ secrets.SMTP_PORT }}
-            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
-            SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-            SMTP_FROM=${{ secrets.SMTP_FROM }}
-            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
+          # SMTP build arguments removed - they come from server .env file
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -107,53 +100,32 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            # Create .env file
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
-            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-            echo "STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}" >> .env
-            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
-            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
-            echo "SMTP_SECURE=${{ secrets.SMTP_SECURE }}" >> .env
-            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
-            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
-            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
-            echo "SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}" >> .env
-            echo "NODE_ENV=production" >> .env
-            
-            # Create backend.env
-            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" > backend.env
-            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> backend.env
-            echo "SMTP_SECURE=${{ secrets.SMTP_SECURE }}" >> backend.env
-            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> backend.env
-            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> backend.env
-            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> backend.env
-            echo "SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}" >> backend.env
+            # Update non-SMTP variables only
+            if [ -f .env ]; then
+              sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+              sed -i "s/JWT_SECRET=.*/JWT_SECRET=${{ secrets.JWT_SECRET }}/" .env
+              sed -i "s/STRIPE_SECRET_KEY=.*/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}/" .env
+              sed -i "s/STRIPE_WEBHOOK_SECRET=.*/STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}/" .env
+              sed -i "s/STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=.*/STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}/" .env
+            fi
             
             # Pull latest code
             git fetch origin main
             git reset --hard origin/main
             
-            # Stop and remove only backend and postgres (keep frontend running)
-            docker compose -f docker-compose.prod.yml stop backend postgres
-            docker compose -f docker-compose.prod.yml rm -f backend postgres
+            # Restart only backend and postgres
+            docker compose -f docker-compose.prod.yml stop backend postgres || true
+            docker compose -f docker-compose.prod.yml rm -f backend postgres || true
             
             # Login to registry
             echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Pull latest images
+            # Pull and start
             docker compose -f docker-compose.prod.yml pull backend postgres
-            
-            # Start containers
             docker compose -f docker-compose.prod.yml up -d backend postgres
             
-            # Wait for database
+            # Wait and migrate
             sleep 15
-            
-            # Run migrations
             docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             
             # Cleanup
