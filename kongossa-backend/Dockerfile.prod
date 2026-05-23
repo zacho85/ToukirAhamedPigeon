@@ -1,10 +1,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Remove these lines:
-# ARG SMTP_HOST
-# ARG SMTP_PORT
-# ENV SMTP_HOST=$SMTP_HOST
+# Install PostgreSQL client tools for backups
+RUN apk add --no-cache postgresql16-client
 
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -17,6 +15,9 @@ RUN npm run build
 
 FROM node:20-alpine
 WORKDIR /app
+
+# Install PostgreSQL client tools in production image for backups
+RUN apk add --no-cache postgresql16-client
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
