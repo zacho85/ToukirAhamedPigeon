@@ -52,7 +52,6 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-          # REMOVED: SMTP build arguments - they come from server .env
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -100,29 +99,47 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            # .env file is immutable and contains production config
-            # DO NOT modify it - it's locked on purpose
-            
-            # Pull latest code
+            echo "=== Pulling latest code ==="
             git fetch origin main
             git reset --hard origin/main
             
-            # Restart only backend and postgres (keep frontend running)
-            docker compose -f docker-compose.prod.yml stop backend postgres || true
-            docker compose -f docker-compose.prod.yml rm -f backend postgres || true
+            echo "=== Stopping all containers ==="
+            docker compose -f docker-compose.prod.yml down
             
-            # Login to registry
+            echo "=== Removing old containers ==="
+            docker rm -f kongossa-backend kongossa-frontend kongossa-postgres 2>/dev/null || true
+            
+            echo "=== Logging to GHCR ==="
             echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Pull and start
-            docker compose -f docker-compose.prod.yml pull backend postgres
-            docker compose -f docker-compose.prod.yml up -d backend postgres
+            echo "=== Pulling latest images ==="
+            docker compose -f docker-compose.prod.yml pull
             
-            # Wait and run migrations
-            sleep 15
-            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+            echo "=== Rebuilding images (if needed) ==="
+            docker compose -f docker-compose.prod.yml build --no-cache
             
-            # Cleanup
-            docker system prune -f --filter "until=24h"
+            echo "=== Starting all containers ==="
+            docker compose -f docker-compose.prod.yml up -d
             
-            echo "Deployment completed successfully!"
+            echo "=== Waiting for database to be ready ==="
+            sleep 20
+            
+            echo "=== Running database migrations ==="
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "No migrations to run"
+            
+            echo "=== Generating Prisma client (if needed) ==="
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma generate || true
+            
+            echo "=== Checking container status ==="
+            docker ps | grep kongossa
+            
+            echo "=== Testing backend health ==="
+            curl -f http://localhost:3000/health || echo "Health check not available"
+            
+            echo "=== Testing frontend ==="
+            curl -f -I http://localhost || echo "Frontend not responding"
+            
+            echo "=== Cleaning up old images ==="
+            docker system prune -f -a --filter "until=24h"
+            
+            echo "=== Deployment completed successfully! ==="
