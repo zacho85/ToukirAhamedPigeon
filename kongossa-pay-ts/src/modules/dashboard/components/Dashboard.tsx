@@ -145,7 +145,7 @@ const Dashboard: React.FC = () => {
                 <img
                   src={`${import.meta.env.VITE_APP_API_URL}${user.profileImage}`}
                   alt="User"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover rounded-full"
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                   }}
