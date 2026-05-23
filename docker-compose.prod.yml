@@ -3,8 +3,10 @@ services:
     image: postgres:15-alpine
     container_name: kongossa-postgres
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: kongossa_user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: kongossa_db
     volumes:
@@ -12,7 +14,7 @@ services:
     networks:
       - kongossa-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kongossa_user -d kongossa_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kongossa_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,10 +27,12 @@ services:
     ports:
       - "3000:3000"
     restart: always
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=postgresql://kongossa_user:${DB_PASSWORD}@postgres:5432/kongossa_db
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/kongossa_db
       - DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ACCESS_SECRET=${JWT_SECRET}
@@ -40,14 +44,13 @@ services:
       - STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET}
       - CORS_ORIGIN=https://kongossapay.com
       - FRONTEND_URL=https://kongossapay.com
-      # SMTP Configuration
-      - SMTP_HOST=smtp-relay.brevo.com
-      - SMTP_PORT=587
-      - SMTP_SECURE=false
-      - SMTP_USER=a64003001@smtp-brevo.com
-      - SMTP_PASSWORD=j8EvwPSxA1kUztGV
-      - SMTP_FROM=info@kongossapay.com
-      - SMTP_FROM_NAME=Kongossa Pay
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SECURE=${SMTP_SECURE}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME}
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,7 +75,7 @@ services:
       - "443:443"
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./kongossa-backend/uploads:/backend-uploads:ro   # ✅ Fixed: maps to host directory
+      - ./kongossa-backend/uploads:/backend-uploads:ro
     depends_on:
       - backend
     networks:
@@ -84,4 +87,3 @@ networks:
 
 volumes:
   postgres_data:
-  # backend_uploads volume removed - using host directory instead
