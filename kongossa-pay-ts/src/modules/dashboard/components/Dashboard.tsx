@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <p className="text-sm text-muted-foreground">
-              Hi {t("dashboard.greeting", user?.fullName?.split(" ")[0] || "User")},
+              Hello {t("dashboard.greeting", user?.fullName?.split(" ")[0] || "User")},
             </p>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
               {t("dashboard.manage_money", "Let's Manage Your Money")}
