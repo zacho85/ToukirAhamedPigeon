@@ -107,22 +107,15 @@ jobs:
             set -e
             cd /var/www/kongossa-pay
             
-            # Create/update .env file on server with SMTP credentials
-            cat > .env << 'EOF'
-            SMTP_HOST=${{ secrets.SMTP_HOST }}
-            SMTP_PORT=${{ secrets.SMTP_PORT }}
-            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
-            SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-            SMTP_FROM=${{ secrets.SMTP_FROM }}
-            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
-            DATABASE_URL=postgresql://postgres:postgres@kongossa-postgres:5432/kongossa_pay
+            echo "=== Creating .env file ==="
+            cat > .env << 'ENVEOF'
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-            NODE_ENV=production
-            EOF
-            
-            # Also create backend.env for docker-compose
-            cat > backend.env << 'EOF'
+            JWT_ACCESS_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_REFRESH_SECRET=${{ secrets.JWT_SECRET }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${{ secrets.STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET }}
             SMTP_HOST=${{ secrets.SMTP_HOST }}
             SMTP_PORT=${{ secrets.SMTP_PORT }}
             SMTP_SECURE=${{ secrets.SMTP_SECURE }}
@@ -130,26 +123,47 @@ jobs:
             SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
             SMTP_FROM=${{ secrets.SMTP_FROM }}
             SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
-            EOF
+            NODE_ENV=production
+            ENVEOF
             
-            git config user.email "deploy@kongossapay.com"
-            git config user.name "CI/CD Deploy Bot"
-            git stash push --include-untracked -m "ci-cd-stash" || true
+            echo "=== Creating backend.env for docker-compose ==="
+            cat > backend.env << 'BENVEOF'
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_SECURE=${{ secrets.SMTP_SECURE }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_FROM=${{ secrets.SMTP_FROM }}
+            SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
+            BENVEOF
+            
+            echo "=== Pulling latest code ==="
             git fetch origin main
             git reset --hard origin/main
-            git stash pop || true
             
+            echo "=== Stopping old containers ==="
+            docker compose -f docker-compose.prod.yml down || true
+            
+            echo "=== Pulling latest images ==="
             echo "${{ secrets.GH_TOKEN_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Pull and restart with new environment
-            docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml pull
+            
+            echo "=== Starting new containers ==="
             docker compose -f docker-compose.prod.yml up -d
-            sleep 10
-            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
             
-            # Verify SMTP variables are loaded
-            docker compose -f docker-compose.prod.yml exec -T backend env | grep SMTP_HOST
+            echo "=== Waiting for database to be ready ==="
+            sleep 15
             
+            echo "=== Running database migrations ==="
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "No migrations to run"
+            
+            echo "=== Checking service status ==="
+            docker ps | grep kongossa
+            
+            echo "=== Testing backend health ==="
+            curl -f http://localhost:3000/health || echo "Health check endpoint not available"
+            
+            echo "=== Cleaning up old images ==="
             docker system prune -f -a --filter "until=24h"
-            echo "Deployment completed successfully!"
+            
+            echo "=== Deployment completed successfully! ==="
