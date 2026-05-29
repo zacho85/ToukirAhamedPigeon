@@ -40,6 +40,11 @@ import { UploadModule } from './upload/upload.module';
 import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
 import { PaymentLinksModule } from './payment-links/payment-links.module';
 import { BackupModule } from './backup/backup.module';
+// Add these if you need them:
+import { MomoModule } from './momo/momo.module';
+import { OrangeMoneyModule } from './orange-money/orange-money.module';
+import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
+import { TransfiModule } from './transfi/transfi.module';
 
 @Module({
   imports: [
@@ -82,6 +87,10 @@ import { BackupModule } from './backup/backup.module';
     WalletPayoutModule,
     UploadModule,
     PaymentLinksModule,
+    MomoModule,
+    OrangeMoneyModule,
+    ExchangeRateModule,
+    TransfiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

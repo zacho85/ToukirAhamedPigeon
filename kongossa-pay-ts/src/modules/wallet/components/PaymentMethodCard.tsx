@@ -9,13 +9,14 @@ import {
   Landmark,
   Smartphone,
   Wallet,
+  Phone,
+  Globe,
 } from "lucide-react";
 import { deletePaymentMethod } from "../api";
 import { ConfirmationDialog } from "@/components/custom/ConfirmationDialog";
 import { TopUpDialog } from "./TopUpDialog";
 
-/* -------------------- ICON MAP -------------------- */
-const methodIcons = {
+const methodIcons: Record<string, any> = {
   credit_card: CreditCard,
   debit_card: CreditCard,
   bank_account: Landmark,
@@ -23,7 +24,6 @@ const methodIcons = {
   paypal: CreditCard,
 };
 
-/* -------------------- GRADIENT GLOWS -------------------- */
 const glowGradients = [
   "from-indigo-500/20 via-purple-500/10 to-transparent",
   "from-emerald-500/20 via-teal-500/10 to-transparent",
@@ -51,6 +51,10 @@ export default function PaymentMethodCard({
     []
   );
 
+  const isMoMo = method.provider === "mtn_momo" || method.provider === "orange_money" || method.provider === "transfi_zamtel" || method.type === "mobile_money";
+  const isOrangeMoney = method.provider === "orange_money";
+  const isTransfi = method.provider === "transfi_zamtel";
+
   const confirmDelete = async () => {
     setIsDeleting(true);
     try {
@@ -77,6 +81,7 @@ export default function PaymentMethodCard({
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-linear-to-br from-slate-800 to-slate-600 dark:from-slate-700 dark:to-slate-900 flex items-center justify-center shadow-inner">
                   <IconComponent className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
+
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-slate-100 leading-tight text-sm md:text-base">
                     {method.type
@@ -84,7 +89,13 @@ export default function PaymentMethodCard({
                       .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                   </p>
                   <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">
-                    {method.bankName || method.provider || "Unknown Provider"}
+                    {isOrangeMoney
+                      ? "Orange Money"
+                      : isTransfi
+                        ? "Zamtel"
+                        : isMoMo
+                          ? "MTN MoMo"
+                          : method.bankName || method.provider || "Unknown Provider"}
                   </p>
                 </div>
               </div>
@@ -113,16 +124,31 @@ export default function PaymentMethodCard({
               <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">
                 {method.accountName}
               </p>
-              <div className="flex items-center justify-between pt-2">
-                <p className="font-mono text-xs md:text-sm tracking-widest text-slate-700 dark:text-slate-300">
-                  **** {method.lastFour || "0000"}
-                </p>
-                {method.expiryDate && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Exp {method.expiryDate}
+
+              {isMoMo ? (
+                <div className="space-y-1 pt-2">
+                  <div className="flex items-center gap-2 text-xs md:text-sm text-slate-600 dark:text-slate-400">
+                    <Phone className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    {method.phoneNumber}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs md:text-sm text-slate-600 dark:text-slate-400">
+                    <Globe className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    {method.countryCode} — {method.currency}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pt-2">
+                  <p className="font-mono text-xs md:text-sm tracking-widest text-slate-700 dark:text-slate-300">
+                    **** {method.lastFour || "0000"}
                   </p>
-                )}
-              </div>
+
+                  {method.expiryDate && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Exp {method.expiryDate}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -130,8 +156,8 @@ export default function PaymentMethodCard({
               <Badge
                 className={
                   method.isVerified
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
-                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 text-xs"
                 }
               >
                 {method.isVerified ? "Verified" : "Pending"}
@@ -142,7 +168,7 @@ export default function PaymentMethodCard({
                 className="gap-1 bg-linear-to-r from-emerald-500 to-teal-500 hover:opacity-90 text-white text-xs md:text-sm px-3 md:px-4"
                 onClick={() => setIsTopUpOpen(true)}
               >
-                <Wallet className="w-3 h-4 md:w-4 md:h-4" />
+                <Wallet className="w-3 h-3 md:w-4 md:h-4" />
                 Top Up
               </Button>
             </div>
@@ -164,7 +190,7 @@ export default function PaymentMethodCard({
       <TopUpDialog
         open={isTopUpOpen}
         onClose={() => setIsTopUpOpen(false)}
-        paymentMethodId={method.stripePmId}
+        paymentMethod={method}
         onSuccess={onRefresh}
       />
     </>

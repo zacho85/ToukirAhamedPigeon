@@ -52,6 +52,7 @@ model User {
   status              String    @default("active") // ✅ Added from Laravel migration
   rememberToken       String? // ✅ Added
   stripeId            String? // ✅ Added
+  transfiUserId       String? // ✅ ADDED - Transfi user ID for Zamtel payments
   stripeConnectId     String?
   stripeChargesEnabled   Boolean  @default(false)
   stripePayoutsEnabled   Boolean  @default(false)
@@ -104,7 +105,7 @@ model TransactionLimits {
 model Transaction {
   id              Int      @id @default(autoincrement())
   transactionId   String   @unique
-  senderId        Int?
+  senderId        Int?     // ✅ KEEP YOUR VERSION (nullable for safety)
   recipientId     Int?
   amount          Decimal? @db.Decimal(10,2)
   currency        String   @default("USD")
@@ -119,7 +120,7 @@ model Transaction {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  sender    User?  @relation("SentTransactions", fields: [senderId], references: [id])
+  sender    User?  @relation("SentTransactions", fields: [senderId], references: [id])  // ✅ KEEP nullable
   recipient User? @relation("ReceivedTransactions", fields: [recipientId], references: [id])
 
   @@map("Transaction")
@@ -195,7 +196,7 @@ model Otp {
   expiresAt DateTime
   used      Boolean  @default(false)
   attempts  Int      @default(0)
-  userId    Int?     // ✅ Changed from Int to Int? (optional)
+  userId    Int?     // ✅ KEEP YOUR VERSION (nullable for safety)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User?    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -237,6 +238,12 @@ model PaymentMethod {
   bankName        String?
   expiryDate      String?
 
+  // 💰 Mobile Money fields (ADDED FROM DEVELOPER)
+  phoneNumber     String?
+  countryCode     String?
+  momoProvider    String?   // mtn, airtel, orange, etc.
+  currency        String?   // GHS, UGX, RWF, XAF, etc.
+
   isDefault       Boolean  @default(false)
   isVerified      Boolean  @default(false)
 
@@ -246,6 +253,8 @@ model PaymentMethod {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([phoneNumber])      // ADDED
+  @@index([countryCode])      // ADDED
 }
 
 model SupportTicket {
@@ -636,9 +645,7 @@ model WalletPayout {
 }
 
 // ============================================================
-// PAYMENT LINKS MODEL
-// Allows merchants/creators to generate secure payment links
-// Customers can pay without login
+// PAYMENT LINKS MODEL - ✅ KEPT FROM YOUR VERSION
 // ============================================================
 model PaymentLink {
   id                  String   @id @default(cuid())
@@ -668,5 +675,3 @@ model PaymentLink {
   @@index([type])
   @@map("PaymentLink")
 }
-
-
