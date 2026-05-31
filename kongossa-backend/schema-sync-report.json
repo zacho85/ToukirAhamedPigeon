@@ -1,0 +1,128 @@
+{
+  "timestamp": "2026-05-31T08:34:52.030Z",
+  "missing": {
+    "columns": [
+      {
+        "table": "PaymentMethod",
+        "columns": [
+          {
+            "name": "phoneNumber",
+            "type": "TEXT"
+          },
+          {
+            "name": "countryCode",
+            "type": "TEXT"
+          },
+          {
+            "name": "momoProvider",
+            "type": "TEXT"
+          },
+          {
+            "name": "currency",
+            "type": "TEXT"
+          }
+        ]
+      },
+      {
+        "table": "User",
+        "columns": [
+          {
+            "name": "transfiUserId",
+            "type": "TEXT"
+          }
+        ]
+      }
+    ],
+    "indexes": [
+      {
+        "table": "PaymentMethod",
+        "columns": [
+          "phoneNumber"
+        ],
+        "sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"PaymentMethod_phoneNumber_idx\" ON \"PaymentMethod\" (\"phoneNumber\");"
+      },
+      {
+        "table": "PaymentMethod",
+        "columns": [
+          "countryCode"
+        ],
+        "sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"PaymentMethod_countryCode_idx\" ON \"PaymentMethod\" (\"countryCode\");"
+      },
+      {
+        "table": "Subscription",
+        "columns": [
+          "userId",
+          "stripeStatus"
+        ],
+        "sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"Subscription_userId_stripeStatus_idx\" ON \"Subscription\" (\"userId\", \"stripeStatus\");"
+      },
+      {
+        "table": "SubscriptionItem",
+        "columns": [
+          "subscriptionId",
+          "stripePrice"
+        ],
+        "sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"SubscriptionItem_subscriptionId_stripePrice_idx\" ON \"SubscriptionItem\" (\"subscriptionId\", \"stripePrice\");"
+      }
+    ],
+    "constraints": []
+  },
+  "success": [
+    {
+      "type": "column",
+      "table": "PaymentMethod",
+      "name": "phoneNumber"
+    },
+    {
+      "type": "column",
+      "table": "PaymentMethod",
+      "name": "countryCode"
+    },
+    {
+      "type": "column",
+      "table": "PaymentMethod",
+      "name": "momoProvider"
+    },
+    {
+      "type": "column",
+      "table": "PaymentMethod",
+      "name": "currency"
+    },
+    {
+      "type": "column",
+      "table": "User",
+      "name": "transfiUserId"
+    },
+    {
+      "type": "index",
+      "table": "PaymentMethod",
+      "columns": [
+        "phoneNumber"
+      ]
+    },
+    {
+      "type": "index",
+      "table": "PaymentMethod",
+      "columns": [
+        "countryCode"
+      ]
+    },
+    {
+      "type": "index",
+      "table": "Subscription",
+      "columns": [
+        "userId",
+        "stripeStatus"
+      ]
+    },
+    {
+      "type": "index",
+      "table": "SubscriptionItem",
+      "columns": [
+        "subscriptionId",
+        "stripePrice"
+      ]
+    }
+  ],
+  "failures": []
+}
