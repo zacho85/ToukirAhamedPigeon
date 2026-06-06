@@ -1,3 +1,5 @@
+// src/modules/payment-links/pages/PaymentLinksList.tsx - FULL UPDATED VERSION
+
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Copy, ExternalLink, Trash2, CheckCircle, Clock } from 'lucide-react';
@@ -53,9 +55,46 @@ export default function PaymentLinksList() {
         return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Expired</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Cancelled</Badge>;
+      case 'subscription_active':
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Subscription Active</Badge>;
+      case 'subscription_cancelled':
+        return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">Subscription Cancelled</Badge>;
+      case 'subscription_completed':
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">Completed</Badge>;
+      case 'partially_paid':
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Partially Paid</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  // Helper function to format frequency display
+  const getFrequencyDisplay = (link: PaymentLink): string => {
+    if (!link.frequency) return 'Monthly';
+    
+    switch (link.frequency) {
+      case 'daily': return 'Daily';
+      case 'weekly': return 'Weekly';
+      case 'bi_monthly': return 'Twice monthly';
+      case 'monthly': return 'Monthly';
+      case 'quarterly': return 'Quarterly';
+      case 'semiannual': return 'Every 6 months';
+      case 'annual': return 'Annual';
+      case 'custom': 
+        return link.customIntervalDays ? `Every ${link.customIntervalDays} days` : 'Custom interval';
+      default: return 'Monthly';
+    }
+  };
+
+  // Helper to format amount display
+  const getAmountDisplay = (link: PaymentLink): string => {
+    if (link.type === 'flexible_amount') {
+      return 'Flexible Amount';
+    }
+    if (link.amount !== null && link.amount !== undefined) {
+      return `${link.currency} ${link.amount.toFixed(2)}`;
+    }
+    return `${link.currency} 0.00`;
   };
 
   if (loading) {
@@ -64,7 +103,7 @@ export default function PaymentLinksList() {
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      {/* Header - Responsive */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Payment Links</h1>
@@ -92,20 +131,50 @@ export default function PaymentLinksList() {
           {links.map((link) => (
             <Card key={link.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4 md:p-5">
-                {/* Mobile: Column layout, Desktop: Row layout */}
                 <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
                   {/* Left section - Link details */}
                   <div className="flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {getStatusBadge(link.status)}
                       <span className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
-                        {link.currency} {link.amount.toFixed(2)}
+                        {getAmountDisplay(link)}
                       </span>
                     </div>
 
                     {link.description && (
                       <p className="text-sm text-gray-600 dark:text-gray-300 break-words">
                         {link.description}
+                      </p>
+                    )}
+                    
+                    {/* Subscription info - with safe checks */}
+                    {link.type === 'subscription' && link.frequency && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="font-medium">Subscription:</span> {getFrequencyDisplay(link)}
+                        </p>
+                        {(link.totalPayments !== null && link.totalPayments !== undefined) && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="font-medium">Payments:</span> {link.paymentsMade || 0} of {link.totalPayments} made
+                          </p>
+                        )}
+                        {link.durationType === 'fixed_term' && link.durationMonths && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="font-medium">Duration:</span> {link.durationMonths} months
+                          </p>
+                        )}
+                        {link.durationType === 'end_date' && link.endDate && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="font-medium">Ends:</span> {format(new Date(link.endDate), 'PPP')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Quantity limited info */}
+                    {link.type === 'quantity_limited' && link.quantityTotal && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="font-medium">Used:</span> {link.quantityUsed || 0} of {link.quantityTotal} payments
                       </p>
                     )}
 
@@ -122,7 +191,7 @@ export default function PaymentLinksList() {
                       )}
                     </div>
 
-                    {/* URL with copy button - responsive */}
+                    {/* URL with copy button */}
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <code className="text-xs bg-gray-100 dark:bg-gray-800 p-1 rounded break-all flex-1 min-w-[150px]">
                         {link.paymentUrl}
@@ -140,12 +209,12 @@ export default function PaymentLinksList() {
 
                   {/* Right section - Actions */}
                   <div className="flex flex-row md:flex-col justify-end items-center gap-2 md:justify-start">
-                    {link.status === 'active' && (
+                    {(link.status === 'active' || link.status === 'subscription_active') && (
                       <Button variant="ghost" size="sm" onClick={() => handleCancel(link.id)}>
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
                     )}
-                    {link.status === 'paid' && (
+                    {(link.status === 'paid' || link.status === 'subscription_completed') && (
                       <CheckCircle className="w-5 h-5 text-green-500" />
                     )}
                   </div>

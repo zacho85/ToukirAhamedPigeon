@@ -645,33 +645,74 @@ model WalletPayout {
 }
 
 // ============================================================
-// PAYMENT LINKS MODEL - ✅ KEPT FROM YOUR VERSION
+// PAYMENT LINKS MODEL - UPDATED WITH FULL SUBSCRIPTION SUPPORT
 // ============================================================
 model PaymentLink {
   id                  String   @id @default(cuid())
   merchantId          Int
   type                String   @default("fixed_amount") // fixed_amount, flexible_amount, quantity_limited, subscription
-  amount              Float?   // Null for flexible_amount
+  
+  // Payment amount
+  amount              Float?
   currency            String   @default("USD")
   description         String?
-  quantityTotal       Int?     // For quantity_limited type
-  quantityUsed        Int      @default(0) // For quantity_limited type
-  status              String   @default("active") // active, paid, expired, cancelled, partially_paid
+  
+  // Quantity limited fields
+  quantityTotal       Int?
+  quantityUsed        Int      @default(0)
+  
+  // Subscription fields - NEW
+  frequency           String?  // daily, weekly, bi_monthly, monthly, quarterly, semiannual, annual, custom
+  customIntervalDays  Int?     // For custom frequency (e.g., 45 days)
+  durationType        String?  // recurring, fixed_term, fixed_payments, end_date
+  durationMonths      Int?     // For fixed_term (e.g., 3, 6, 12 months)
+  totalPayments       Int?     // For fixed_payments (e.g., 12 payments)
+  paymentsMade        Int      @default(0)
+  endDate             DateTime? // For specific end date
+  stripeSubscriptionId String? @unique // For recurring subscriptions
+  
+  // Status tracking
+  status              String   @default("active") // active, paid, expired, cancelled, partially_paid, subscription_active, subscription_cancelled, subscription_completed
   expiresAt           DateTime? // null = never expires
+  
+  // Stripe integration
   stripeCheckoutUrl   String?
   stripeSessionId     String?  @unique
   stripePaymentIntentId String?
   paymentIntentStatus String?
   customerEmail       String?
+  
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   // Relations
   merchant User @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  subscriptionPayments SubscriptionPayment[] // Track individual payments
 
   @@index([merchantId])
   @@index([status])
   @@index([expiresAt])
   @@index([type])
+  @@index([stripeSubscriptionId])
   @@map("PaymentLink")
+}
+
+// NEW MODEL: Track individual subscription payments
+model SubscriptionPayment {
+  id               Int      @id @default(autoincrement())
+  paymentLinkId    String
+  amount           Float
+  currency         String
+  stripePaymentIntentId String?
+  stripeInvoiceId  String?
+  paymentNumber    Int      // 1, 2, 3... for fixed_payments
+  status           String   // pending, succeeded, failed
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  paymentLink PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+  
+  @@index([paymentLinkId])
+  @@index([status])
+  @@map("SubscriptionPayment")
 }

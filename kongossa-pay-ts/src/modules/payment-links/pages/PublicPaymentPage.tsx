@@ -128,6 +128,21 @@ export default function PublicPaymentPage() {
                 )}
               </>
             )}
+            {paymentLink?.subscriptionInfo && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-medium">Subscription:</span> {paymentLink.subscriptionInfo.frequency}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-medium">Duration:</span> {paymentLink.subscriptionInfo.duration}
+                </p>
+                {paymentLink.subscriptionInfo.totalPayments && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="font-medium">Payments:</span> {paymentLink.subscriptionInfo.paymentsMade} of {paymentLink.subscriptionInfo.totalPayments} completed
+                  </p>
+                )}
+              </div>
+            )}
             {paymentLink?.description && (
               <>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">For</p>

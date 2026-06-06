@@ -1,11 +1,21 @@
+// api/index.ts - FULL UPDATED VERSION
 import api from '@/lib/axios';
 
 export interface CreatePaymentLinkData {
-  amount: number;
+  type?: string;
+  amount?: number;
   description?: string;
   currency?: string;
   expiresInDays?: number;
   customerEmail?: string;
+  quantity?: number;
+  // NEW subscription fields
+  frequency?: 'daily' | 'weekly' | 'bi_monthly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom';
+  customIntervalDays?: number;
+  durationType?: 'recurring' | 'fixed_term' | 'fixed_payments' | 'end_date';
+  durationMonths?: number;
+  totalPayments?: number;
+  endDate?: Date;
 }
 
 export interface PaymentLink {
@@ -13,25 +23,49 @@ export interface PaymentLink {
   amount: number;
   currency: string;
   description: string | null;
-  status: 'active' | 'paid' | 'expired' | 'cancelled';
+  status: 'active' | 'paid' | 'expired' | 'cancelled' | 'subscription_active' | 'subscription_cancelled' | 'subscription_completed' | 'partially_paid';
   paymentUrl: string;
   expiresAt: string | null;
   createdAt: string;
   stripeCheckoutUrl: string | null;
+  type?: string;
+  // Subscription fields
+  frequency?: 'daily' | 'weekly' | 'bi_monthly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom';
+  customIntervalDays?: number;  // ✅ Add this line
+  durationType?: 'recurring' | 'fixed_term' | 'fixed_payments' | 'end_date';
+  durationMonths?: number;
+  totalPayments?: number | null;
+  paymentsMade?: number;
+  endDate?: string | null;
+  stripeSubscriptionId?: string | null;
+  subscriptionInfo?: {
+    frequency: string;
+    duration: string;
+    paymentsMade: number;
+    totalPayments: number | null;
+    isActive: boolean;
+  };
+  quantityTotal?: number | null;
+  quantityUsed?: number;
 }
 
-// ✅ Add this type for public payment page
-// api/index.ts
 export interface PublicPaymentLink {
   id: string;
-  type?: string;  // ✅ Add type
-  amount: number;
+  type?: string;
+  amount: number | null;
   currency: string;
   description: string | null;
   merchantName: string;
   status: string;
   stripeCheckoutUrl: string;
-  quantityRemaining?: number;  // ✅ Add quantityRemaining
+  quantityRemaining?: number;
+  subscriptionInfo?: {
+    frequency: string;
+    duration: string;
+    paymentsMade: number;
+    totalPayments: number | null;
+    isActive: boolean;
+  };
 }
 
 export const createPaymentLink = async (data: CreatePaymentLinkData): Promise<PaymentLink> => {
@@ -53,7 +87,6 @@ export const cancelPaymentLink = async (id: string): Promise<void> => {
   await api.delete(`/payment-links/${id}`);
 };
 
-// Public API (no auth)
 export const getPublicPaymentLink = async (linkId: string): Promise<PublicPaymentLink> => {
   const res = await api.get(`/pay/${linkId}`);
   return res.data;
