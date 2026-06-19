@@ -16,6 +16,10 @@ export interface CreatePaymentLinkData {
   durationMonths?: number;
   totalPayments?: number;
   endDate?: Date;
+  // Multi-currency fields
+  baseCurrency?: string;
+  allowedCurrencies?: string[];
+  autoConvert?: boolean;
 }
 
 export interface PaymentLink {
@@ -66,6 +70,26 @@ export interface PublicPaymentLink {
     totalPayments: number | null;
     isActive: boolean;
   };
+  // Multi-currency fields
+  originalAmount?: number;
+  originalCurrency?: string;
+  convertedAmount?: number;
+  convertedCurrency?: string;
+  exchangeRate?: number;
+  availableCurrencies?: string[];
+  exchangeRates?: Record<string, number>;
+}
+
+export interface CurrencyInfo {
+  code: string;
+  name: string;
+  country: string;
+  flag: string;
+  symbol: string;
+}
+
+export interface CurrenciesResponse {
+  currencies: CurrencyInfo[];
 }
 
 export const createPaymentLink = async (data: CreatePaymentLinkData): Promise<PaymentLink> => {
@@ -89,5 +113,21 @@ export const cancelPaymentLink = async (id: string): Promise<void> => {
 
 export const getPublicPaymentLink = async (linkId: string): Promise<PublicPaymentLink> => {
   const res = await api.get(`/pay/${linkId}`);
+  return res.data;
+};
+
+// Add exchange rate API calls
+export const getExchangeRates = async (baseCurrency: string) => {
+  const res = await api.get(`/exchange-rate/rate/${baseCurrency}/USD`);
+  return res.data;
+};
+
+export const convertCurrency = async (amount: number, from: string, to: string) => {
+  const res = await api.get(`/exchange-rate/convert/${from}/${to}/${amount}`);
+  return res.data;
+};
+
+export const getCurrencies = async (): Promise<CurrenciesResponse> => {
+  const res = await api.get('/exchange-rate/currencies');
   return res.data;
 };

@@ -1,4 +1,4 @@
-// src/payment-links/payment-link-webhook.controller.ts - FIXED
+// payment-link-webhook.controller.ts - FULLY UPDATED WITH FIXED TERM HANDLING
 
 import { Controller, Post, Req, Headers, HttpCode, Logger } from '@nestjs/common';
 import type { Request } from 'express';
@@ -18,7 +18,7 @@ export class PaymentLinkWebhookController {
     const secret = this.config.get<string>('STRIPE_SECRET_KEY');
     if (!secret) throw new Error('STRIPE_SECRET_KEY missing in .env');
     this.stripe = new Stripe(secret, {
-      apiVersion: '2025-11-17.clover' as any,
+      apiVersion: '2025-02-24.acacia' as any,
     });
   }
 
@@ -79,15 +79,18 @@ export class PaymentLinkWebhookController {
       }
     }
 
-    // Handle invoice.payment_succeeded - FIXED PROPERTY NAMES
+    // Handle invoice.payment_succeeded
+    // ✅ FIXED: Check for fixed_term subscriptions and handle end dates
     if (event.type === 'invoice.payment_succeeded') {
-      const invoice = event.data.object as any; // Use 'any' as workaround
+      const invoice = event.data.object as any;
       const subscriptionId = invoice.subscription as string | null;
       const paymentIntentId = invoice.payment_intent as string | null;
       const amount = invoice.amount_paid / 100;
       
       if (subscriptionId && paymentIntentId) {
         this.logger.log(`💰 Subscription payment succeeded: ${subscriptionId}, amount: ${amount}`);
+        
+        // Process the subscription payment
         await this.paymentLinksService.handleSubscriptionPayment(
           subscriptionId,
           invoice.id,

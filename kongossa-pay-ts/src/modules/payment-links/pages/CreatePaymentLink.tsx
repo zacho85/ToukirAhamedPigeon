@@ -1,4 +1,5 @@
-// CreatePaymentLink.tsx - FULL UPDATED VERSION
+// CreatePaymentLink.tsx - FULLY UPDATED WITH ISRAEL REMOVED
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { createPaymentLink } from '../api';
 import { dispatchShowToast } from '@/lib/dispatch';
 import { ArrowLeft, Calendar, CreditCard, Infinity } from 'lucide-react';
@@ -36,7 +36,6 @@ const LINK_TYPES = [
   { value: 'subscription', label: 'Subscription', description: 'Recurring payments (daily, weekly, monthly, etc.)' },
 ];
 
-// NEW: Frequency options
 const FREQUENCY_OPTIONS = [
   { value: 'daily', label: 'Daily', description: 'Every day' },
   { value: 'weekly', label: 'Weekly', description: 'Every week' },
@@ -48,7 +47,6 @@ const FREQUENCY_OPTIONS = [
   { value: 'custom', label: 'Custom', description: 'Set custom interval' },
 ];
 
-// NEW: Duration type options
 const DURATION_OPTIONS = [
   { value: 'recurring', label: 'Indefinite', description: 'Until canceled', icon: <Infinity className="w-4 h-4" /> },
   { value: 'fixed_term', label: 'Fixed Term', description: 'For a set number of months', icon: <Calendar className="w-4 h-4" /> },
@@ -56,23 +54,128 @@ const DURATION_OPTIONS = [
   { value: 'end_date', label: 'Specific End Date', description: 'Until a specific date', icon: <Calendar className="w-4 h-4" /> },
 ];
 
+// ============================================================
+// ✅ UPDATED: All 30 Currencies (Israel/ILS removed)
+// ============================================================
+interface CurrencyOption {
+  value: string;
+  label: string;
+  flagUrl: string;
+  countryCode: string;
+}
+
+const CURRENCY_OPTIONS: CurrencyOption[] = [
+  { value: 'USD', label: 'USD - US Dollar', flagUrl: 'https://flagcdn.com/us.svg', countryCode: 'us' },
+  { value: 'EUR', label: 'EUR - Euro', flagUrl: 'https://flagcdn.com/eu.svg', countryCode: 'eu' },
+  { value: 'GBP', label: 'GBP - British Pound', flagUrl: 'https://flagcdn.com/gb.svg', countryCode: 'gb' },
+  { value: 'JPY', label: 'JPY - Japanese Yen', flagUrl: 'https://flagcdn.com/jp.svg', countryCode: 'jp' },
+  { value: 'CHF', label: 'CHF - Swiss Franc', flagUrl: 'https://flagcdn.com/ch.svg', countryCode: 'ch' },
+  { value: 'AUD', label: 'AUD - Australian Dollar', flagUrl: 'https://flagcdn.com/au.svg', countryCode: 'au' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar', flagUrl: 'https://flagcdn.com/ca.svg', countryCode: 'ca' },
+  { value: 'CNY', label: 'CNY - Chinese Yuan', flagUrl: 'https://flagcdn.com/cn.svg', countryCode: 'cn' },
+  { value: 'HKD', label: 'HKD - Hong Kong Dollar', flagUrl: 'https://flagcdn.com/hk.svg', countryCode: 'hk' },
+  { value: 'NZD', label: 'NZD - New Zealand Dollar', flagUrl: 'https://flagcdn.com/nz.svg', countryCode: 'nz' },
+  { value: 'SEK', label: 'SEK - Swedish Krona', flagUrl: 'https://flagcdn.com/se.svg', countryCode: 'se' },
+  { value: 'KRW', label: 'KRW - South Korean Won', flagUrl: 'https://flagcdn.com/kr.svg', countryCode: 'kr' },
+  { value: 'SGD', label: 'SGD - Singapore Dollar', flagUrl: 'https://flagcdn.com/sg.svg', countryCode: 'sg' },
+  { value: 'NOK', label: 'NOK - Norwegian Krone', flagUrl: 'https://flagcdn.com/no.svg', countryCode: 'no' },
+  { value: 'MXN', label: 'MXN - Mexican Peso', flagUrl: 'https://flagcdn.com/mx.svg', countryCode: 'mx' },
+  { value: 'INR', label: 'INR - Indian Rupee', flagUrl: 'https://flagcdn.com/in.svg', countryCode: 'in' },
+  { value: 'BRL', label: 'BRL - Brazilian Real', flagUrl: 'https://flagcdn.com/br.svg', countryCode: 'br' },
+  { value: 'RUB', label: 'RUB - Russian Ruble', flagUrl: 'https://flagcdn.com/ru.svg', countryCode: 'ru' },
+  { value: 'ZAR', label: 'ZAR - South African Rand', flagUrl: 'https://flagcdn.com/za.svg', countryCode: 'za' },
+  { value: 'TRY', label: 'TRY - Turkish Lira', flagUrl: 'https://flagcdn.com/tr.svg', countryCode: 'tr' },
+  { value: 'DKK', label: 'DKK - Danish Krone', flagUrl: 'https://flagcdn.com/dk.svg', countryCode: 'dk' },
+  { value: 'PLN', label: 'PLN - Polish Zloty', flagUrl: 'https://flagcdn.com/pl.svg', countryCode: 'pl' },
+  { value: 'THB', label: 'THB - Thai Baht', flagUrl: 'https://flagcdn.com/th.svg', countryCode: 'th' },
+  { value: 'IDR', label: 'IDR - Indonesian Rupiah', flagUrl: 'https://flagcdn.com/id.svg', countryCode: 'id' },
+  { value: 'HUF', label: 'HUF - Hungarian Forint', flagUrl: 'https://flagcdn.com/hu.svg', countryCode: 'hu' },
+  { value: 'CZK', label: 'CZK - Czech Koruna', flagUrl: 'https://flagcdn.com/cz.svg', countryCode: 'cz' },
+  // ILS (Israel) REMOVED
+  { value: 'PHP', label: 'PHP - Philippine Peso', flagUrl: 'https://flagcdn.com/ph.svg', countryCode: 'ph' },
+  { value: 'MYR', label: 'MYR - Malaysian Ringgit', flagUrl: 'https://flagcdn.com/my.svg', countryCode: 'my' },
+  { value: 'RON', label: 'RON - Romanian Leu', flagUrl: 'https://flagcdn.com/ro.svg', countryCode: 'ro' },
+  { value: 'ISK', label: 'ISK - Icelandic Króna', flagUrl: 'https://flagcdn.com/is.svg', countryCode: 'is' },
+  { value: 'BGN', label: 'BGN - Bulgarian Lev', flagUrl: 'https://flagcdn.com/bg.svg', countryCode: 'bg' },
+];
+
+// Map currency code to symbol for display
+const getCurrencySymbol = (currencyCode: string): string => {
+  const symbols: Record<string, string> = {
+    USD: '$', EUR: '€', GBP: '£', JPY: '¥', CHF: 'Fr',
+    AUD: 'A$', CAD: 'C$', CNY: '¥', HKD: 'HK$', NZD: 'NZ$',
+    SEK: 'kr', KRW: '₩', SGD: 'S$', NOK: 'kr', MXN: 'MX$',
+    INR: '₹', BRL: 'R$', RUB: '₽', ZAR: 'R', TRY: '₺',
+    DKK: 'kr', PLN: 'zł', THB: '฿', IDR: 'Rp', HUF: 'Ft',
+    CZK: 'Kč', PHP: '₱', MYR: 'RM', RON: 'lei',
+    ISK: 'kr', BGN: 'лв',
+  };
+  return symbols[currencyCode] || currencyCode;
+};
+
+// Base currency options (subset for conversion)
+const BASE_CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD - US Dollar', flagUrl: 'https://flagcdn.com/us.svg' },
+  { value: 'EUR', label: 'EUR - Euro', flagUrl: 'https://flagcdn.com/eu.svg' },
+  { value: 'GBP', label: 'GBP - British Pound', flagUrl: 'https://flagcdn.com/gb.svg' },
+  { value: 'CHF', label: 'CHF - Swiss Franc', flagUrl: 'https://flagcdn.com/ch.svg' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar', flagUrl: 'https://flagcdn.com/ca.svg' },
+  { value: 'AUD', label: 'AUD - Australian Dollar', flagUrl: 'https://flagcdn.com/au.svg' },
+];
+
+// Helper component for flag rendering
+const FlagIcon = ({ flagUrl, alt, className = "w-5 h-4 object-cover rounded-sm border border-gray-200 dark:border-gray-600" }: { flagUrl: string; alt: string; className?: string }) => {
+  const [error, setError] = useState(false);
+
+  // Fallback emoji mapping (Israel removed)
+  const fallbackEmojis: Record<string, string> = {
+    'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'jp': '🇯🇵', 'ch': '🇨🇭',
+    'au': '🇦🇺', 'ca': '🇨🇦', 'cn': '🇨🇳', 'hk': '🇭🇰', 'nz': '🇳🇿',
+    'se': '🇸🇪', 'kr': '🇰🇷', 'sg': '🇸🇬', 'no': '🇳🇴', 'mx': '🇲🇽',
+    'in': '🇮🇳', 'br': '🇧🇷', 'ru': '🇷🇺', 'za': '🇿🇦', 'tr': '🇹🇷',
+    'dk': '🇩🇰', 'pl': '🇵🇱', 'th': '🇹🇭', 'id': '🇮🇩', 'hu': '🇭🇺',
+    'cz': '🇨🇿', 'ph': '🇵🇭', 'my': '🇲🇾', 'ro': '🇷🇴',
+    'is': '🇮🇸', 'bg': '🇧🇬',
+  };
+
+  if (error) {
+    const emoji = fallbackEmojis[alt.toLowerCase()] || '🏳️';
+    return <span className="text-lg leading-none">{emoji}</span>;
+  }
+
+  return (
+    <img
+      src={flagUrl}
+      alt={alt}
+      className={className}
+      onError={() => setError(true)}
+      loading="lazy"
+    />
+  );
+};
+
 export default function CreatePaymentLink() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [linkType, setLinkType] = useState('fixed_amount');
+  
   const [form, setForm] = useState({
     amount: '',
     description: '',
     expiresInDays: 7,
     customerEmail: '',
     quantity: '',
-    // NEW subscription fields
+    // Subscription fields
     frequency: 'monthly',
     customIntervalDays: 30,
     durationType: 'recurring',
     durationMonths: 3,
     totalPayments: 12,
     endDate: '',
+    // Multi-currency fields
+    currency: 'USD',
+    autoConvert: false,
+    baseCurrency: 'USD',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,7 +198,6 @@ export default function CreatePaymentLink() {
       }
     }
 
-    // Validate subscription fields
     if (linkType === 'subscription') {
       const amount = parseFloat(form.amount);
       if (isNaN(amount) || amount <= 0) {
@@ -126,6 +228,9 @@ export default function CreatePaymentLink() {
         description: form.description || undefined,
         expiresInDays: form.expiresInDays === 0 ? undefined : form.expiresInDays,
         customerEmail: form.customerEmail || undefined,
+        currency: form.currency || 'USD',
+        autoConvert: form.autoConvert || false,
+        baseCurrency: form.baseCurrency || 'USD',
       };
 
       if (amountRequired) {
@@ -136,7 +241,6 @@ export default function CreatePaymentLink() {
         payload.quantity = parseInt(form.quantity);
       }
 
-      // Add subscription fields
       if (linkType === 'subscription') {
         payload.frequency = form.frequency;
         if (form.frequency === 'custom') {
@@ -163,10 +267,8 @@ export default function CreatePaymentLink() {
     }
   };
 
-  // Helper to render subscription form fields
   const renderSubscriptionFields = () => (
     <div className="space-y-5 mt-6">
-      {/* Frequency Selection */}
       <div>
         <Label className="text-gray-700 dark:text-gray-300 mb-2 block">Billing Frequency</Label>
         <RadioGroup
@@ -186,7 +288,6 @@ export default function CreatePaymentLink() {
         </RadioGroup>
       </div>
 
-      {/* Custom Interval Days */}
       {form.frequency === 'custom' && (
         <div>
           <Label htmlFor="customIntervalDays" className="text-gray-700 dark:text-gray-300">Interval (days)</Label>
@@ -202,7 +303,6 @@ export default function CreatePaymentLink() {
         </div>
       )}
 
-      {/* Duration Type */}
       <div>
         <Label className="text-gray-700 dark:text-gray-300 mb-2 block">Subscription Duration</Label>
         <RadioGroup
@@ -225,7 +325,6 @@ export default function CreatePaymentLink() {
         </RadioGroup>
       </div>
 
-      {/* Fixed Term Months */}
       {form.durationType === 'fixed_term' && (
         <div>
           <Label htmlFor="durationMonths" className="text-gray-700 dark:text-gray-300">Duration (months)</Label>
@@ -249,7 +348,6 @@ export default function CreatePaymentLink() {
         </div>
       )}
 
-      {/* Fixed Payments Count */}
       {form.durationType === 'fixed_payments' && (
         <div>
           <Label htmlFor="totalPayments" className="text-gray-700 dark:text-gray-300">Number of Payments</Label>
@@ -266,7 +364,6 @@ export default function CreatePaymentLink() {
         </div>
       )}
 
-      {/* Specific End Date */}
       {form.durationType === 'end_date' && (
         <div>
           <Label htmlFor="endDate" className="text-gray-700 dark:text-gray-300">End Date</Label>
@@ -285,7 +382,6 @@ export default function CreatePaymentLink() {
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-4 md:mb-6">
         <Button variant="outline" size="icon" onClick={() => navigate('/payment-links')} className="shrink-0">
           <ArrowLeft className="w-4 h-4" />
@@ -315,12 +411,84 @@ export default function CreatePaymentLink() {
               </RadioGroup>
             </div>
 
+            {/* Currency Selection - UPDATED with real flags (Israel removed) */}
+            <div>
+              <Label htmlFor="currency" className="text-gray-700 dark:text-gray-300">Currency</Label>
+              <Select
+                value={form.currency}
+                onValueChange={(val) => setForm({ ...form, currency: val })}
+              >
+                <SelectTrigger id="currency" className="cursor-pointer">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] cursor-pointer">
+                  {CURRENCY_OPTIONS.map((curr) => (
+                    <SelectItem key={curr.value} value={curr.value} className="cursor-pointer">
+                      <div className="flex items-center gap-2 cursor-pointer">
+                        <FlagIcon flagUrl={curr.flagUrl} alt={curr.countryCode} />
+                        <span>{curr.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Select the currency you want to charge in
+              </p>
+            </div>
+
+            {/* Auto Currency Conversion */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="autoConvert"
+                checked={form.autoConvert}
+                onChange={(e) => setForm({ ...form, autoConvert: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <Label htmlFor="autoConvert" className="text-gray-700 dark:text-gray-300 cursor-pointer">
+                Enable automatic currency conversion
+              </Label>
+            </div>
+
+            {/* Base Currency */}
+            {form.autoConvert && (
+              <div>
+                <Label htmlFor="baseCurrency" className="text-gray-700 dark:text-gray-300">
+                  Base Currency (for conversion)
+                </Label>
+                <Select
+                  value={form.baseCurrency}
+                  onValueChange={(val) => setForm({ ...form, baseCurrency: val })}
+                >
+                  <SelectTrigger id="baseCurrency">
+                    <SelectValue placeholder="Select base currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BASE_CURRENCY_OPTIONS.map((curr) => (
+                      <SelectItem key={curr.value} value={curr.value}>
+                        <div className="flex items-center gap-2">
+                          <FlagIcon flagUrl={curr.flagUrl} alt={curr.value.toLowerCase()} />
+                          <span>{curr.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Amount will be converted from {form.currency || 'USD'} to {form.baseCurrency || 'USD'}
+                </p>
+              </div>
+            )}
+
             {/* Amount - for non-subscription */}
             {['fixed_amount', 'quantity_limited'].includes(linkType) && (
               <div>
                 <Label htmlFor="amount" className="text-gray-700 dark:text-gray-300">Amount *</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                    {getCurrencySymbol(form.currency)}
+                  </span>
                   <Input
                     id="amount"
                     type="number"
@@ -332,7 +500,9 @@ export default function CreatePaymentLink() {
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   />
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Minimum amount: $0.50</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Minimum amount: 0.50 {form.currency}
+                </p>
               </div>
             )}
 
@@ -341,7 +511,9 @@ export default function CreatePaymentLink() {
               <div>
                 <Label htmlFor="amount" className="text-gray-700 dark:text-gray-300">Payment Amount *</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                    {getCurrencySymbol(form.currency)}
+                  </span>
                   <Input
                     id="amount"
                     type="number"
@@ -353,7 +525,9 @@ export default function CreatePaymentLink() {
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   />
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Amount charged for each payment</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Amount charged for each payment in {form.currency}
+                </p>
               </div>
             )}
 
@@ -397,7 +571,7 @@ export default function CreatePaymentLink() {
                 value={form.expiresInDays.toString()}
                 onValueChange={(val) => setForm({ ...form, expiresInDays: parseInt(val) })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="expiry">
                   <SelectValue placeholder="Select expiry" />
                 </SelectTrigger>
                 <SelectContent>

@@ -23,7 +23,7 @@ export class TontinesService {
   async createTontine(dto: CreateTontineDto, creatorId: number) {
     try {
       // -----------------------------------------
-      // 1️⃣ Create Tontine
+      // 1️⃣ Create Tontine (without coAdmins)
       // -----------------------------------------
       const tontine = await this.prisma.tontine.create({
         data: {
@@ -36,11 +36,20 @@ export class TontinesService {
           status: 'forming',
           createdBy: creatorId,
           totalPot: new Decimal(0),
-          coAdmins: {
-            connect: dto.coAdminIds?.map((id) => ({ id })) || [],
-          },
         },
       });
+
+      // -----------------------------------------
+      // 1.5️⃣ Add co-admins through junction table
+      // -----------------------------------------
+      if (dto.coAdminIds && dto.coAdminIds.length > 0) {
+        await this.prisma.tontineCoAdmin.createMany({
+          data: dto.coAdminIds.map((coAdminId) => ({
+            A: tontine.id,
+            B: coAdminId,
+          })),
+        });
+      }
 
       // -----------------------------------------
       // 2️⃣ Create Stripe Price (one-time or recurring)
@@ -55,9 +64,8 @@ export class TontinesService {
         frequency: dto.contributionFrequency,
       };
 
-      // Use public getter 'client' on StripeService
-      let price: Stripe.Price;
       const stripeClient = this.stripeService.client;
+      let price: Stripe.Price;
 
       if (isRecurring) {
         price = await stripeClient.prices.create({
@@ -127,10 +135,11 @@ export class TontinesService {
           payouts: true,
         },
       });
+
       return {
         ...finalTontine,
         isAdmin: memberRecord?.isAdmin ?? false,
-      }
+      };
     } catch (err) {
       console.error('❌ Failed to create tontine:', err);
       throw new BadRequestException('Failed to create tontine');
@@ -252,141 +261,137 @@ export class TontinesService {
     };
   }
 
-
-
-
-async findOne(id: number, userId?: number) {
-  // Fetch tontine with all required relations
-  const tontine = await this.prisma.tontine.findUnique({
-    where: { id },
-    include: {
-      creator: true,
-      coAdmins: true,
-      members: {
-        include: {
-          user: true,
-          contributions: {
-            include: {
-              tontineMember: {
-                select: {
-                  user: true,
+  async findOne(id: number, userId?: number) {
+    // Fetch tontine with all required relations
+    const tontine = await this.prisma.tontine.findUnique({
+      where: { id },
+      include: {
+        creator: true,
+        coAdmins: true,
+        members: {
+          include: {
+            user: true,
+            contributions: {
+              include: {
+                tontineMember: {
+                  select: {
+                    user: true,
+                  }
                 }
               }
             },
+            payouts: true,
           },
-          payouts: true,
         },
+        invites: true,
+        payouts: true,
       },
-      invites: true,
-      payouts: true,
-    },
-  });
+    });
 
-  if (!tontine) throw new NotFoundException('Tontine not found');
+    if (!tontine) throw new NotFoundException('Tontine not found');
 
-  // Compute totals for each member
-  const membersWithTotals = tontine.members.map((member) => {
-    const total_contributed = member.contributions.reduce(
+    // Compute totals for each member
+    const membersWithTotals = tontine.members.map((member) => {
+      const total_contributed = member.contributions.reduce(
+        (sum, c) => sum + Number(c.amount || 0),
+        0
+      );
+
+      const pending_contributions = member.contributions
+        .filter(c => c.status !== 'completed')
+        .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+      const totalContributionAmount = total_contributed;
+
+      return {
+        ...member,
+        total_contributed,
+        pending_contributions,
+        totalContributionAmount,
+        tontine,
+      };
+    });
+
+    // Flatten all contributions with correct tontineMember + user
+    const allContributions = tontine.members.flatMap(member =>
+      member.contributions.map(contribution => ({
+        ...contribution,
+        tontineMember: {
+          ...member,  
+          user: member.user
+        },
+      }))
+    );
+
+    // Last 5 contributions sorted by contributionDate
+    const recent_contributions = allContributions
+      .slice()
+      .sort((a, b) =>
+        (b.contributionDate?.getTime() || 0) - (a.contributionDate?.getTime() || 0)
+      )
+      .slice(0, 5);
+
+    // Upcoming payouts
+    const upcoming_payouts = tontine.payouts
+      .filter(p => p.status === 'scheduled')
+      .sort((a, b) => a.payoutDate.getTime() - b.payoutDate.getTime())
+      .slice(0, 5);
+
+    // Stats
+    const total_contributed = allContributions.reduce(
       (sum, c) => sum + Number(c.amount || 0),
       0
     );
 
-    const pending_contributions = member.contributions
-      .filter(c => c.status !== 'completed')
-      .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+    const total_paid_out = tontine.payouts.reduce(
+      (sum, p) => sum + Number(p.amount || 0),
+      0
+    );
 
-    const totalContributionAmount = total_contributed;
+    const completion_percentage =
+      tontine.durationMonths && tontine.durationMonths > 0
+        ? (tontine.members.length / tontine.durationMonths) * 100
+        : 0;
+
+    // Admin detection
+    const memberRecord = userId
+      ? tontine.members.find(m => m.userId === userId)
+      : null;
+
+    const isAdmin = memberRecord?.isAdmin ?? false;
 
     return {
-      ...member,
-      total_contributed,
-      pending_contributions,
-      totalContributionAmount,
-      tontine,
-    };
-  });
-
-  // Flatten all contributions with correct tontineMember + user
-  const allContributions = tontine.members.flatMap(member =>
-    member.contributions.map(contribution => ({
-      ...contribution,
-      tontineMember: {
-        ...member,  
-        user: member.user
+      ...tontine,
+      members: membersWithTotals,
+      contributions: allContributions,
+      recent_contributions,
+      upcoming_payouts,
+      stats: {
+        total_contributed,
+        total_paid_out,
+        completion_percentage,
+        next_payout_date: upcoming_payouts[0]?.payoutDate || null,
+        cycles_completed: 0,
+        total_cycles: tontine.durationMonths,
       },
-    }))
-  );
-
-  // Last 5 contributions sorted by contributionDate
-  const recent_contributions = allContributions
-    .slice()
-    .sort((a, b) =>
-      (b.contributionDate?.getTime() || 0) - (a.contributionDate?.getTime() || 0)
-    )
-    .slice(0, 5);
-
-  // Upcoming payouts
-  const upcoming_payouts = tontine.payouts
-    .filter(p => p.status === 'scheduled')
-    .sort((a, b) => a.payoutDate.getTime() - b.payoutDate.getTime())
-    .slice(0, 5);
-
-  // Stats
-  const total_contributed = allContributions.reduce(
-    (sum, c) => sum + Number(c.amount || 0),
-    0
-  );
-
-  const total_paid_out = tontine.payouts.reduce(
-    (sum, p) => sum + Number(p.amount || 0),
-    0
-  );
-
-  const completion_percentage =
-    tontine.durationMonths && tontine.durationMonths > 0
-      ? (tontine.members.length / tontine.durationMonths) * 100
-      : 0;
-
-  // Admin detection
-  const memberRecord = userId
-    ? tontine.members.find(m => m.userId === userId)
-    : null;
-
-  const isAdmin = memberRecord?.isAdmin ?? false;
-
-  return {
-    ...tontine,
-    members: membersWithTotals,
-    contributions: allContributions,
-    recent_contributions,
-    upcoming_payouts,
-    stats: {
-      total_contributed,
-      total_paid_out,
-      completion_percentage,
-      next_payout_date: upcoming_payouts[0]?.payoutDate || null,
-      cycles_completed: 0,
-      total_cycles: tontine.durationMonths,
-    },
-    isAdmin,
-  };
-}
+      isAdmin,
+    };
+  }
 
   async update(id: number, dto: UpdateTontineDto) {
-      const data: any = {};
+    const data: any = {};
 
-      if (dto.name !== undefined) data.name = dto.name;
-      if (dto.tontine_type_id !== undefined) data.type = dto.tontine_type_id;
-      if (dto.amount !== undefined) data.contributionAmount = dto.amount;
-      if (dto.cycle !== undefined) data.frequency = dto.cycle;
-      if (dto.duration_months !== undefined) data.durationMonths = dto.duration_months;
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.tontine_type_id !== undefined) data.type = dto.tontine_type_id;
+    if (dto.amount !== undefined) data.contributionAmount = dto.amount;
+    if (dto.cycle !== undefined) data.frequency = dto.cycle;
+    if (dto.duration_months !== undefined) data.durationMonths = dto.duration_months;
 
-      return this.prisma.tontine.update({
-        where: { id },
-        data,
-      });
-    }
-
+    return this.prisma.tontine.update({
+      where: { id },
+      data,
+    });
+  }
 
   async remove(id: number) {
     return this.prisma.tontine.delete({ where: { id } });
@@ -400,14 +405,14 @@ async findOne(id: number, userId?: number) {
     const totalMembers = tontine.members.length;
     const allContributions = tontine.members.flatMap((m) => m.contributions || []);
     const totalContributions = allContributions.reduce(
-      (sum, c) => sum + (c.amount instanceof Decimal ? c.amount.toNumber() : Number(c.amount ?? 0)),
+      (sum, c) => sum + Number(c.amount ?? 0),
       0,
     );
     return {
       totalMembers,
       totalContributions,
       totalPot: allContributions.reduce(
-        (sum, c) => sum + (c.amount instanceof Decimal ? c.amount.toNumber() : Number(c.amount ?? 0)),
+        (sum, c) => sum + Number(c.amount ?? 0),
         0,
       ),
       currentRound: 1,
@@ -462,7 +467,7 @@ async findOne(id: number, userId?: number) {
       data: {
         tontineId,
         email: dto.email,
-        userId: user.id,   // associate existing user
+        userId: user.id,
         inviteToken,
         status: 'pending',
       },
@@ -470,7 +475,6 @@ async findOne(id: number, userId?: number) {
 
     return { success: true, invite };
   }
-
 
   async approveInvite(id: number, inviteId: number) {
     const invite = await this.prisma.tontineInvite.findUnique({ where: { id: inviteId } });
@@ -493,19 +497,16 @@ async findOne(id: number, userId?: number) {
     return {
       tontineId: id,
       name: tontine.name,
-      contributionAmount:
-        tontine.contributionAmount instanceof Decimal
-          ? tontine.contributionAmount.toNumber()
-          : tontine.contributionAmount,
+      contributionAmount: Number(tontine.contributionAmount),
       frequency: tontine.frequency,
     };
   }
 
   async makeContribution(id: number, userId: number, amount: number, paymentMethod: string) {
-    try{
+    try {
       const tontine = await this.findOne(id);
       const member = tontine.members.find(m => m.userId === userId);
-      if (!member) throw new NotFoundException('No members exist in the tontine');
+      if (!member) throw new NotFoundException('Member not found in this tontine');
 
       return this.prisma.tontineContribution.create({
         data: {
@@ -516,8 +517,7 @@ async findOne(id: number, userId?: number) {
           userId,
         },
       });
-    }
-    catch(error){
+    } catch (error) {
       console.log(error);
       throw new BadRequestException('Contribution failed');
     }
@@ -533,10 +533,7 @@ async findOne(id: number, userId?: number) {
     if (!member) throw new NotFoundException('Member not found');
 
     const tontine = await this.findOne(tontineId);
-    const contributionAmount =
-      tontine.contributionAmount instanceof Decimal
-        ? tontine.contributionAmount.toNumber()
-        : tontine.contributionAmount;
+    const contributionAmount = Number(tontine.contributionAmount);
     const payoutAmount = contributionAmount * tontine.members.length;
 
     return this.prisma.tontinePayout.create({

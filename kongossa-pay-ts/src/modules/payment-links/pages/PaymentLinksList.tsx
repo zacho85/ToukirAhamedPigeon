@@ -1,8 +1,8 @@
-// src/modules/payment-links/pages/PaymentLinksList.tsx - FULL UPDATED VERSION
+// src/modules/payment-links/pages/PaymentLinksList.tsx - FULLY UPDATED WITH ALL SUBSCRIPTION INFO
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Copy, ExternalLink, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Copy, ExternalLink, Trash2, CheckCircle, Clock, Calendar, Infinity, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +68,6 @@ export default function PaymentLinksList() {
     }
   };
 
-  // Helper function to format frequency display
   const getFrequencyDisplay = (link: PaymentLink): string => {
     if (!link.frequency) return 'Monthly';
     
@@ -86,7 +85,23 @@ export default function PaymentLinksList() {
     }
   };
 
-  // Helper to format amount display
+  const getDurationDisplay = (link: PaymentLink): string => {
+    if (!link.durationType) return 'Indefinite';
+    
+    switch (link.durationType) {
+      case 'recurring':
+        return 'Until canceled 🔄';
+      case 'fixed_term':
+        return link.durationMonths ? `${link.durationMonths} months` : 'Fixed term';
+      case 'fixed_payments':
+        return link.totalPayments ? `${link.totalPayments} payments` : 'Fixed payments';
+      case 'end_date':
+        return link.endDate ? `Until ${format(new Date(link.endDate), 'PPP')}` : 'End date';
+      default:
+        return 'Indefinite';
+    }
+  };
+
   const getAmountDisplay = (link: PaymentLink): string => {
     if (link.type === 'flexible_amount') {
       return 'Flexible Amount';
@@ -95,6 +110,22 @@ export default function PaymentLinksList() {
       return `${link.currency} ${link.amount.toFixed(2)}`;
     }
     return `${link.currency} 0.00`;
+  };
+
+  // Helper to get duration icon
+  const getDurationIcon = (durationType?: string) => {
+    switch (durationType) {
+      case 'recurring':
+        return <Infinity className="w-3 h-3" />;
+      case 'fixed_term':
+        return <Calendar className="w-3 h-3" />;
+      case 'fixed_payments':
+        return <CreditCard className="w-3 h-3" />;
+      case 'end_date':
+        return <Calendar className="w-3 h-3" />;
+      default:
+        return <Infinity className="w-3 h-3" />;
+    }
   };
 
   if (loading) {
@@ -134,6 +165,7 @@ export default function PaymentLinksList() {
                 <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
                   {/* Left section - Link details */}
                   <div className="flex-1 space-y-2">
+                    {/* Status and Amount */}
                     <div className="flex flex-wrap items-center gap-2">
                       {getStatusBadge(link.status)}
                       <span className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
@@ -141,49 +173,108 @@ export default function PaymentLinksList() {
                       </span>
                     </div>
 
+                    {/* Description */}
                     {link.description && (
                       <p className="text-sm text-gray-600 dark:text-gray-300 break-words">
                         {link.description}
                       </p>
                     )}
                     
-                    {/* Subscription info - with safe checks */}
+                    {/* ============================================================
+                        SUBSCRIPTION INFO - FULL DETAILS
+                        ============================================================ */}
                     {link.type === 'subscription' && link.frequency && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          <span className="font-medium">Subscription:</span> {getFrequencyDisplay(link)}
-                        </p>
-                        {(link.totalPayments !== null && link.totalPayments !== undefined) && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            <span className="font-medium">Payments:</span> {link.paymentsMade || 0} of {link.totalPayments} made
-                          </p>
+                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 space-y-1.5 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">Subscription Details:</span>
+                        </div>
+                        
+                        {/* Frequency */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Frequency:</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{getFrequencyDisplay(link)}</span>
+                        </div>
+                        
+                        {/* Duration - THIS IS THE KEY FIX */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Duration:</span>
+                          <div className="flex items-center gap-1">
+                            {getDurationIcon(link.durationType)}
+                            <span className={`font-medium ${
+                              link.durationType === 'recurring' 
+                                ? 'text-green-600 dark:text-green-400' 
+                                : 'text-gray-900 dark:text-white'
+                            }`}>
+                              {getDurationDisplay(link)}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Payments progress (for fixed payments) */}
+                        {(link.durationType === 'fixed_payments' && link.totalPayments) && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-500 dark:text-gray-400">Payments:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {link.paymentsMade || 0} of {link.totalPayments} made
+                            </span>
+                            <div className="flex-1 max-w-[100px] ml-2">
+                              <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 rounded-full transition-all"
+                                  style={{ width: `${((link.paymentsMade || 0) / link.totalPayments) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
                         )}
-                        {link.durationType === 'fixed_term' && link.durationMonths && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            <span className="font-medium">Duration:</span> {link.durationMonths} months
-                          </p>
-                        )}
+                        
+                        {/* End date (for end_date type) */}
                         {link.durationType === 'end_date' && link.endDate && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            <span className="font-medium">Ends:</span> {format(new Date(link.endDate), 'PPP')}
-                          </p>
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-500 dark:text-gray-400">Ends on:</span>
+                            <span className="font-medium text-orange-600 dark:text-orange-400">
+                              {format(new Date(link.endDate), 'PPP')}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Link Expiry (separate from subscription duration) */}
+                        {link.expiresAt && (
+                          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                            <Clock className="w-3 h-3" />
+                            <span>Payment link expires: {format(new Date(link.expiresAt), 'PPP')}</span>
+                          </div>
                         )}
                       </div>
                     )}
 
                     {/* Quantity limited info */}
                     {link.type === 'quantity_limited' && link.quantityTotal && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <span className="font-medium">Used:</span> {link.quantityUsed || 0} of {link.quantityTotal} payments
-                      </p>
+                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Usage:</span>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {link.quantityUsed || 0} of {link.quantityTotal} used
+                          </span>
+                          <div className="flex-1 max-w-[100px] ml-2">
+                            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-yellow-500 rounded-full transition-all"
+                                style={{ width: `${((link.quantityUsed || 0) / link.quantityTotal) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
 
+                    {/* Created and Link Expiry (if not already shown) */}
                     <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         Created {formatDistanceToNow(new Date(link.createdAt), { addSuffix: true })}
                       </span>
-                      {link.expiresAt && (
+                      {link.type !== 'subscription' && link.expiresAt && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Expires {format(new Date(link.expiresAt), 'PPP')}

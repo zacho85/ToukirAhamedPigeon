@@ -199,7 +199,7 @@ export class WalletTopUpService {
     if (status.status === 'SUCCESSFUL') {
       console.log('✅ Transaction successful, converting currency...');
       
-      const exchangeResult = await this.exchangeRateService.convert(
+      const exchangeResult = await this.exchangeRateService.convertAmount(
         topup.amount,
         topup.currency,
         'USD',
@@ -360,7 +360,7 @@ export class WalletTopUpService {
     if (status.status === 'SUCCESS') {
       console.log('✅ Transaction successful, converting currency...');
       
-      const exchangeResult = await this.exchangeRateService.convert(
+      const exchangeResult = await this.exchangeRateService.convertAmount(
         topup.amount,
         topup.currency,
         'USD',
@@ -583,7 +583,7 @@ export class WalletTopUpService {
       if (statusData.status === 'fund_settled') {
         console.log('✅ Transaction settled, converting currency...');
         
-        const exchangeResult = await this.exchangeRateService.convert(
+        const exchangeResult = await this.exchangeRateService.convertAmount(
           topup.amount,
           topup.currency,
           'USD',
