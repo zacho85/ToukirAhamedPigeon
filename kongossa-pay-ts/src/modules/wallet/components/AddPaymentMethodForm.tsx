@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import {
+  CardNumberElement,
+  CardExpiryElement,
+  CardCvcElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +49,24 @@ const COUNTRY_CURRENCIES = [
   { code: "NG", label: "Nigeria (NGN)" },
 ];
 
+// Custom styles for Stripe Elements
+const cardElementStyle = {
+  style: {
+    base: {
+      fontSize: "16px",
+      color: "#1a202c",
+      "::placeholder": {
+        color: "#a0aec0",
+      },
+      iconColor: "#4a5568",
+    },
+    invalid: {
+      color: "#e53e3e",
+      iconColor: "#e53e3e",
+    },
+  },
+};
+
 export default function AddPaymentMethodForm({
   onSuccess,
   onCancel,
@@ -54,10 +78,8 @@ export default function AddPaymentMethodForm({
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState<"stripe" | "mtn_momo" | "orange_money" | "transfi_zamtel">("stripe");
-  const [meta, setMeta] = useState({
-    accountName: "",
-    bankName: "",
-  });
+  const [cardHolderName, setCardHolderName] = useState("");
+  const [bankName, setBankName] = useState("");
 
   // MoMo fields
   const [momoName, setMomoName] = useState("");
@@ -82,19 +104,29 @@ export default function AddPaymentMethodForm({
       return;
     }
 
+    // Validate card holder name
+    if (!cardHolderName.trim()) {
+      dispatchShowToast({
+        type: "danger",
+        message: "Please enter the cardholder name.",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { clientSecret } = await createSetupIntent();
-      
+
       if (!clientSecret) {
         throw new Error("Failed to create setup intent");
       }
 
+      // Confirm setup with individual card elements
       const result = await stripe.confirmCardSetup(clientSecret, {
         payment_method: {
-          card: elements.getElement(CardElement)!,
+          card: elements.getElement(CardNumberElement)!,
           billing_details: {
-            name: meta.accountName || undefined,
+            name: cardHolderName,
           },
         },
       });
@@ -115,15 +147,15 @@ export default function AddPaymentMethodForm({
       const paymentMethodId = result.setupIntent.payment_method as string;
 
       await attachPaymentMethod(paymentMethodId, {
-        accountName: meta.accountName,
-        bankName: meta.bankName,
+        accountName: cardHolderName,
+        bankName: bankName || undefined,
       });
 
       dispatchShowToast({
         type: "success",
         message: "Card saved successfully!",
       });
-      
+
       onSuccess?.();
     } catch (err: any) {
       console.error("Save card error:", err);
@@ -257,32 +289,57 @@ export default function AddPaymentMethodForm({
           </TabsTrigger>
         </TabsList>
 
+        {/* Card Tab – Updated with proper fields */}
         <TabsContent value="stripe" className="space-y-4 pt-4">
-          <Input
-            placeholder="Card Holder Name"
-            value={meta.accountName}
-            onChange={(e) => setMeta({ ...meta, accountName: e.target.value })}
-            required
-          />
-          <Input
-            placeholder="Bank Name (optional)"
-            value={meta.bankName}
-            onChange={(e) => setMeta({ ...meta, bankName: e.target.value })}
-          />
-          <div className="border rounded-md p-3 bg-background">
-            <CardElement
-              options={{
-                hidePostalCode: true,
-                style: {
-                  base: {
-                    fontSize: "16px",
-                    color: "#32325d",
-                    "::placeholder": {
-                      color: "#aab7c4",
-                    },
-                  },
-                },
-              }}
+          <div>
+            <Label htmlFor="cardHolderName">Cardholder Name</Label>
+            <Input
+              id="cardHolderName"
+              placeholder="John Doe"
+              value={cardHolderName}
+              onChange={(e) => setCardHolderName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="cardNumber">Card Number</Label>
+            <div className="border rounded-md p-3 bg-background focus-within:ring-2 focus-within:ring-blue-500">
+              <CardNumberElement
+                options={cardElementStyle}
+                id="cardNumber"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cardExpiry">Expiry Date</Label>
+              <div className="border rounded-md p-3 bg-background focus-within:ring-2 focus-within:ring-blue-500">
+                <CardExpiryElement
+                  options={cardElementStyle}
+                  id="cardExpiry"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="cardCvc">CVC</Label>
+              <div className="border rounded-md p-3 bg-background focus-within:ring-2 focus-within:ring-blue-500">
+                <CardCvcElement
+                  options={cardElementStyle}
+                  id="cardCvc"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="bankName">Bank Name (optional)</Label>
+            <Input
+              id="bankName"
+              placeholder="Bank of America"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
             />
           </div>
 
@@ -305,7 +362,9 @@ export default function AddPaymentMethodForm({
           </div>
         </TabsContent>
 
+        {/* Orange Money, MoMo, Zamtel tabs remain unchanged */}
         <TabsContent value="orange_money" className="space-y-4 pt-4">
+          {/* ... existing orange money content ... */}
           <div>
             <Label>Account Name</Label>
             <Input
@@ -359,6 +418,7 @@ export default function AddPaymentMethodForm({
         </TabsContent>
 
         <TabsContent value="mtn_momo" className="space-y-4 pt-4">
+          {/* ... existing momo content ... */}
           <div>
             <Label>Account Name</Label>
             <Input
@@ -412,6 +472,7 @@ export default function AddPaymentMethodForm({
         </TabsContent>
 
         <TabsContent value="transfi_zamtel" className="space-y-4 pt-4">
+          {/* ... existing transfi content ... */}
           <div>
             <Label>Account Name</Label>
             <Input
