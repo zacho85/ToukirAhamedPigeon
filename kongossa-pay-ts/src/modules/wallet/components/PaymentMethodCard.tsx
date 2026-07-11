@@ -1,3 +1,4 @@
+// src/modules/wallet/components/PaymentMethodCard.tsx
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const methodIcons: Record<string, any> = {
   bank_account: Landmark,
   mobile_money: Smartphone,
   paypal: CreditCard,
+  payment_gateway: CreditCard,
 };
 
 const glowGradients = [
@@ -51,9 +53,17 @@ export default function PaymentMethodCard({
     []
   );
 
-  const isMoMo = method.provider === "mtn_momo" || method.provider === "orange_money" || method.provider === "transfi_zamtel" || method.type === "mobile_money";
+  const isMoMo =
+    method.provider === "mtn_momo" ||
+    method.provider === "orange_money" ||
+    method.provider === "transfi_zamtel" ||
+    method.type === "mobile_money";
   const isOrangeMoney = method.provider === "orange_money";
   const isTransfi = method.provider === "transfi_zamtel";
+  const isMpesa = method.provider === "mpesa";
+  const isAirtel = method.provider === "airtel_money";
+  const isPaystack = method.provider === "paystack";
+  const isFlutterwave = method.provider === "flutterwave";
 
   const confirmDelete = async () => {
     setIsDeleting(true);
@@ -92,10 +102,18 @@ export default function PaymentMethodCard({
                     {isOrangeMoney
                       ? "Orange Money"
                       : isTransfi
-                        ? "Zamtel"
-                        : isMoMo
-                          ? "MTN MoMo"
-                          : method.bankName || method.provider || "Unknown Provider"}
+                      ? "Zamtel"
+                      : isMpesa
+                      ? "M-Pesa"
+                      : isAirtel
+                      ? "Airtel Money"
+                      : isPaystack
+                      ? "Paystack"
+                      : isFlutterwave
+                      ? "Flutterwave"
+                      : isMoMo
+                      ? "MTN MoMo"
+                      : method.bankName || method.provider || "Unknown Provider"}
                   </p>
                 </div>
               </div>
@@ -141,7 +159,6 @@ export default function PaymentMethodCard({
                   <p className="font-mono text-xs md:text-sm tracking-widest text-slate-700 dark:text-slate-300">
                     **** {method.lastFour || "0000"}
                   </p>
-
                   {method.expiryDate && (
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       Exp {method.expiryDate}

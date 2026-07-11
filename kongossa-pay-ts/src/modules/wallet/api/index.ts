@@ -132,3 +132,77 @@ export const requestPayout = async (amount: number) => {
   const res = await api.post('/wallet-payout/request', { amount });
   return res.data;
 };
+
+export const addMpesaWallet = async (data: {
+  accountName: string;
+  phoneNumber: string;
+  countryCode: string;
+}) => {
+  const res = await api.post("/payment-methods/mpesa", data);
+  return res.data;
+};
+
+export const createMpesaTopUp = async (payload: {
+  amount: number;
+  paymentMethodId: number;
+}) => {
+  const res = await api.post("/wallet-topup/mpesa", payload);
+  return res.data;
+};
+
+export const checkMpesaStatus = async (topUpId: number) => {
+  const res = await api.get(`/wallet-topup/mpesa/${topUpId}/status`);
+  return res.data;
+};
+
+export const addPaystackWallet = async (data: { accountName: string; countryCode?: string }) => {
+  const res = await api.post('/payment-methods/paystack', data);
+  return res.data;
+};
+
+export const addFlutterwaveWallet = async (data: { accountName: string; countryCode?: string }) => {
+  const res = await api.post('/payment-methods/flutterwave', data);
+  return res.data;
+};
+
+export const createPaystackTopUp = async (payload: { amount: number; paymentMethodId: number }) => {
+  const res = await api.post('/wallet-topup/paystack', payload);
+  return res.data;
+};
+
+export const checkPaystackStatus = async (topUpId: number) => {
+  const res = await api.get(`/wallet-topup/paystack/${topUpId}/status`);
+  return res.data;
+};
+
+export const createFlutterwaveTopUp = async (payload: { amount: number; paymentMethodId: number }) => {
+  const res = await api.post('/wallet-topup/flutterwave', payload);
+  return res.data;
+};
+
+export const checkFlutterwaveStatus = async (topUpId: number) => {
+  const res = await api.get(`/wallet-topup/flutterwave/${topUpId}/status`);
+  return res.data;
+};
+
+export const addAirtelMoneyWallet = async (data: {
+  accountName: string;
+  phoneNumber: string;
+  countryCode: string;
+}) => {
+  const res = await api.post("/payment-methods/airtel", data);
+  return res.data;
+};
+
+export const createAirtelTopUp = async (payload: {
+  amount: number;
+  paymentMethodId: number;
+}) => {
+  const res = await api.post("/wallet-topup/airtel", payload);
+  return res.data;
+};
+
+export const checkAirtelStatus = async (topUpId: number) => {
+  const res = await api.get(`/wallet-topup/airtel/${topUpId}/status`);
+  return res.data;
+};

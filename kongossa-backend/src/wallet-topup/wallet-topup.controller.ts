@@ -1,3 +1,4 @@
+// wallet-topup.controller.ts
 import { Controller, Get, Post, Param, Body, Req, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
@@ -35,7 +36,7 @@ export class WalletTopUpController {
     }
   }
 
-  // ✅ ADD: MoMo Top-Up
+  // ✅ MTN MoMo
   @Post('momo')
   async createMoMoTopUp(
     @Req() req: any,
@@ -57,13 +58,12 @@ export class WalletTopUpController {
     }
   }
 
-  // ✅ ADD: MoMo Status Check
   @Get('momo/:id/status')
   async checkMoMoStatus(@Param('id') id: string) {
     return this.service.checkMoMoTopUpStatus(Number(id));
   }
 
-  // ✅ ADD: Orange Money Top-Up
+  // ✅ Orange Money
   @Post('orange')
   async createOrangeTopUp(
     @Req() req: any,
@@ -85,7 +85,6 @@ export class WalletTopUpController {
     }
   }
 
-  // ✅ ADD: Orange Money Status Check
   @Get('orange/:id/status')
   async checkOrangeStatus(
     @Param('id') id: string,
@@ -94,7 +93,6 @@ export class WalletTopUpController {
     return this.service.checkOrangeTopUpStatus(Number(id), payToken);
   }
 
-  // ✅ ADD: Orange Money Webhook (Public)
   @Public()
   @Post('orange/webhook')
   async handleOrangeWebhook(@Body() body: any) {
@@ -102,7 +100,7 @@ export class WalletTopUpController {
     return this.service.handleOrangeWebhook(body);
   }
 
-  // ✅ ADD: Transfi/Zamtel Top-Up
+  // ✅ Transfi (Zamtel)
   @Post('transfi')
   async createTransfiTopUp(
     @Req() req: any,
@@ -124,7 +122,6 @@ export class WalletTopUpController {
     }
   }
 
-  // ✅ ADD: Transfi Status Check
   @Get('transfi/:id/status')
   async checkTransfiStatus(
     @Param('id') id: string,
@@ -133,7 +130,6 @@ export class WalletTopUpController {
     return this.service.checkTransfiTopUpStatus(Number(id), orderId);
   }
 
-  // ✅ ADD: Transfi Webhook (Public)
   @Public()
   @Post('transfi/webhook')
   async handleTransfiWebhook(@Body() body: any) {
@@ -141,6 +137,34 @@ export class WalletTopUpController {
     return this.service.handleTransfiWebhook(body);
   }
 
+  // ✅ M-Pesa (NEW)
+  @Post('mpesa')
+  async createMpesaTopUp(
+    @Req() req: any,
+    @Body() body: { amount: number; paymentMethodId: number },
+  ) {
+    console.log('💰 M-Pesa top-up request received');
+    console.log('👤 User ID:', req.user.userId);
+    console.log('💵 Amount:', body.amount);
+    
+    try {
+      return await this.service.createMpesaTopUp(
+        req.user.userId,
+        body.amount,
+        body.paymentMethodId,
+      );
+    } catch (error) {
+      console.error('🔥 M-Pesa top-up error:', error);
+      throw error;
+    }
+  }
+
+  @Get('mpesa/:id/status')
+  async checkMpesaStatus(@Param('id') id: string) {
+    return this.service.checkMpesaTopUpStatus(Number(id));
+  }
+
+  // Stats
   @Get('stats')
   @UseGuards(JwtAuthGuard)
   async stats(@Req() req: any) {
@@ -150,5 +174,42 @@ export class WalletTopUpController {
   @Get('platform/stats')
   getPlatformStats() {
     return this.service.getPlatformStats();
+  }
+
+  @Post('paystack')
+  async createPaystackTopUp(@Req() req: any, @Body() body: { amount: number; paymentMethodId: number }) {
+    return this.service.createPaystackTopUp(req.user.userId, body.amount, body.paymentMethodId);
+  }
+
+  @Get('paystack/:id/status')
+  async checkPaystackStatus(@Param('id') id: string) {
+    return this.service.checkPaystackTopUpStatus(Number(id));
+  }
+
+  // ✅ Airtel Money Top-Up
+  @Post('airtel')
+  async createAirtelTopUp(
+    @Req() req: any,
+    @Body() body: { amount: number; paymentMethodId: number },
+  ) {
+    console.log('💰 Airtel Money top-up request received');
+    console.log('👤 User ID:', req.user.userId);
+    console.log('💵 Amount:', body.amount);
+    
+    try {
+      return await this.service.createAirtelTopUp(
+        req.user.userId,
+        body.amount,
+        body.paymentMethodId,
+      );
+    } catch (error) {
+      console.error('🔥 Airtel Money top-up error:', error);
+      throw error;
+    }
+  }
+
+  @Get('airtel/:id/status')
+  async checkAirtelStatus(@Param('id') id: string) {
+    return this.service.checkAirtelTopUpStatus(Number(id));
   }
 }

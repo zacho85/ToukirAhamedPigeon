@@ -1,3 +1,4 @@
+// transactions.module.ts
 import { Module } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
@@ -9,14 +10,27 @@ import { MomoModule } from 'src/momo/momo.module';
 import { OrangeMoneyModule } from 'src/orange-money/orange-money.module';
 import { ExchangeRateModule } from 'src/exchange-rate/exchange-rate.module';
 import { TransfiModule } from '../transfi/transfi.module';
-/**
- * Transactions module
- * Registers controller, service, and imports PrismaModule
- */
+import { MpesaModule } from '../mpesa/mpesa.module';
+import { PaystackModule } from '../paystack/paystack.module';      // ✅ ADDED
+import { FlutterwaveModule } from '../flutterwave/flutterwave.module'; // ✅ ADDED
+import { AirtelMoneyModule } from '../airtel-money/airtel-money.module';
+
 @Module({
-  imports: [PrismaModule, StripeModule, PaymentMethodsModule, MomoModule, OrangeMoneyModule, ExchangeRateModule, TransfiModule], // Import PrismaModule for database access
+  imports: [
+    PrismaModule,
+    StripeModule,
+    PaymentMethodsModule,
+    MomoModule,
+    OrangeMoneyModule,
+    ExchangeRateModule,
+    TransfiModule,
+    MpesaModule,
+    PaystackModule,      // ✅ ADDED
+    FlutterwaveModule,   // ✅ ADDED
+    AirtelMoneyModule,
+  ],
   controllers: [TransactionsController],
   providers: [TransactionsService, WalletTopUpService],
-   exports: [TransactionsService],
+  exports: [TransactionsService],
 })
 export class TransactionsModule {}

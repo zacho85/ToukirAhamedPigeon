@@ -1,3 +1,4 @@
+// src/modules/wallet/components/Wallet.tsx
 import { useState, useEffect } from "react";
 import {
     ArrowUpFromLine,
@@ -44,7 +45,7 @@ interface PlatformStats {
 }
 
 export default function Wallet() {
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUser = useAppSelector((state) => (state.auth as any)?.user);
 
   const [walletStats, setWalletStats] = useState<WalletStats>({
     moneyIn: 0,
@@ -191,9 +192,9 @@ export default function Wallet() {
         </CardContent>
       </Card>
 
-      {/* Dialog */}
+      {/* Dialog – fixed height with scroll */}
       <Dialog open={showAddMethod} onOpenChange={setShowAddMethod}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg min-h-[500px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Payment Method</DialogTitle>
           </DialogHeader>

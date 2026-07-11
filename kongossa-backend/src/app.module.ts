@@ -1,3 +1,4 @@
+// app.module.ts
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -40,11 +41,13 @@ import { UploadModule } from './upload/upload.module';
 import { WalletPayoutModule } from './wallet-payout/wallet-payout.module';
 import { PaymentLinksModule } from './payment-links/payment-links.module';
 import { BackupModule } from './backup/backup.module';
-// Add these if you need them:
 import { MomoModule } from './momo/momo.module';
 import { OrangeMoneyModule } from './orange-money/orange-money.module';
 import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
 import { TransfiModule } from './transfi/transfi.module';
+import { MpesaModule } from './mpesa/mpesa.module'; // ✅ NEW
+import { PaystackModule } from './paystack/paystack.module';
+import { FlutterwaveModule } from './flutterwave/flutterwave.module';
 
 @Module({
   imports: [
@@ -91,6 +94,9 @@ import { TransfiModule } from './transfi/transfi.module';
     OrangeMoneyModule,
     ExchangeRateModule,
     TransfiModule,
+    MpesaModule, // ✅ ADDEDMpesaModule,
+    PaystackModule,
+    FlutterwaveModule,
   ],
   controllers: [AppController],
   providers: [AppService],

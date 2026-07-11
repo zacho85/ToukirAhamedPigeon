@@ -4,6 +4,8 @@ import { StripeService } from '../stripe/stripe.service';
 import { MomoService } from '../momo/momo.service';
 import { OrangeMoneyService } from '../orange-money/orange-money.service';
 import { TransfiService } from '../transfi/transfi.service';
+import { MpesaService } from '../mpesa/mpesa.service'; // ✅ NEW
+import { AirtelMoneyService } from '../airtel-money/airtel-money.service';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -13,6 +15,8 @@ export class PaymentMethodsService {
     private momoService: MomoService,
     private orangeMoneyService: OrangeMoneyService,
     private transfiService: TransfiService,
+    private mpesaService: MpesaService, // ✅ NEW
+    private airtelMoneyService: AirtelMoneyService,
   ) {}
 
   // -----------------------------------
@@ -69,14 +73,14 @@ export class PaymentMethodsService {
       const setupIntent = await this.stripeService.client.setupIntents.create({
         customer: customerId,
         payment_method_types: ['card'],
-        usage: 'off_session', // ✅ Keep yours - better for future payments
+        usage: 'off_session',
       });
 
       console.log(`SetupIntent created: ${setupIntent.id}`);
 
       return {
         clientSecret: setupIntent.client_secret,
-        setupIntentId: setupIntent.id
+        setupIntentId: setupIntent.id,
       };
     } catch (error: any) {
       console.error('Error creating setup intent:', error);
@@ -108,8 +112,8 @@ export class PaymentMethodsService {
     return this.prisma.paymentMethod.create({
       data: {
         userId,
-        type: "card",
-        provider: "stripe",
+        type: 'card',
+        provider: 'stripe',
         accountName: meta?.accountName ?? null,
         bankName: meta?.bankName ?? null,
         accountNumber: `**** **** **** ${card.last4}`,
@@ -208,6 +212,34 @@ export class PaymentMethodsService {
   }
 
   // -----------------------------------
+  // Add M-Pesa Wallet (NEW)
+  // -----------------------------------
+  async addMpesaWallet(
+    userId: number,
+    data: {
+      accountName: string;
+      phoneNumber: string;
+      countryCode: string;
+    },
+  ) {
+    const currency = this.mpesaService.getCurrencyFromCountry(data.countryCode);
+
+    return this.prisma.paymentMethod.create({
+      data: {
+        userId,
+        type: 'mobile_money',
+        provider: 'mpesa',
+        accountName: data.accountName,
+        phoneNumber: data.phoneNumber,
+        countryCode: data.countryCode.toUpperCase(),
+        momoProvider: 'mpesa',
+        currency,
+        isVerified: false,
+      },
+    });
+  }
+
+  // -----------------------------------
   // List Payment Methods
   // -----------------------------------
   async list(userId: number) {
@@ -223,7 +255,7 @@ export class PaymentMethodsService {
   }
 
   // -----------------------------------
-  // Delete Payment Method (KEEP YOUR BETTER ERROR HANDLING)
+  // Delete Payment Method
   // -----------------------------------
   async remove(userId: number, id: number) {
     const pm = await this.prisma.paymentMethod.findFirst({
@@ -232,18 +264,71 @@ export class PaymentMethodsService {
 
     if (!pm) throw new BadRequestException('Payment method not found');
 
-    // Try to detach from Stripe, but don't fail if it's already gone
     if (pm.stripePmId) {
       try {
         await this.stripeService.client.paymentMethods.detach(pm.stripePmId);
       } catch (error: any) {
-        // If the payment method doesn't exist in Stripe anymore, just log it
         console.log(`Payment method ${pm.stripePmId} not found in Stripe, skipping detach:`, error.message);
-        // Don't throw - continue with database deletion
       }
     }
 
-    // Delete from database regardless of Stripe status
     return this.prisma.paymentMethod.delete({ where: { id } });
+  }
+
+  async addPaystackWallet(
+    userId: number,
+    data: { accountName: string; countryCode?: string },
+  ) {
+    return this.prisma.paymentMethod.create({
+      data: {
+        userId,
+        type: 'payment_gateway',
+        provider: 'paystack',
+        accountName: data.accountName,
+        countryCode: data.countryCode || 'NG',
+        isVerified: false,
+      },
+    });
+  }
+
+  async addFlutterwaveWallet(
+    userId: number,
+    data: { accountName: string; countryCode?: string },
+  ) {
+    return this.prisma.paymentMethod.create({
+      data: {
+        userId,
+        type: 'payment_gateway',
+        provider: 'flutterwave',
+        accountName: data.accountName,
+        countryCode: data.countryCode || 'NG',
+        isVerified: false,
+      },
+    });
+  }
+
+  async addAirtelMoneyWallet(
+    userId: number,
+    data: {
+      accountName: string;
+      phoneNumber: string;
+      countryCode: string;
+    },
+  ) {
+    const currency = this.airtelMoneyService.getCurrencyFromCountry(data.countryCode);
+
+    return this.prisma.paymentMethod.create({
+      data: {
+        userId,
+        type: 'mobile_money',
+        provider: 'airtel_money',
+        accountName: data.accountName,
+        phoneNumber: data.phoneNumber,
+        countryCode: data.countryCode.toUpperCase(),
+        momoProvider: 'airtel',
+        currency,
+        isVerified: false,
+      },
+    });
   }
 }
