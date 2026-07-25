@@ -53,6 +53,8 @@ model User {
   stripePayoutsEnabled   Boolean               @default(false)
   qrToken                String?               @unique
   transfiUserId          String?
+  
+  // Existing Relations
   budgets                Budget[]
   floatRequests          FloatRequest[]        @relation("FloatRequestAgent")
   otps                   Otp[]
@@ -78,6 +80,13 @@ model User {
   tontineInvites         TontineInvite[]
   tontineMembers         TontineMember[]
   tontinesCreated        Tontine[]             @relation("TontineCreator")
+
+  // ============ NEW AGENT SYSTEM RELATIONS ============
+  agentProfile           AgentProfile?         // One-to-One with AgentProfile (implicit relation)
+  agentApprovals         AgentProfile[]        @relation("AgentApprover") // Users who approved agents
+  agentCashTransactions  AgentCashTransaction[] // Cash transactions made by this user as customer
+
+  @@map("User")
 }
 
 model TransactionLimits {
@@ -109,8 +118,11 @@ model Transaction {
   qrCode          String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  // Relations
   recipient       User?    @relation("ReceivedTransactions", fields: [recipientId], references: [id])
   sender          User?    @relation("SentTransactions", fields: [senderId], references: [id])
+  // NO agentCashTransaction relation here
 
   @@map("Transaction")
 }
@@ -613,7 +625,12 @@ model PaymentLink {
   quantityUsed          Int       @default(0)
   type                  String    @default("fixed_amount")
   
-  // ============ SUBSCRIPTION FIELDS - MUST HAVE THESE ============
+  // ============ THESE EXIST IN YOUR DATABASE ============
+  baseCurrency          String?   @default("USD")     // ✅ Optional string
+  allowedCurrencies     String[]  @default(["USD"])   // ✅ Array (always optional)
+  autoConvert           Boolean?  @default(false)     // ✅ Optional boolean
+  
+  // ============ SUBSCRIPTION FIELDS ============
   frequency             String?
   customIntervalDays    Int?
   durationType          String?
@@ -697,4 +714,119 @@ model CurrencyConversion {
 
   @@index([paymentLinkId])
   @@map("CurrencyConversion")
+}
+
+// ============================================================
+// ============ NEW: AGENT SYSTEM MODELS ======================
+// ============================================================
+
+model AgentProfile {
+  id                Int      @id @default(autoincrement())
+  userId            Int      @unique
+  agentCode         String   @unique
+  agentType         String   @default("individual") // individual, business
+  businessName      String?
+  registrationNumber String?
+  taxId             String?
+  
+  // KYC Fields
+  kycStatus         String   @default("pending") // pending, submitted, verified, rejected
+  kycSubmittedAt    DateTime?
+  kycVerifiedAt     DateTime?
+  kycRejectedAt     DateTime?
+  kycRejectionReason String?
+  
+  // Identification
+  idType            String?  // passport, national_id, drivers_license
+  idNumber          String?
+  idFrontImage      String?
+  idBackImage       String?
+  selfieImage       String?
+  
+  // Proof of Address
+  addressProofImage String?
+  
+  // Agent Specific
+  commissionRate    Float    @default(0) // Percentage
+  cashOnHand        Decimal  @default(0) @db.Decimal(10, 2)
+  maxCashOnHand     Decimal  @default(5000) @db.Decimal(10, 2)
+  dailyTransactionLimit Decimal @default(10000) @db.Decimal(10, 2)
+  monthlyTransactionLimit Decimal @default(100000) @db.Decimal(10, 2)
+  approvedAt        DateTime?
+  approvedBy        Int?     // Admin userId who approved
+  status            String   @default("pending") // pending, active, suspended, terminated
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id])
+  approvedByUser    User?    @relation("AgentApprover", fields: [approvedBy], references: [id])
+  cashTransactions  AgentCashTransaction[]
+  daySettlements    AgentDaySettlement[]
+  
+  @@index([userId])
+  @@index([agentCode])
+  @@index([kycStatus])
+  @@map("AgentProfile")
+}
+
+model AgentCashTransaction {
+  id              Int      @id @default(autoincrement())
+  agentId         Int
+  userId          Int?
+  type            String
+  amount          Decimal  @db.Decimal(10, 2)
+  feeAmount       Decimal  @default(0) @db.Decimal(10, 2)
+  commission      Decimal  @default(0) @db.Decimal(10, 2)
+  status          String   @default("pending")
+  paymentMethod   String?
+  reference       String   @unique
+  transactionId   Int?     // Reference ID only - no Prisma relation
+  description     String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  agent           AgentProfile @relation(fields: [agentId], references: [id])
+  user            User?        @relation(fields: [userId], references: [id])
+  // No transaction relation here - we'll handle it manually in code
+  
+  @@index([agentId])
+  @@index([userId])
+  @@index([status])
+  @@index([reference])
+  @@map("AgentCashTransaction")
+}
+
+model AgentDaySettlement {
+  id              Int      @id @default(autoincrement())
+  agentId         Int
+  settlementDate  DateTime @default(now())
+  startCash       Decimal  @db.Decimal(10, 2)
+  endCash         Decimal  @db.Decimal(10, 2)
+  
+  // Cash In/Out Totals
+  totalCashIn     Decimal  @default(0) @db.Decimal(10, 2)
+  totalCashOut    Decimal  @default(0) @db.Decimal(10, 2)
+  totalFeeEarned  Decimal  @default(0) @db.Decimal(10, 2)
+  totalCommission Decimal  @default(0) @db.Decimal(10, 2)
+  
+  expectedEndCash Decimal  @db.Decimal(10, 2)
+  variance        Decimal  @db.Decimal(10, 2)
+  status          String   @default("open") // open, settled, reconciled
+  notes           String?
+  settledAt       DateTime?
+  settledBy       Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  agent           AgentProfile @relation(fields: [agentId], references: [id])
+  
+  @@unique([agentId, settlementDate])
+  @@index([agentId])
+  @@index([status])
+  @@map("AgentDaySettlement")
 }

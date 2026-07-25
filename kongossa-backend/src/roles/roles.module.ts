@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { RolesController } from './roles.controller';
-import { PrismaModule } from '../prisma/prisma.module'; // Import PrismaModule to access database
+import { PrismaModule } from '../prisma/prisma.module';
+// Don't import RolesGuard here - it's used directly in controllers
 
 @Module({
-  imports: [PrismaModule], // Import PrismaModule for database access
-  providers: [RolesService], // Register the RolesService
-  controllers: [RolesController], // Register the RolesController
-  exports: [RolesService], // Export RolesService if needed in other modules
+  imports: [PrismaModule],
+  providers: [RolesService], // Only RolesService
+  controllers: [RolesController],
+  exports: [RolesService], // Only export RolesService
 })
 export class RolesModule {}
