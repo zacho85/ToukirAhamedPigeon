@@ -129,9 +129,9 @@ request authenticated", so treat a client-side gate as UX, not security.
 ⚠️ **Never hardcode `'admin'` in a role check.** In this database the privileged role is literally
 **`superadmin`** (one word). A `Role` row named `admin` exists but *no user holds it*, so
 `@Roles('admin', 'super_admin')` matches nobody and returns 403 to your actual administrators. Role names
-are deployment data; permissions are the stable contract. The role-name path
-(`RolesGuard` + `@Roles(...)`, `src/roles/guards/roles.guard.ts`) still exists for `agents.controller.ts`
-and accepts either the JWT `role` claim or a `UserRole` row — but prefer `PermissionsGuard` for anything new.
+are deployment data; permissions are the stable contract. `RolesGuard` + `@Roles(...)`
+(`src/roles/guards/roles.guard.ts`) still exists and works — it accepts either the JWT `role` claim or a
+`UserRole` row — but **nothing uses it any more**; every call site now goes through `PermissionsGuard`.
 
 `AgentGuard` (`src/agents/guards/agent.guard.ts`) requires an `AgentProfile` with `status: 'active'`
 **and** `kycStatus: 'verified'`, then attaches it as `request.agent`.
@@ -214,6 +214,16 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
 - **Wallet** — `User.walletBalance`, topped up via `wallet-topup`, withdrawn via `wallet-payout`.
 
 ## Known issues & do-not-touch
+
+0. **Two files are flagged `assume-unchanged`, so git silently ignores your edits to them:**
+   `kongossa-pay-ts/nginx.conf` and `kongossa-pay-ts/Dockerfile.prod`. `git status` shows nothing,
+   `git add` is a no-op, and the change never commits — with no error. Check with
+   `git ls-files -v | grep -vE "^H "` (note: a *lowercase* `h` marks the flag, so don't grep
+   case-insensitively). To edit one: `git update-index --no-assume-unchanged <path>`.
+   The flag was presumably set so server-specific config would not show as dirty — which means
+   **the production server's copies may differ from the repo, and `git pull` will not update them.**
+   Verify on the server before relying on any nginx change being deployed.
+   (`nginx.conf` is un-flagged as of the sandbox branch; `Dockerfile.prod` is still flagged.)
 
 1. **`req.user` shape mismatch (live bug — 6 remaining).** Fixed in `agents.controller.ts` and both
    guards; still present in `auth.controller.ts` (`verify-email`, `confirm-password`, `set-password`),
