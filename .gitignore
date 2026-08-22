@@ -77,3 +77,4 @@ backups/
 **/*.backup.*
 *.bat
 comparison_prompt.txt
+backup/
