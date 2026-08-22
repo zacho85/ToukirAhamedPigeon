@@ -3,7 +3,12 @@ import { Controller, Get, Param, Res, NotFoundException } from '@nestjs/common';
 import type { Response } from 'express';
 import { PublicInviteService } from './public-invite.service';
 import { PublicInviteResponseDto } from './dto/public-invite-response.dto';
+import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
+// PUBLIC: Public invitation landing, opened from an emailed link.
+@Public()
+@ApiTags('Invite')
 @Controller('invite')
 export class PublicInviteController {
   constructor(private readonly inviteService: PublicInviteService) {}

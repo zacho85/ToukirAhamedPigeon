@@ -3,7 +3,10 @@ import { Controller, Get, Post, Param, Body, Req, Query, UseGuards } from '@nest
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { WalletTopUpService } from './wallet-topup.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Wallet Topup')
+@ApiBearerAuth('bearer')
 @Controller('wallet-topup')
 @UseGuards(JwtAuthGuard)
 export class WalletTopUpController {

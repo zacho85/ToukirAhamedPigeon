@@ -1,7 +1,10 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { SystemSettingsService } from './system-settings.service';
 import { UpdateSystemSettingsDto } from './dto/update-system-settings.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('System Settings')
+@ApiBearerAuth('bearer')
 @Controller('system-settings')
 export class SystemSettingsController {
   constructor(private readonly service: SystemSettingsService) {}

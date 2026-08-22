@@ -1,7 +1,10 @@
 import { Controller, Get, Post, Body, Param, Patch, Delete } from '@nestjs/common';
 import { RefreshTokensService } from './refresh-tokens.service';
 import { CreateRefreshTokenDto } from './dto/create-refresh-token.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Refresh Tokens')
+@ApiBearerAuth('bearer')
 @Controller('refresh-tokens')
 export class RefreshTokensController {
   constructor(private readonly refreshTokensService: RefreshTokensService) {}

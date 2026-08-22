@@ -1,8 +1,15 @@
 name: Deploy to Hetzner Production
 
+# NOTE: the automatic push trigger is intentionally disabled.
+#
+# The `rollback` job below runs on ANY failure and RESTORES THE DATABASE from a
+# backup. For a code-only release (no Prisma migration) that would erase every
+# real transaction created since the backup was taken. Until that job is changed
+# to roll back images only, deployment is a deliberate, manual action.
+#
+# To deploy: run this workflow manually from the Actions tab, or follow the
+# manual SSH runbook.
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       skip_backup:

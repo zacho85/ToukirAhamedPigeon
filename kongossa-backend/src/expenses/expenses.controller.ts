@@ -15,7 +15,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { UserExpenseStatsDto } from './dto/user-expense-stats.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Expenses')
+@ApiBearerAuth('bearer')
 @Controller('expenses')
 @UseGuards(JwtAuthGuard)
 export class ExpensesController {

@@ -1,7 +1,10 @@
 import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WalletPayoutService } from './wallet-payout.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Wallet Payout')
+@ApiBearerAuth('bearer')
 @Controller('wallet-payout')
 @UseGuards(JwtAuthGuard)
 export class WalletPayoutController {

@@ -31,6 +31,9 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      # Hard lock on the API docs: setup-swagger.ts refuses to mount Swagger
+      # unless ENABLE_SWAGGER=true AND APP_ENV is not "production".
+      - APP_ENV=production
       - PORT=3000
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@postgres:5432/kongossa_db
       - DB_PASSWORD=${DB_PASSWORD}

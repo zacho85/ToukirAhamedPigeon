@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Upload')
+@ApiBearerAuth('bearer')
 @Controller('upload')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}

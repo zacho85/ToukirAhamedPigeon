@@ -1,7 +1,10 @@
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
 import { MpesaService } from './mpesa.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Mpesa')
+@ApiBearerAuth('bearer')
 @Controller('mpesa')
 export class MpesaController {
   constructor(private readonly mpesaService: MpesaService) {}

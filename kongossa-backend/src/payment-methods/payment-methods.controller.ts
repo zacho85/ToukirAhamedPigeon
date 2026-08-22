@@ -9,7 +9,10 @@ import { AddMpesaWalletDto } from './dto/add-mpesa-wallet.dto';
 import { AddPaystackWalletDto } from './dto/add-paystack-wallet.dto';
 import { AddFlutterwaveWalletDto } from './dto/add-flutterwave-wallet.dto';
 import { AddAirtelMoneyDto } from './dto/add-airtel-money.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Payment Methods')
+@ApiBearerAuth('bearer')
 @Controller('payment-methods')
 @UseGuards(JwtAuthGuard)
 export class PaymentMethodsController {

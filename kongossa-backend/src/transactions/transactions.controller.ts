@@ -3,11 +3,14 @@ import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { TransactionHistoryDto } from './dto/transaction-history.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
 /**
  * Controller to handle HTTP requests for transactions.
  * Handles routing, validation, and calls the service layer.
  */
+@ApiTags('Transactions')
+@ApiBearerAuth('bearer')
 @Controller('transactions')
 @UseGuards(JwtAuthGuard)
 export class TransactionsController {

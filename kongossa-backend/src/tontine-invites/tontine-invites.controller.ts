@@ -11,7 +11,10 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { TontineInvitesService } from './tontine-invites.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Tontine Invites')
+@ApiBearerAuth('bearer')
 @Controller('tontine-invites')
 export class TontineInvitesController {
   constructor(private readonly service: TontineInvitesService) {}

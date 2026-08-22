@@ -19,6 +19,7 @@ import { extname } from 'path';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Public } from './decorators/public.decorator';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { LoginDto } from './dto/login.dto';
@@ -26,7 +27,10 @@ import { RegisterDto } from './dto/register.dto';
 import { OtpDto } from './dto/otp.dto';
 import { ConfirmPasswordDto } from './dto/confirm-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Auth')
+@ApiBearerAuth('bearer')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -37,6 +41,7 @@ export class AuthController {
   // -------------------
   // Existing routes
   // -------------------
+  @Public()
   @Post('register')
   @UseInterceptors(
     FileInterceptor('legalFormDocument', {
@@ -57,6 +62,7 @@ export class AuthController {
     return user;
   }
 
+  @Public()
   @Post('login')
   async login(@Body() body: LoginDto) {
     try{
@@ -68,6 +74,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('send-otp')
   async sendOtp(@Body() body: OtpDto) {
     try{
@@ -78,6 +85,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('resend-otp')
   async resendOtp(@Body() body: OtpDto) {
     try{
@@ -88,6 +96,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('verify-otp')
   async verifyOtp(@Body() body: any, @Res({ passthrough: true }) res: Response) {
     try{
@@ -122,6 +131,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('refresh-token')
   async refreshToken(@Req() req: Request) {
     try{
@@ -187,6 +197,7 @@ export class AuthController {
   }
 
   // GET /auth/verify-email/:id/:hash → confirm email verification
+  @Public()
   @Get('verify-email/:id/:hash')
   async confirmEmail(@Param('id') id: string, @Param('hash') hash: string) {
     const result = await this.authService.confirmEmailVerification(parseInt(id), hash);
@@ -194,6 +205,7 @@ export class AuthController {
   }
 
   // POST /email/verification-notification → resend email verification
+  @Public()
   @Post('/email/verification-notification')
   async resendEmailVerification(@Body('email') email: string) {
     const result = await this.authService.resendEmailVerification(email);
@@ -218,6 +230,7 @@ export class AuthController {
   // -------------------
   // Password Management
   // -------------------
+  @Public()
   @Post('forgot-password')
   async forgotPassword(@Body('email') email: string, @Body('domain') domain: string) {
     try{
@@ -228,6 +241,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('reset-password')
   async resetPassword(@Body('token') token: string, @Body('password') password: string) {
     return this.authService.resetPassword(token, password);
@@ -241,6 +255,7 @@ export class AuthController {
 
 
    // GET /auth/qr-code/:qrCode
+    @Public()
     @Get('qr-code/:qrCode')
     async getQRUser(@Param('qrCode') qrCode: string) {
     return this.authService.getUserByQRCode(qrCode);

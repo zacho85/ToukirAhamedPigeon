@@ -2,7 +2,10 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, Query,
 import { TontineContributionsService } from './tontine-contributions.service';
 import { CreateTontineContributionDto } from './dto/create-tontine-contribution.dto';
 import { UpdateTontineContributionDto } from './dto/update-tontine-contribution.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Tontine Contributions')
+@ApiBearerAuth('bearer')
 @Controller('tontine-contributions')
 export class TontineContributionsController {
   constructor(private readonly service: TontineContributionsService) {}

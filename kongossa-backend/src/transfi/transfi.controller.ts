@@ -1,7 +1,10 @@
 import { Controller, Post, Body, Logger } from '@nestjs/common';
 import { TransfiService } from './transfi.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Transfi')
+@ApiBearerAuth('bearer')
 @Controller('transfi')
 export class TransfiController {
   private readonly logger = new Logger(TransfiController.name);

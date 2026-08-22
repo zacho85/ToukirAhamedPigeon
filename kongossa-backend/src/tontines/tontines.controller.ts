@@ -9,7 +9,10 @@ import { CreateTontineInviteDto } from './dto/create-invite.dto';
 import { TontineStatsDto } from './dto/tontine-stats.dto';
 import { TontineDashboardDto } from './dto/tontine-dashboard.dto';
 import { TontineTypeOptions } from './tontine-type.enum';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Tontines')
+@ApiBearerAuth('bearer')
 @Controller('tontines')
 @UseGuards(JwtAuthGuard)
 export class TontinesController {

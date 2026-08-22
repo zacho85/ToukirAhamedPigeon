@@ -3,7 +3,10 @@ import { InvitationsService } from './invitations.service';
 import { InvitationsResponseDto } from './dto/invitations-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Invitations')
+@ApiBearerAuth('bearer')
 @Controller('invitations')
 export class InvitationsController {
   constructor(private readonly invitationsService: InvitationsService) {}

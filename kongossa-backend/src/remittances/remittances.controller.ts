@@ -2,7 +2,10 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { RemittancesService } from './remittances.service';
 import { CreateRemittanceDto } from './dto/create-remittance.dto';
 import { UpdateRemittanceDto } from './dto/update-remittance.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Remittances')
+@ApiBearerAuth('bearer')
 @Controller('remittances')
 export class RemittancesController {
   constructor(private readonly remittancesService: RemittancesService) {}

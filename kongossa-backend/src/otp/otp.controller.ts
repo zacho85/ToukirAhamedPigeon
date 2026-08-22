@@ -4,7 +4,10 @@ import { OtpService } from './otp.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Otp')
+@ApiBearerAuth('bearer')
 @Controller('otp')
 export class OtpController {
   constructor(private readonly otpService: OtpService) {}

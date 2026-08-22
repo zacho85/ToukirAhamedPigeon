@@ -14,7 +14,10 @@ import {
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { SettingsService } from './settings.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Settings')
+@ApiBearerAuth('bearer')
 @Controller('settings')
 @UseGuards(JwtAuthGuard)
 export class SettingsController {

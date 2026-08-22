@@ -3,7 +3,10 @@ import { Controller, Get, Post, Body, Param, Patch, Delete } from '@nestjs/commo
 import { TransactionLimitsService } from './transaction-limits.service';
 import {CreateTransactionLimitDto} from './dto/create-transaction-limit.dto';
 import {UpdateTransactionLimitDto} from './dto/update-transaction-limit.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Transaction Limits')
+@ApiBearerAuth('bearer')
 @Controller('transaction-limits')
 export class TransactionLimitsController {
   constructor(private readonly service: TransactionLimitsService) {}

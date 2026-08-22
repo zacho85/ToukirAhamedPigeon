@@ -1,5 +1,8 @@
-// app.module.ts
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import type { StringValue } from 'ms';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -45,9 +48,12 @@ import { MomoModule } from './momo/momo.module';
 import { OrangeMoneyModule } from './orange-money/orange-money.module';
 import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
 import { TransfiModule } from './transfi/transfi.module';
-import { MpesaModule } from './mpesa/mpesa.module'; // ✅ NEW
+import { MpesaModule } from './mpesa/mpesa.module';
 import { PaystackModule } from './paystack/paystack.module';
 import { FlutterwaveModule } from './flutterwave/flutterwave.module';
+
+// Swagger is mounted in main.ts (src/swagger/setup-swagger.ts) and gated by
+// nginx Basic auth at the edge — no in-app middleware or module is involved.
 
 @Module({
   imports: [
@@ -94,11 +100,29 @@ import { FlutterwaveModule } from './flutterwave/flutterwave.module';
     OrangeMoneyModule,
     ExchangeRateModule,
     TransfiModule,
-    MpesaModule, // ✅ ADDEDMpesaModule,
+    MpesaModule,
     PaystackModule,
     FlutterwaveModule,
+    JwtModule.register({
+      secret: process.env.JWT_ACCESS_SECRET || 'default-secret',
+      signOptions: { 
+        expiresIn: (process.env.JWT_ACCESS_EXPIRATION as StringValue) || '15m' 
+      },
+    }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Authentication is required by DEFAULT for every route in the application.
+    // Routes that must stay open opt out with @Public() — see
+    // src/auth/decorators/public.decorator.ts, which JwtAuthGuard already honours.
+    //
+    // This flips the failure mode: a new controller is safe when someone forgets
+    // to think about auth, instead of wide open.
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
 export class AppModule {}

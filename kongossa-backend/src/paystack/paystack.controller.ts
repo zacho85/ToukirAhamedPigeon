@@ -1,7 +1,10 @@
 import { Controller, Post, Body, Headers, HttpCode } from '@nestjs/common';
 import { PaystackService } from './paystack.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Paystack')
+@ApiBearerAuth('bearer')
 @Controller('paystack')
 export class PaystackController {
   constructor(private readonly paystackService: PaystackService) {}

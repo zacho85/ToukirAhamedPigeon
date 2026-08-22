@@ -5,7 +5,10 @@ import { UpdateQRPaymentDto } from './dto/update-qr-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Req } from '@nestjs/common';
 import { TransactionsService } from '../transactions/transactions.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Qr Payments')
+@ApiBearerAuth('bearer')
 @Controller('qr-payments')
 export class QRPaymentsController {
   constructor(

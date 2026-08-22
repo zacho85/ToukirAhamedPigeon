@@ -3,7 +3,9 @@ import { Controller, Get, Post, Delete, Param, Res, UseGuards, Req } from '@nest
 import type { Response } from 'express';
 import { BackupService, type BackupFile } from './backup.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiExcludeController } from '@nestjs/swagger';
 
+@ApiExcludeController()
 @Controller('backup')
 @UseGuards(JwtAuthGuard)
 export class BackupController {

@@ -2,7 +2,10 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, Query } from '@nestj
 import { SavedContactsService } from './saved-contacts.service';
 import { CreateSavedContactDto } from './dto/create-saved-contact.dto';
 import { UpdateSavedContactDto } from './dto/update-saved-contact.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Saved Contacts')
+@ApiBearerAuth('bearer')
 @Controller('saved-contacts')
 export class SavedContactsController {
   constructor(private readonly service: SavedContactsService) {}

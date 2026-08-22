@@ -15,7 +15,10 @@ import { UpdateBudgetDto } from './dto/update-budget.dto';
 import { CreateBudgetCategoryDto } from './dto/create-budget-category.dto';
 import { plainToInstance } from 'class-transformer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Budgets')
+@ApiBearerAuth('bearer')
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {

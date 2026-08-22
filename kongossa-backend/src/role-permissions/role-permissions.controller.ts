@@ -1,9 +1,20 @@
-import { Controller, Get, Post, Body, Param, Delete, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from '@nestjs/common';
 import { RolePermissionsService } from './role-permissions.service';
 import { CreateRolePermissionDto } from './dto/create-role-permission.dto';
 import { UpdateRolePermissionDto } from './dto/update-role-permission.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+/**
+ * Role↔Permission assignment — admin-only, this is the privilege-granting path.
+ */
+@ApiTags('Role Permissions')
+@ApiBearerAuth('bearer')
 @Controller('role-permissions')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermissions('update:role')
 export class RolePermissionsController {
   constructor(private readonly service: RolePermissionsService) {}
 

@@ -9,7 +9,11 @@ import {
 import type { Request } from 'express';
 import { StripeService } from './stripe.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Stripe')
+@ApiBearerAuth('bearer')
 @Controller('stripe')
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
@@ -24,6 +28,8 @@ export class StripeController {
     return this.stripeService.verifyCheckoutSession(sessionId);
   }
 
+  // PUBLIC: Stripe webhook — authenticated by Stripe signature, not JWT.
+  @Public()
   @Post('webhook')
   @HttpCode(200)
   async webhook(

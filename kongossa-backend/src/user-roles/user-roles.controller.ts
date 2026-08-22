@@ -1,9 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { UserRolesService } from './user-roles.service';
 import { CreateUserRoleDto } from './dto/create-user-role.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+/**
+ * User↔Role assignment — admin-only. Unguarded, this is a direct
+ * privilege-escalation path: anyone could grant themselves the admin role.
+ */
+@ApiTags('User Roles')
+@ApiBearerAuth('bearer')
 @Controller('user-roles')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermissions('update:role')
 export class UserRolesController {
   constructor(private readonly userRolesService: UserRolesService) {}
 

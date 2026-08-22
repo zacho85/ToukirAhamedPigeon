@@ -15,7 +15,10 @@ import { BudgetCategoriesService } from './budget-categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Budget Categories')
+@ApiBearerAuth('bearer')
 @Controller('budget-categories')
 @UseGuards(JwtAuthGuard)
 export class BudgetCategoriesController {

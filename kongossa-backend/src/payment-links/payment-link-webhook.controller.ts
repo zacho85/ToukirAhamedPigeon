@@ -5,7 +5,12 @@ import type { Request } from 'express';
 import { PaymentLinksService } from './payment-links.service';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { Public } from '../auth/decorators/public.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
+// PUBLIC: Stripe webhook. Authenticated by Stripe signature, not JWT.
+@Public()
+@ApiTags('Stripe Payment Links')
 @Controller('stripe/payment-links')
 export class PaymentLinkWebhookController {
   private stripe: Stripe;

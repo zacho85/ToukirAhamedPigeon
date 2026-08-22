@@ -21,14 +21,21 @@ import {
   UpdateAgentDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../roles/guards/roles.guard';
-import { Roles } from '../roles/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { AgentGuard } from './guards/agent.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Agents')
+@ApiBearerAuth('bearer')
 @Controller('agents')
 export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 
+  // PUBLIC: creates a brand-new user account + agent profile, so the caller
+  // cannot already be authenticated. Approval is a separate admin step.
+  @Public()
   @Post('register')
   async register(@Body() dto: RegisterAgentDto) {
     try {
@@ -55,7 +62,7 @@ export class AgentsController {
   @Get('profile')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async getProfile(@Req() req) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const agent = await this.agentsService.getAgentProfile(userId);
     return {
       success: true,
@@ -66,7 +73,7 @@ export class AgentsController {
   @Get('dashboard/stats')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async getDashboardStats(@Req() req) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const stats = await this.agentsService.getDashboardStats(userId);
     return {
       success: true,
@@ -77,7 +84,7 @@ export class AgentsController {
   @Get('my-code')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async getAgentCode(@Req() req) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const agentCode = await this.agentsService.getAgentCode(userId);
     return {
       success: true,
@@ -88,7 +95,7 @@ export class AgentsController {
   @Get('check')
   @UseGuards(JwtAuthGuard)
   async checkAgentStatus(@Req() req) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const isAgent = await this.agentsService.isAgent(userId);
     return {
       success: true,
@@ -97,8 +104,8 @@ export class AgentsController {
   }
 
   @Get('all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
   async getAllAgents(
     @Query('status') status?: string,
     @Query('kycStatus') kycStatus?: string,
@@ -120,8 +127,8 @@ export class AgentsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
   async getAgentById(@Param('id', ParseIntPipe) id: number) {
     const agent = await this.agentsService.getAgentById(id);
     return {
@@ -131,14 +138,14 @@ export class AgentsController {
   }
 
   @Patch(':id/approve')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
   async approveAgent(
     @Param('id', ParseIntPipe) agentId: number,
     @Body() dto: ApproveAgentDto,
     @Req() req,
   ) {
-    const adminUserId = req.user.id;
+    const adminUserId = req.user.userId;
     const agent = await this.agentsService.approveAgent(agentId, dto, adminUserId);
     return {
       success: true,
@@ -148,8 +155,8 @@ export class AgentsController {
   }
 
   @Patch(':id/suspend')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
   async suspendAgent(
     @Param('id', ParseIntPipe) agentId: number,
     @Body('reason') reason?: string,
@@ -163,8 +170,8 @@ export class AgentsController {
   }
 
   @Patch(':id/activate')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
   async activateAgent(@Param('id', ParseIntPipe) agentId: number) {
     const agent = await this.agentsService.activateAgent(agentId);
     return {
@@ -177,7 +184,7 @@ export class AgentsController {
   @Patch('profile')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async updateProfile(@Req() req, @Body() dto: UpdateAgentDto) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const agent = await this.agentsService.updateAgentProfile(userId, dto);
     return {
       success: true,
@@ -187,8 +194,8 @@ export class AgentsController {
   }
 
   @Patch(':id/commission')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'super_admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
   async updateCommission(
     @Param('id', ParseIntPipe) agentId: number,
     @Body('commissionRate') commissionRate: number,

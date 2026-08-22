@@ -64,6 +64,10 @@ nginx.conf
 .env
 .env.*
 !.env.example
+# Templates carry placeholder names only, never values — keep them tracked so
+# whoever provisions an environment knows which variables to supply.
+!.env.prod.template
+!.env.sandbox.template
 
 # Backup files
 *.backup

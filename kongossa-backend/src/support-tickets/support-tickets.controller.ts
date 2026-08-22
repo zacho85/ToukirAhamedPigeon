@@ -3,7 +3,10 @@ import { SupportTicketsService } from './support-tickets.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
 import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
 import { SupportTicketQueryDto } from './dto/support-ticket-query.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Support Tickets')
+@ApiBearerAuth('bearer')
 @Controller('support-tickets')
 export class SupportTicketsController {
   constructor(private readonly supportTicketsService: SupportTicketsService) {}

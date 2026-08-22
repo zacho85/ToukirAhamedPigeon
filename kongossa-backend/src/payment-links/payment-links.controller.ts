@@ -11,7 +11,10 @@ import {
 import { PaymentLinksService } from './payment-links.service';
 import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Payment Links')
+@ApiBearerAuth('bearer')
 @Controller('payment-links')
 export class PaymentLinksController {
   constructor(private readonly paymentLinksService: PaymentLinksService) {}

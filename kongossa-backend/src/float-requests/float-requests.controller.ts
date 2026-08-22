@@ -2,7 +2,10 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, Query 
 import { FloatRequestsService } from './float-requests.service';
 import { CreateFloatRequestDto } from './dto/create-float-request.dto';
 import { UpdateFloatRequestDto } from './dto/update-float-request.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Float Requests')
+@ApiBearerAuth('bearer')
 @Controller('float-requests')
 export class FloatRequestsController {
   constructor(private readonly service: FloatRequestsService) {}
