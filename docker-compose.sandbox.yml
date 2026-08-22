@@ -45,6 +45,10 @@ services:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      # Served under https://sandbox-api.kongossapay.com/mailpit/ so the
+      # developer can read his own OTP codes without a second hostname
+      # (and therefore without a second TLS certificate).
+      MP_WEBROOT: mailpit
     networks:
       - kongossa-sandbox-network
 
