@@ -16,6 +16,13 @@ COPY . .
 # one), `COPY . .` overwrites the client generated before it — leaving a stale
 # client that does not match schema.prisma, and the TypeScript build then fails
 # on models like AgentProfile.
+#
+# `prisma generate` never opens a database connection — it only reads
+# schema.prisma to emit the client — but prisma.config.ts validates
+# DATABASE_URL via env() at config-load time, which now runs for `generate`
+# too, not just `migrate`. The real URL only exists at runtime (from
+# docker-compose), so hand generate a syntactically valid placeholder here.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
