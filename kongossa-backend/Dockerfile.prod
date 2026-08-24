@@ -8,9 +8,15 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 RUN npm ci
-RUN npx prisma generate --schema=./prisma/schema.prisma
 
 COPY . .
+
+# Generate AFTER copying the source. If the build context carries a host
+# node_modules (it does on the production server, where Dockerfile.local needs
+# one), `COPY . .` overwrites the client generated before it — leaving a stale
+# client that does not match schema.prisma, and the TypeScript build then fails
+# on models like AgentProfile.
+RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
 FROM node:20-alpine

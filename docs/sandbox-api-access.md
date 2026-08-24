@@ -60,18 +60,24 @@ Builds from source inside Docker using `Dockerfile.prod` (whose `CMD` is now fix
 it previously pointed at a path the build never produced, which is why production
 carries a `command:` override).
 
+> **`--env-file` is required on every sandbox compose command.** `env_file:` inside
+> the compose file only passes variables *into* the containers; the `${SANDBOX_…}`
+> placeholders in the compose file itself are resolved at parse time and need
+> `--env-file`. Without it, compose warns "variable is not set" and the database
+> comes up with a blank user and password.
+
 ```bash
-cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox -f docker-compose.sandbox.yml up -d --build && docker ps --format 'table {{.Names}}\t{{.Status}}'
+cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox --env-file .env.sandbox -f docker-compose.sandbox.yml up -d --build && docker ps --format 'table {{.Names}}\t{{.Status}}'
 ```
 
 ### 4. Create the schema and seed fake data
 
 ```bash
-cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox -f docker-compose.sandbox.yml exec backend-sandbox npx prisma migrate deploy
+cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox --env-file .env.sandbox -f docker-compose.sandbox.yml exec backend-sandbox npx prisma migrate deploy
 ```
 
 ```bash
-cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox -f docker-compose.sandbox.yml exec backend-sandbox npm run seed:sandbox
+cd /var/www/kongossa-pay && docker compose -p kongossa-sandbox --env-file .env.sandbox -f docker-compose.sandbox.yml exec backend-sandbox npm run seed:sandbox
 ```
 
 The seed refuses to run unless `APP_ENV=sandbox` **and** `DATABASE_URL` contains
