@@ -57,4 +57,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
 live/
+
+# Ignore stray SQL dumps/backups, but NEVER Prisma migration files --
+# *.sql alone silently swallowed prisma/migrations/**/migration.sql for
+# months, so multiple real migrations never reached git (see git history
+# around commit 14c9d41). Keep this pair together.
 *.sql
+!prisma/migrations/**/*.sql
