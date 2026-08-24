@@ -35,9 +35,19 @@ Prisma:
 npx prisma migrate dev
 ```
 
-`npx prisma generate` · `npx prisma studio` · `npm run seed` (`prisma/seed.ts` — roles + one
-`read:dashboard` permission only) · `npm run seed:sandbox` (`prisma/seed.sandbox.ts` — full fake dataset,
-refuses to run unless `APP_ENV=sandbox` and the database name contains `sandbox`).
+`npx prisma generate` · `npx prisma studio` · `npm run seed` (roles + one `read:dashboard` permission
+only) · `npm run seed:sandbox` (full fake dataset, refuses to run unless `APP_ENV=sandbox` and the
+database name contains `sandbox`).
+
+**Seed scripts run compiled JS, not `prisma/*.ts` directly.** `npm run build` is
+`nest build && tsc -p tsconfig.seed.json` — the second step compiles `prisma/seed.ts` and
+`prisma/seed.sandbox.ts` into `dist/prisma/`, which `seed`/`seed:sandbox` then run with plain `node`.
+This exists because `ts-node prisma/seed.sandbox.ts` failed inside the Alpine container with
+`TypeError: Unknown file extension ".ts"` — a Node/ts-node ESM-detection issue that only appears once
+`tsconfig.json` isn't present in the runtime image (production copies `dist` + `node_modules` only, not
+source config). Compiling ahead of time sidesteps it entirely and matches how `dist/main.js` already
+works. For quick local iteration on a seed script itself, `npm run seed:dev` / `seed:sandbox:dev` still
+run the `.ts` file directly through `ts-node`, no build step needed.
 
 Sandbox stack and API docs for external developers: see [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
 
