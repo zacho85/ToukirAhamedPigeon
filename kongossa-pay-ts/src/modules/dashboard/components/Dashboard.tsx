@@ -20,6 +20,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Progress } from "@/components/ui/progress";
 
 import ScanQrSendMoneyDialog from "@/modules/dashboard/components/ScanQrSendMoneyDialog";
+import { TopUpDialog } from "@/modules/wallet/components/TopUpDialog";
 
 import { useTranslations } from "@/hooks/useTranslations";
 import { getCurrentUser } from "@/modules/auth/api";
@@ -428,6 +429,15 @@ const Dashboard: React.FC = () => {
           <ScanQrSendMoneyDialog
             open={showQRCode}
             onClose={() => setShowQRCode(false)}
+          />
+
+          <TopUpDialog
+            open={showAddMoney}
+            onClose={() => setShowAddMoney(false)}
+            onSuccess={() => {
+              setShowAddMoney(false);
+              loadDashboardData();
+            }}
           />
         </div>
       </div>
