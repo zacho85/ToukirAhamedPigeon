@@ -167,6 +167,13 @@ export class WalletTopUpController {
     return this.service.checkMpesaTopUpStatus(Number(id));
   }
 
+  @Public()
+  @Post('mpesa/webhook')
+  async handleMpesaWebhook(@Body() body: any) {
+    console.log('📞 M-Pesa webhook received');
+    return this.service.handleMpesaWebhook(body);
+  }
+
   // Stats
   @Get('stats')
   @UseGuards(JwtAuthGuard)
@@ -214,5 +221,12 @@ export class WalletTopUpController {
   @Get('airtel/:id/status')
   async checkAirtelStatus(@Param('id') id: string) {
     return this.service.checkAirtelTopUpStatus(Number(id));
+  }
+
+  @Public()
+  @Post('airtel/webhook')
+  async handleAirtelWebhook(@Body() body: any) {
+    console.log('📞 Airtel Money webhook received');
+    return this.service.handleAirtelWebhook(body);
   }
 }
