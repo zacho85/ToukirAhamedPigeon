@@ -23,6 +23,15 @@ interface QuickActionsGridProps {
 const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
   const quickActions: QuickAction[] = [
     {
+      key: "deposit",
+      title: "Add Money",
+      description: "Add funds",
+      icon: Plus,
+      url: "/wallet",
+      bgColor: "bg-purple-100 dark:bg-purple-900/30",
+      textColor: "text-purple-600 dark:text-purple-400",
+    },
+    {
       key: "send",
       title: "Send Money",
       description: "Transfer funds",
@@ -48,15 +57,6 @@ const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onShowQR }) => {
       url: "/payment-links/create",
       bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
       textColor: "text-indigo-600 dark:text-indigo-400",
-    },
-    {
-      key: "deposit",
-      title: "Deposit",
-      description: "Add funds",
-      icon: Plus,
-      url: "/wallet",
-      bgColor: "bg-purple-100 dark:bg-purple-900/30",
-      textColor: "text-purple-600 dark:text-purple-400",
     },
     {
       key: "withdraw",
