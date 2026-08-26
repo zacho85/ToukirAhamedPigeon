@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import {
     ArrowUpFromLine,
+    ArrowDownToLine,
   Plus,
   Shield
 } from "lucide-react";
@@ -24,6 +25,7 @@ import {
   listPaymentMethods
 } from "../api";
 import { PayoutDialog } from "./PayoutDialog";
+import { TopUpDialog } from "./TopUpDialog";
 import { syncWalletBalance  } from "@/lib/dispatch";
 
 /* ---------------- Types ---------------- */
@@ -67,6 +69,7 @@ export default function Wallet() {
   const [showAddMethod, setShowAddMethod] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showPayout, setShowPayout] = useState(false);
+  const [showTopUp, setShowTopUp] = useState(false);
 
   /* ---------------- Loaders ---------------- */
 
@@ -140,6 +143,14 @@ export default function Wallet() {
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button
+            onClick={() => setShowTopUp(true)}
+            className="w-full sm:w-auto"
+          >
+            <ArrowDownToLine className="w-4 h-4 mr-2" />
+            Add Money
+          </Button>
+
+          <Button
             variant="destructive"
             onClick={() => setShowPayout(true)}
             className="w-full sm:w-auto"
@@ -148,7 +159,7 @@ export default function Wallet() {
             Withdraw
           </Button>
 
-          <Button onClick={() => setShowAddMethod(true)} className="w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setShowAddMethod(true)} className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Add Payment Method
           </Button>
@@ -214,6 +225,15 @@ export default function Wallet() {
         maxAmount={currentUser?.walletBalance || 0}
         onSuccess={loadAll}
         hasPendingPayout={walletStats.pendingPayoutAmount > 0}
+      />
+
+      <TopUpDialog
+        open={showTopUp}
+        onClose={() => setShowTopUp(false)}
+        onSuccess={() => {
+          setShowTopUp(false);
+          loadAll();
+        }}
       />
     </div>
   );
