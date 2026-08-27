@@ -127,6 +127,13 @@ export default function DashboardPage() {
       )}
 
       <Link
+        to="/pos/get-paid"
+        className="block bg-[#0B1226] rounded-2xl p-4 shadow-sm text-center text-sm font-medium text-emerald-400"
+      >
+        Get paid (QR / payment link)
+      </Link>
+
+      <Link
         to="/float-request"
         className="block bg-white rounded-2xl p-4 shadow-sm text-center text-sm font-medium text-[#0B1226]"
       >
