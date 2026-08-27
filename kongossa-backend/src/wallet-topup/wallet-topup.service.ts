@@ -36,6 +36,65 @@ export class WalletTopUpService {
   ) {}
 
   /**
+   * Shared "settle a top-up" logic for providers whose confirmation arrives
+   * via phone-prompt + poll/webhook (M-Pesa, Airtel Money) rather than a
+   * redirect. Idempotent by design: a WalletTopUp already marked
+   * succeeded/failed is left untouched, since there is no cryptographic
+   * signature on these providers' webhooks and a duplicate callback must
+   * never double-credit a wallet.
+   */
+  private async finalizeTopUp(
+    topup: { id: number; userId: number; amount: number; currency: string; stripeIntentId: string | null; status: string },
+    outcome: 'SUCCESSFUL' | 'FAILED',
+    paymentMethodLabel: 'mpesa' | 'airtel_money',
+  ): Promise<{ status: 'SUCCESSFUL' | 'FAILED'; amountAdded?: number }> {
+    if (topup.status === 'succeeded') return { status: 'SUCCESSFUL' };
+    if (topup.status === 'failed') return { status: 'FAILED' };
+
+    if (outcome === 'FAILED') {
+      await this.prisma.walletTopUp.update({
+        where: { id: topup.id },
+        data: { status: 'failed' },
+      });
+      return { status: 'FAILED' };
+    }
+
+    const exchangeResult = await this.exchangeRateService.convertAmount(
+      topup.amount,
+      topup.currency,
+      'USD',
+    );
+    const amountInUSD = exchangeResult.convertedAmount;
+
+    await this.prisma.$transaction([
+      this.prisma.walletTopUp.update({
+        where: { id: topup.id },
+        data: { status: 'succeeded' },
+      }),
+      this.prisma.user.update({
+        where: { id: topup.userId },
+        data: { walletBalance: { increment: amountInUSD } },
+      }),
+      this.prisma.transaction.upsert({
+        where: { transactionId: topup.stripeIntentId! },
+        update: { status: 'completed' },
+        create: {
+          transactionId: topup.stripeIntentId!,
+          senderId: topup.userId,
+          amount: amountInUSD,
+          currency: 'USD',
+          type: 'wallet_topup',
+          status: 'completed',
+          paymentMethod: paymentMethodLabel,
+          description: `Wallet top-up via ${paymentMethodLabel} (${topup.amount} ${topup.currency} → $${amountInUSD} USD)`,
+        },
+      }),
+    ]);
+
+    return { status: 'SUCCESSFUL', amountAdded: amountInUSD };
+  }
+
+  /**
    * Create a Stripe topup intent
    */
   async createTopUpIntent(
@@ -197,6 +256,12 @@ export class WalletTopUpService {
       throw new BadRequestException('No M-Pesa reference ID found');
     }
 
+    // DB-first: the STK Push callback (POST wallet-topup/mpesa/webhook) is the
+    // authoritative confirmation and may already have settled this record —
+    // no need to ask Safaricom again, and this keeps polling safe to repeat.
+    if (topup.status === 'succeeded') return { status: 'SUCCESSFUL' };
+    if (topup.status === 'failed') return { status: 'FAILED' };
+
     console.log('📦 Checking status for referenceId:', topup.stripeIntentId);
 
     const status = await this.mpesaService.getTransactionStatus(
@@ -205,55 +270,11 @@ export class WalletTopUpService {
 
     console.log('📊 M-Pesa transaction status:', status.status);
 
-    if (status.status === 'SUCCESSFUL') {
-      console.log('✅ Transaction successful, converting currency...');
-      
-      const exchangeResult = await this.exchangeRateService.convertAmount(
-        topup.amount,
-        topup.currency,
-        'USD',
-      );
-      const amountInUSD = exchangeResult.convertedAmount;
-      console.log('💰 Converted amount:', topup.amount, topup.currency, '→', amountInUSD, 'USD');
-
-      await this.prisma.$transaction([
-        this.prisma.walletTopUp.update({
-          where: { id: topup.id },
-          data: { status: 'succeeded' },
-        }),
-        this.prisma.user.update({
-          where: { id: topup.userId },
-          data: { walletBalance: { increment: amountInUSD } },
-        }),
-        this.prisma.transaction.upsert({
-          where: { transactionId: topup.stripeIntentId },
-          update: { status: 'completed' },
-          create: {
-            transactionId: topup.stripeIntentId,
-            senderId: topup.userId,
-            amount: amountInUSD,
-            currency: 'USD',
-            type: 'wallet_topup',
-            status: 'completed',
-            paymentMethod: 'mpesa',
-            description: `Wallet top-up via M-Pesa (${topup.amount} ${topup.currency} → $${amountInUSD} USD)`,
-          },
-        }),
-      ]);
-
-      console.log('✅ Wallet balance updated successfully');
-      return { status: 'SUCCESSFUL', amountAdded: amountInUSD };
+    if (status.status === 'PENDING') {
+      return { status: 'PENDING' };
     }
 
-    if (status.status === 'FAILED') {
-      console.error('❌ Transaction failed');
-      await this.prisma.walletTopUp.update({
-        where: { id: topup.id },
-        data: { status: 'failed' },
-      });
-    }
-
-    return { status: status.status };
+    return this.finalizeTopUp(topup, status.status, 'mpesa');
   }
 
   // -----------------------------------
@@ -1170,6 +1191,7 @@ export class WalletTopUpService {
         externalId,
         payerMessage: 'Top up your KongossaPay wallet',
         payeeNote: `Wallet top-up: ${amount} ${currency}`,
+        countryCode: paymentMethod.countryCode,
       });
 
       console.log('✅ Airtel Money payment request sent, referenceId:', referenceId);
@@ -1218,6 +1240,11 @@ export class WalletTopUpService {
       throw new BadRequestException('No Airtel Money reference ID found');
     }
 
+    // DB-first: the collections webhook (POST wallet-topup/airtel/webhook) is
+    // the authoritative confirmation and may already have settled this record.
+    if (topup.status === 'succeeded') return { status: 'SUCCESSFUL' };
+    if (topup.status === 'failed') return { status: 'FAILED' };
+
     console.log('📦 Checking status for referenceId:', topup.stripeIntentId);
 
     const status = await this.airtelMoneyService.getTransactionStatus(
@@ -1226,55 +1253,70 @@ export class WalletTopUpService {
 
     console.log('📊 Airtel Money transaction status:', status.status);
 
-    if (status.status === 'SUCCESSFUL') {
-      console.log('✅ Transaction successful, converting currency...');
-      
-      const exchangeResult = await this.exchangeRateService.convertAmount(
-        topup.amount,
-        topup.currency,
-        'USD',
-      );
-      const amountInUSD = exchangeResult.convertedAmount;
-      console.log('💰 Converted amount:', topup.amount, topup.currency, '→', amountInUSD, 'USD');
-
-      await this.prisma.$transaction([
-        this.prisma.walletTopUp.update({
-          where: { id: topup.id },
-          data: { status: 'succeeded' },
-        }),
-        this.prisma.user.update({
-          where: { id: topup.userId },
-          data: { walletBalance: { increment: amountInUSD } },
-        }),
-        this.prisma.transaction.upsert({
-          where: { transactionId: topup.stripeIntentId },
-          update: { status: 'completed' },
-          create: {
-            transactionId: topup.stripeIntentId,
-            senderId: topup.userId,
-            amount: amountInUSD,
-            currency: 'USD',
-            type: 'wallet_topup',
-            status: 'completed',
-            paymentMethod: 'airtel_money',
-            description: `Wallet top-up via Airtel Money (${topup.amount} ${topup.currency} → $${amountInUSD} USD)`,
-          },
-        }),
-      ]);
-
-      console.log('✅ Wallet balance updated successfully');
-      return { status: 'SUCCESSFUL', amountAdded: amountInUSD };
+    if (status.status === 'PENDING') {
+      return { status: 'PENDING' };
     }
 
-    if (status.status === 'FAILED') {
-      console.error('❌ Transaction failed');
-      await this.prisma.walletTopUp.update({
-        where: { id: topup.id },
-        data: { status: 'failed' },
-      });
+    return this.finalizeTopUp(topup, status.status, 'airtel_money');
+  }
+
+  /**
+   * M-Pesa STK Push callback. No cryptographic signature is available on this
+   * webhook by design (Safaricom does not offer one) — the callback URL's
+   * obscurity plus finalizeTopUp's idempotency guard are the safeguards.
+   * Shape: { Body: { stkCallback: { CheckoutRequestID, ResultCode, ResultDesc } } }
+   */
+  async handleMpesaWebhook(body: any) {
+    const callback = body?.Body?.stkCallback;
+    const checkoutRequestId = callback?.CheckoutRequestID;
+
+    if (!checkoutRequestId) {
+      console.warn('⚠️ M-Pesa webhook missing CheckoutRequestID', body);
+      return { received: true };
     }
 
-    return { status: status.status };
+    const topup = await this.prisma.walletTopUp.findFirst({
+      where: { stripeIntentId: checkoutRequestId },
+    });
+
+    if (!topup) {
+      console.warn(`⚠️ No top-up found for M-Pesa CheckoutRequestID: ${checkoutRequestId}`);
+      return { received: true };
+    }
+
+    const outcome: 'SUCCESSFUL' | 'FAILED' = Number(callback.ResultCode) === 0 ? 'SUCCESSFUL' : 'FAILED';
+    await this.finalizeTopUp(topup, outcome, 'mpesa');
+    return { received: true };
+  }
+
+  /**
+   * Airtel Money collections callback. Same no-signature caveat as M-Pesa's.
+   * Flag: exact callback body shape should be confirmed against a live UAT
+   * call; written from Airtel's published Collections webhook reference.
+   */
+  async handleAirtelWebhook(body: any) {
+    const transaction = body?.transaction;
+    const referenceId = transaction?.id;
+
+    if (!referenceId) {
+      console.warn('⚠️ Airtel Money webhook missing transaction.id', body);
+      return { received: true };
+    }
+
+    const topup = await this.prisma.walletTopUp.findFirst({
+      where: { stripeIntentId: referenceId },
+    });
+
+    if (!topup) {
+      console.warn(`⚠️ No top-up found for Airtel Money reference: ${referenceId}`);
+      return { received: true };
+    }
+
+    const statusCode = String(transaction.status_code || transaction.status || '').toUpperCase();
+    const outcome: 'SUCCESSFUL' | 'FAILED' =
+      statusCode === 'TS' || statusCode === 'SUCCESS' || statusCode === 'SUCCESSFUL' ? 'SUCCESSFUL' : 'FAILED';
+    await this.finalizeTopUp(topup, outcome, 'airtel_money');
+    return { received: true };
   }
 
 }

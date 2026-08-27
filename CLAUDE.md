@@ -87,9 +87,17 @@ Global wiring lives in `src/main.ts`:
 - **Stripe raw-body middleware is mounted BEFORE body-parser** for `/stripe/webhook` and
   `/stripe/payment-links/webhook`. Never reorder those lines — signature verification breaks.
 
-Payment providers each get a thin 3-file module wrapping the vendor HTTP API with `axios`
-(controller + service + module, no DTO folder): `stripe`, `momo` (MTN), `orange-money`, `mpesa`,
-`paystack`, `flutterwave`, `airtel-money`, `transfi`. Follow that shape for a new provider.
+Payment providers each get a thin module wrapping the vendor HTTP API with `axios`, no DTO folder:
+`stripe`, `momo` (MTN), `orange-money`, `mpesa` (Safaricom Daraja, Kenya-only), `paystack`,
+`flutterwave`, `airtel-money` (generic/multi-country via `getCurrencyFromCountry`), `transfi`
+(also handles Zamtel as `transfi_zamtel`). All are real integrations as of this writing — `mpesa`
+and `airtel-money` were simulated (randomly returned SUCCESSFUL/PENDING/FAILED with no network call)
+until replaced; if you find another provider doing the same, treat it the same way: fix it, don't
+extend the fake. `mpesa`/`airtel-money` are service+module only (2 files) — unlike the others, their
+webhooks live on `WalletTopUpController` (`wallet-topup/mpesa/webhook`, `wallet-topup/airtel/webhook`),
+not on a controller of their own; follow that placement, not the older per-provider-controller shape,
+for any *new* phone-prompt-style provider (redirect-style providers like Orange/Transfi mirror the
+same webhook-on-WalletTopUpController convention already).
 
 Domain modules: `tontines` (+ `tontine-members`, `tontine-contributions`, `tontine-invites`),
 `budgets` / `budget-categories` / `expenses`, `wallet-topup` / `wallet-payout`, `payment-links`,
@@ -199,7 +207,9 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
 - Prefer `@/...` imports over deep relative paths on the frontend.
 - **Never commit secret values.** Reference env var *names* only: `DATABASE_URL`, `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRATION`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-  `MOMO_COLLECTION_API_KEY`, `ORANGE_MONEY_MERCHANT_KEY`, `TRANSFI_PASSWORD`, `SMTP_PASSWORD`,
+  `MOMO_COLLECTION_API_KEY`, `ORANGE_MONEY_MERCHANT_KEY`, `TRANSFI_PASSWORD`,
+  `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, `MPESA_CALLBACK_URL`,
+  `AIRTEL_CLIENT_ID`, `AIRTEL_CLIENT_SECRET`, `AIRTEL_CALLBACK_URL`, `SMTP_PASSWORD`,
   `GOOGLE_CLIENT_SECRET`, and on the frontend `VITE_APP_API_URL`, `VITE_STRIPE_PUBLISHABLE_KEY`.
   All `.env*` files are gitignored and hold live keys.
 
@@ -248,11 +258,18 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
    Schemas come from the `@nestjs/swagger` CLI plugin in `nest-cli.json`, which infers them from
    class-validator DTOs — so a new DTO is documented automatically, but a route taking a raw
    `@Body() body: any` documents as an empty object. See [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
-3. **Five modules are declared but never registered in `app.module.ts`**, so their controllers are dead
-   code and their routes 404: `AgentsModule`, `AirtelMoneyModule`, `RolePermissionsModule`,
+3. **Four modules are declared but never registered anywhere reachable from `app.module.ts`**, so their
+   controllers are dead code and their routes 404: `AgentsModule`, `RolePermissionsModule`,
    `TransactionLimitsModule`, `UserRolesModule`. Before debugging "why does this endpoint 404", check
-   whether its module is in the imports array. Registering one instantly exposes a new route surface —
-   treat it as a deliberate change, not a fix.
+   the module's *whole* import chain, not just `app.module.ts`'s own `imports` array — Nest resolves
+   modules transitively, so a module imported by another reachable module is live even if
+   `app.module.ts` never mentions it directly. (`AirtelMoneyModule` used to be miscategorized here for
+   exactly this reason: it's imported by `WalletTopUpModule`, which *is* directly imported by
+   `AppModule`, so it was never dead — confirmed both by reading the import chain and by an anonymous
+   `curl -X POST /airtel-money/webhook` returning 201, not 404. `airtel-money.controller.ts` has since
+   been removed anyway, for unrelated reasons — see the payment-providers note above.) Registering one
+   of the four genuinely-dead modules instantly exposes a new route surface — treat it as a deliberate
+   change, not a fix.
 4. **The `.gitignore` entries for `src/main.ts`, `nginx.conf`, `docker-compose*.yml` and the Dockerfiles
    are stale and misleading.** Those files were committed before the rules were added, and gitignore does
    not affect already-tracked files — edits to them commit normally. Only genuinely untracked files

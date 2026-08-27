@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AirtelMoneyService } from './airtel-money.service';
-import { AirtelMoneyController } from './airtel-money.controller';
-import { PrismaService } from '../prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
-import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
+import { ConfigModule } from '@nestjs/config';
 
+// No controller here — the real webhook lives on WalletTopUpController
+// (POST wallet-topup/airtel/webhook), matching the Orange Money / Transfi
+// pattern. This module exists purely to provide AirtelMoneyService.
 @Module({
-  imports: [ExchangeRateModule],
-  providers: [AirtelMoneyService, PrismaService, ConfigService],
-  controllers: [AirtelMoneyController],
+  imports: [ConfigModule],
+  providers: [AirtelMoneyService],
   exports: [AirtelMoneyService],
 })
 export class AirtelMoneyModule {}
