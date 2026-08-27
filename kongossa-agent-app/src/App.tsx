@@ -9,7 +9,14 @@ import OtpVerificationPage from "@/modules/auth/pages/OtpVerificationPage";
 import AgentGate from "@/components/AgentGate";
 import AgentShell from "@/components/layout/AgentShell";
 import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
-import ComingSoon from "@/components/ComingSoon";
+import TransactionsPage from "@/modules/transactions/pages/TransactionsPage";
+import CashInPage from "@/modules/transactions/pages/CashInPage";
+import CashOutPage from "@/modules/transactions/pages/CashOutPage";
+import SettlementPage from "@/modules/settlement/pages/SettlementPage";
+import StartDayPage from "@/modules/settlement/pages/StartDayPage";
+import EndDayPage from "@/modules/settlement/pages/EndDayPage";
+import FloatRequestPage from "@/modules/float-request/pages/FloatRequestPage";
+import SettingsPage from "@/modules/settings/pages/SettingsPage";
 
 function App() {
   const dispatch = useDispatch<AppDispatch>();
@@ -33,23 +40,14 @@ function App() {
         <Route element={<AgentGate />}>
           <Route element={<AgentShell />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/transactions" element={<ComingSoon title="Transaction history" />} />
-            <Route
-              path="/transactions/cash-in"
-              element={<ComingSoon title="Cash In" />}
-            />
-            <Route
-              path="/transactions/cash-out"
-              element={<ComingSoon title="Cash Out" />}
-            />
-            <Route path="/settlement" element={<ComingSoon title="Day settlement" />} />
-            <Route
-              path="/settlement/start-day"
-              element={<ComingSoon title="Start day" />}
-            />
-            <Route path="/settlement/end-day" element={<ComingSoon title="End day" />} />
-            <Route path="/float-request" element={<ComingSoon title="Request float" />} />
-            <Route path="/settings" element={<ComingSoon title="Settings" />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/transactions/cash-in" element={<CashInPage />} />
+            <Route path="/transactions/cash-out" element={<CashOutPage />} />
+            <Route path="/settlement" element={<SettlementPage />} />
+            <Route path="/settlement/start-day" element={<StartDayPage />} />
+            <Route path="/settlement/end-day" element={<EndDayPage />} />
+            <Route path="/float-request" element={<FloatRequestPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 
