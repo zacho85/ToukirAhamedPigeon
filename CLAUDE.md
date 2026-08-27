@@ -226,15 +226,14 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
    Verify on the server before relying on any nginx change being deployed.
    (`nginx.conf` is un-flagged as of the sandbox branch; `Dockerfile.prod` is still flagged.)
 
-1. **`req.user` shape mismatch (live bug — 6 remaining).** Fixed in `agents.controller.ts` and both
-   guards; still present in `auth.controller.ts` (`verify-email`, `confirm-password`, `set-password`),
-   `expenses.controller.ts` (×2) and `wallet-topup.controller.ts` (`getMonthlyStats`). Those endpoints
-   pass `undefined` as the user id today. Historical detail: the strategy returns `userId`, but call sites read
-   `req.user.id` — all of `agents.controller.ts`, three `auth.controller.ts` endpoints
-   (`verify-email`, `confirm-password`, `set-password`), `expenses.controller.ts`,
-   `wallet-topup.controller.ts` — and `SwaggerPermissionGuard` reads `user.sub || user.id`.
-   Those resolve to `undefined`, so e.g. `AgentGuard` queries `agentProfile` with `userId: undefined`.
-   Use `req.user.userId` in new code; **flag** existing occurrences rather than silently mass-fixing them.
+1. **`req.user` shape mismatch — fixed.** All known call sites now read `req.user.userId`, matching what
+   `JwtStrategy.validate()` actually returns. Fixed in this pass: `auth.controller.ts` (`verify-email`,
+   `confirm-password`, `set-password`), `expenses.controller.ts` (×2), `wallet-topup.controller.ts`
+   (`getMonthlyStats`) — the 6 originally flagged here — plus `dashboard.controller.ts`, a 7th occurrence
+   found during the same grep that this note had never listed (its own comment said "assuming req.user has
+   `{ id }`", which was never true). `SwaggerPermissionGuard` (previously noted as reading
+   `user.sub || user.id`) no longer exists in the codebase — verify with a fresh grep before assuming
+   otherwise if this note goes stale again. Use `req.user.userId` in new code.
 2. **Swagger is sandbox-only.** It mounts only when `ENABLE_SWAGGER=true` *and* `APP_ENV !== 'production'`
    (`src/swagger/setup-swagger.ts`), and nginx separately 404s `/api-docs*` on `api.kongossapay.com`.
    Schemas come from the `@nestjs/swagger` CLI plugin in `nest-cli.json`, which infers them from

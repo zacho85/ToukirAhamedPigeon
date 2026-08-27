@@ -192,7 +192,7 @@ export class AuthController {
   @Get('verify-email')
   @UseGuards(JwtAuthGuard)
   async checkEmailVerified(@Req() req: any) {
-    const user = await this.authService.getUserById(req.user.id);
+    const user = await this.authService.getUserById(req.user.userId);
     return { email: user.email, emailVerifiedAt: user.emailVerifiedAt };
   }
 
@@ -224,7 +224,7 @@ export class AuthController {
   @Post('confirm-password')
   @UseGuards(JwtAuthGuard)
   async confirmPassword(@Req() req: any, @Body() body: ConfirmPasswordDto) {
-    return this.authService.confirmPassword(req.user.id, body.password);
+    return this.authService.confirmPassword(req.user.userId, body.password);
   }
 
   // -------------------
@@ -250,7 +250,7 @@ export class AuthController {
   @Patch('set-password')
   @UseGuards(JwtAuthGuard)
   async setPassword(@Req() req: any, @Body() body: SetPasswordDto) {
-    return this.authService.setPassword(req.user.id, body.password);
+    return this.authService.setPassword(req.user.userId, body.password);
   }
 
 

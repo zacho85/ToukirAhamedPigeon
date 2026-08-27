@@ -171,7 +171,7 @@ export class WalletTopUpController {
   @Get('stats')
   @UseGuards(JwtAuthGuard)
   async stats(@Req() req: any) {
-    return this.service.getMonthlyStats(req.user.id);
+    return this.service.getMonthlyStats(req.user.userId);
   }
 
   @Get('platform/stats')
