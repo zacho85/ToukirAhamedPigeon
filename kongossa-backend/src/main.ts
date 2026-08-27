@@ -26,6 +26,7 @@ function resolveCorsOrigins(): string[] {
   return [
     'https://kongossapay.com',
     'https://www.kongossapay.com',
+    'https://agent.kongossapay.com',
     'http://localhost:5173',
     'http://localhost:4000',
   ];
