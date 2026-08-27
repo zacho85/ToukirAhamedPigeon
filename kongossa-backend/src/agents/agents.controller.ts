@@ -6,6 +6,8 @@ import {
   Body,
   Param,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
   Req,
   Query,
   BadRequestException,
@@ -14,6 +16,10 @@ import {
   ForbiddenException,
   ParseIntPipe,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import * as fs from 'fs';
 import { AgentsService } from './agents.service';
 import {
   RegisterAgentDto,
@@ -39,11 +45,59 @@ export class AgentsController {
 
   // PUBLIC: creates a brand-new user account + agent profile, so the caller
   // cannot already be authenticated. Approval is a separate admin step.
+  //
+  // KYC images are accepted directly in this same multipart request (like
+  // auth.controller.ts's own register does for legalFormDocument) rather than
+  // via a separate upload step -- every other /agents route requires
+  // AgentGuard (status active + kycStatus verified), which a brand-new
+  // pending agent can never satisfy, so there is no authenticated route they
+  // could use to attach documents afterwards.
   @Public()
   @Post('register')
-  async register(@Body() dto: RegisterAgentDto) {
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'idFrontImage', maxCount: 1 },
+        { name: 'idBackImage', maxCount: 1 },
+        { name: 'selfieImage', maxCount: 1 },
+        { name: 'addressProofImage', maxCount: 1 },
+      ],
+      {
+        storage: diskStorage({
+          destination: (req, file, cb) => {
+            const dir = './uploads/agent_kyc';
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            cb(null, dir);
+          },
+          filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+          },
+        }),
+      },
+    ),
+  )
+  async register(
+    @Body() dto: RegisterAgentDto,
+    @UploadedFiles()
+    files: {
+      idFrontImage?: Express.Multer.File[];
+      idBackImage?: Express.Multer.File[];
+      selfieImage?: Express.Multer.File[];
+      addressProofImage?: Express.Multer.File[];
+    },
+  ) {
     try {
-      const agent = await this.agentsService.registerAgent(dto);
+      const toPath = (f?: Express.Multer.File[]) =>
+        f?.[0] ? `uploads/agent_kyc/${f[0].filename}` : undefined;
+
+      const agent = await this.agentsService.registerAgent({
+        ...dto,
+        idFrontImage: toPath(files?.idFrontImage),
+        idBackImage: toPath(files?.idBackImage),
+        selfieImage: toPath(files?.selfieImage),
+        addressProofImage: toPath(files?.addressProofImage),
+      });
       return {
         success: true,
         message: 'Agent registration submitted for approval',
@@ -105,6 +159,23 @@ export class AgentsController {
       success: true,
       data: { isAgent },
     };
+  }
+
+  // JwtAuthGuard only, deliberately NOT AgentGuard -- a pending/rejected agent
+  // can never satisfy AgentGuard's active+verified check, so this is the only
+  // route that lets them see their own KYC status while waiting on approval.
+  @Get('my-status')
+  @UseGuards(JwtAuthGuard)
+  async getMyStatus(@Req() req) {
+    try {
+      const agent = await this.agentsService.getAgentProfile(req.user.userId);
+      return { success: true, data: agent };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return { success: true, data: null };
+      }
+      throw error;
+    }
   }
 
   @Get('all')

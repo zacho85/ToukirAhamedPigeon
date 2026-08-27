@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function useDebounce<T>(value: T, fn: (value: T) => void, delay = 400) {
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (timeoutId) clearTimeout(timeoutId);
