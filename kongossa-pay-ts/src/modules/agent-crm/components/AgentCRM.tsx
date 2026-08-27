@@ -2,10 +2,9 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
-// These components will be created in the next steps, for now we assume they exist
-// import CRMDashboard from '../components/agent_crm/CRMDashboard';
-// import AgentList from '../components/agent_crm/AgentList';
-// import FloatRequestList from '../components/agent_crm/FloatRequestList';
+import AgentCrmDashboard from './AgentCrmDashboard';
+import AgentsList from './AgentsList';
+import FloatRequestsList from './FloatRequestsList';
 
 const AgentCRM: React.FC = () => {
     return (
@@ -43,60 +42,29 @@ const AgentCRM: React.FC = () => {
                 </TabsList>
 
                 <TabsContent value="dashboard">
-                    <Card className="dark:bg-gray-900 dark:border-gray-800">
-                        <CardHeader>
-                            <CardTitle className="dark:text-gray-100">
-                                Coming Soon: Agent KPI Dashboard
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="dark:text-gray-400">
-                            <p>
-                                A dashboard with key performance indicators for your agent network will be displayed here.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <AgentCrmDashboard />
                 </TabsContent>
 
                 <TabsContent value="agents">
-                    <Card className="dark:bg-gray-900 dark:border-gray-800">
-                        <CardHeader>
-                            <CardTitle className="dark:text-gray-100">
-                                Coming Soon: Agent Management
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="dark:text-gray-400">
-                            <p>
-                                A detailed list of all agents, with performance metrics and management actions, will be available here.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <AgentsList />
                 </TabsContent>
 
                 <TabsContent value="float_requests">
-                    <Card className="dark:bg-gray-900 dark:border-gray-800">
-                        <CardHeader>
-                            <CardTitle className="dark:text-gray-100">
-                                Coming Soon: Float Request Management
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="dark:text-gray-400">
-                            <p>
-                                A tool to review, approve, and reject agent float requests will be here.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <FloatRequestsList />
                 </TabsContent>
 
                 <TabsContent value="remittances">
                     <Card className="dark:bg-gray-900 dark:border-gray-800">
                         <CardHeader>
                             <CardTitle className="dark:text-gray-100">
-                                Coming Soon: Remittance Log
+                                Per-agent transaction history
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="dark:text-gray-400">
                             <p>
-                                A complete log of all cash-in and cash-out transactions processed by agents will be shown here.
+                                Cash-in/cash-out transactions and day settlements are shown per agent --
+                                open an agent from the Agents tab to see their recent activity and
+                                reconciliation history.
                             </p>
                         </CardContent>
                     </Card>

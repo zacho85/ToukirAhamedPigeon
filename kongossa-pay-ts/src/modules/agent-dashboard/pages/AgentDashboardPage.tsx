@@ -11,10 +11,10 @@ export default function AgentDashboardPage() {
       <div className='flex flex-col gap-4'>
         <Breadcrumb
             title="common.agent_dashboard.title"
-            defaultTitle="Agent Dashboard"
+            defaultTitle="Agent Lookup"
             showTitle={true}
             items={[
-                { label: "Agent Dashboard", href: "/agent-dashboard" },
+                { label: "Agent Lookup", href: "/agent-dashboard" },
             ]}
             className='pb-0'
           />

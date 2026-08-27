@@ -104,7 +104,7 @@ const menu = [
     permission: ["read:wallet"],
   },
   {
-    title: "Agent Dashboard",
+    title: "Agent Lookup",
     url: "/agent-dashboard",
     icon: LayoutDashboard,
     permission: ["read:agent-dashboard"],
