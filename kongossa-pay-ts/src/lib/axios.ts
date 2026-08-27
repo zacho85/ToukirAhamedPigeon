@@ -7,6 +7,7 @@ import { RefreshApi } from "@/routes/api";
 ===================================================== */
 let getAccessToken: (() => string | null) | null = null;
 let getCsrfToken: (() => string | null) | null = null;
+let onTokenRefreshed: ((token: string) => void) | null = null;
 
 export const setAccessTokenGetter = (getter: () => string | null) => {
   getAccessToken = getter;
@@ -14,6 +15,16 @@ export const setAccessTokenGetter = (getter: () => string | null) => {
 
 export const setCsrfTokenGetter = (getter: () => string | null) => {
   getCsrfToken = getter;
+};
+
+// Injected from redux/store.ts, same pattern as the getters above -- kept as an
+// injected callback rather than a direct `import { store }` here because that
+// creates a real circular import (store.ts already imports this file to wire
+// setAccessTokenGetter) that crashes at load time under Vite's dev ESM
+// evaluation order ("Cannot access 'setAccessTokenGetter' before
+// initialization"), not just a theoretical concern -- it reproduced.
+export const setTokenRefreshedHandler = (handler: (token: string) => void) => {
+  onTokenRefreshed = handler;
 };
 
 /* =====================================================
@@ -105,7 +116,18 @@ api.interceptors.response.use(
         if (!newAccessToken) throw new Error("No access token returned");
 
         processQueue(null, newAccessToken);
-        setAccessTokenGetter(() => newAccessToken);
+        // Push the refreshed token into Redux instead of overwriting the
+        // getter with a frozen closure -- the getter wired in redux/store.ts
+        // already reads live from the store, so it picks this up
+        // automatically. Overwriting it here used to permanently detach
+        // axios's token source from Redux after the very first silent
+        // refresh: Redux kept showing the pre-refresh token forever
+        // (ProtectedRoute/PublicRoute read Redux, not axios), and any later
+        // login in the same tab updated Redux but never reached axios, which
+        // kept attaching the OLD session's token to every request -- e.g. a
+        // freshly registered account's "/auth/me" call would silently still
+        // authenticate as whoever was logged in before the refresh.
+        onTokenRefreshed?.(newAccessToken);
 
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
