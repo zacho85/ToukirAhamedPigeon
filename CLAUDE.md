@@ -35,12 +35,21 @@ Prisma:
 npx prisma migrate dev
 ```
 
-`npx prisma generate` · `npx prisma studio` · `npm run seed` (`prisma/seed.ts` — roles + one
-`read:dashboard` permission only) · `npm run seed:sandbox` (`prisma/seed.sandbox.ts` — full fake dataset,
-refuses to run unless `APP_ENV=sandbox` and the database name contains `sandbox`).
+`npx prisma generate` · `npx prisma studio` · `npm run seed` (roles + one `read:dashboard` permission
+only) · `npm run seed:sandbox` (full fake dataset, refuses to run unless `APP_ENV=sandbox` and the
+database name contains `sandbox`).
 
-Sandbox stack and API docs for external developers live on the `feature/sandbox-api-docs` branch
-(`docs/sandbox-api-access.md` + `docker-compose.sandbox.yml`), not yet merged to `main`.
+**Seed scripts run compiled JS, not `prisma/*.ts` directly.** `npm run build` is
+`nest build && tsc -p tsconfig.seed.json` — the second step compiles `prisma/seed.ts` and
+`prisma/seed.sandbox.ts` into `dist/prisma/`, which `seed`/`seed:sandbox` then run with plain `node`.
+This exists because `ts-node prisma/seed.sandbox.ts` failed inside the Alpine container with
+`TypeError: Unknown file extension ".ts"` — a Node/ts-node ESM-detection issue that only appears once
+`tsconfig.json` isn't present in the runtime image (production copies `dist` + `node_modules` only, not
+source config). Compiling ahead of time sidesteps it entirely and matches how `dist/main.js` already
+works. For quick local iteration on a seed script itself, `npm run seed:dev` / `seed:sandbox:dev` still
+run the `.ts` file directly through `ts-node`, no build step needed.
+
+Sandbox stack and API docs for external developers: see [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
 
 Frontend (`kongossa-pay-ts/`):
 
@@ -238,8 +247,7 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
    (`src/swagger/setup-swagger.ts`), and nginx separately 404s `/api-docs*` on `api.kongossapay.com`.
    Schemas come from the `@nestjs/swagger` CLI plugin in `nest-cli.json`, which infers them from
    class-validator DTOs — so a new DTO is documented automatically, but a route taking a raw
-   `@Body() body: any` documents as an empty object. The sandbox host that serves these docs is set up
-   on the `feature/sandbox-api-docs` branch.
+   `@Body() body: any` documents as an empty object. See [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
 3. **Five modules are declared but never registered in `app.module.ts`**, so their controllers are dead
    code and their routes 404: `AgentsModule`, `AirtelMoneyModule`, `RolePermissionsModule`,
    `TransactionLimitsModule`, `UserRolesModule`. Before debugging "why does this endpoint 404", check

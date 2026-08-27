@@ -1,0 +1,113 @@
+# Sandbox stack — the environment the external Flutter developer talks to.
+#
+# Run with an explicit project name so nothing collides with production:
+#   docker compose -p kongossa-sandbox -f docker-compose.sandbox.yml up -d
+#
+# Isolation guarantees this file is responsible for:
+#   * its own postgres container, its own named volume, its own database name
+#   * its own bridge network — NOT kongossa-network
+#   * its own JWT secrets, so a production token is worthless here and vice-versa
+#   * no /var/run/docker.sock mount (production mounts it; that is a container
+#     escape vector and must never be reachable by an outside contractor)
+#   * no bind-mount of the production uploads directory
+#   * all mail captured by Mailpit, so nothing reaches a real inbox
+#
+# Never restore a production dump into this database.
+
+services:
+  postgres-sandbox:
+    image: postgres:15-alpine
+    container_name: kongossa-postgres-sandbox
+    restart: unless-stopped
+    env_file:
+      - .env.sandbox
+    environment:
+      POSTGRES_USER: ${SANDBOX_DB_USER}
+      POSTGRES_PASSWORD: ${SANDBOX_DB_PASSWORD}
+      POSTGRES_DB: kongossa_sandbox_db
+    volumes:
+      - postgres_sandbox_data:/var/lib/postgresql/data
+    networks:
+      - kongossa-sandbox-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SANDBOX_DB_USER} -d kongossa_sandbox_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    # Catches every outbound email. The dev reads his own OTP codes here —
+    # login is OTP-gated, so without this he cannot authenticate at all.
+    image: axllent/mailpit:latest
+    container_name: kongossa-mailpit-sandbox
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      # Served under https://sandbox-api.kongossapay.com/mailpit/ so the
+      # developer can read his own OTP codes without a second hostname
+      # (and therefore without a second TLS certificate).
+      MP_WEBROOT: mailpit
+    networks:
+      - kongossa-sandbox-network
+
+  backend-sandbox:
+    build:
+      context: ./kongossa-backend
+      dockerfile: Dockerfile.prod
+    container_name: kongossa-backend-sandbox
+    restart: unless-stopped
+    env_file:
+      - .env.sandbox
+    environment:
+      - NODE_ENV=production
+      - APP_ENV=sandbox
+      - ENABLE_SWAGGER=true
+      - PORT=3000
+      - PUBLIC_API_URL=https://sandbox-api.kongossapay.com
+      - DATABASE_URL=postgresql://${SANDBOX_DB_USER}:${SANDBOX_DB_PASSWORD}@postgres-sandbox:5432/kongossa_sandbox_db
+      # Distinct from production on purpose — cross-environment tokens must fail.
+      - JWT_SECRET=${SANDBOX_JWT_SECRET}
+      - JWT_ACCESS_SECRET=${SANDBOX_JWT_SECRET}
+      - JWT_REFRESH_SECRET=${SANDBOX_JWT_REFRESH_SECRET}
+      - JWT_ACCESS_EXPIRATION=60m
+      - JWT_REFRESH_TTL_DAYS=7
+      - CORS_ORIGINS=https://sandbox-api.kongossapay.com,http://localhost:5173,http://localhost:3000
+      - FRONTEND_URL=https://sandbox-api.kongossapay.com
+      - BACKEND_URL=https://sandbox-api.kongossapay.com
+      # Mail goes nowhere real.
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_SECURE=false
+      - SMTP_USER=sandbox
+      - SMTP_PASSWORD=sandbox
+      - SMTP_FROM=no-reply@sandbox.kongossapay.com
+      - SMTP_FROM_NAME=Kongossa Pay Sandbox
+      # Payment providers: TEST credentials only. Anything left unset makes the
+      # corresponding provider module fail loudly rather than touch a live account.
+      - STRIPE_SECRET_KEY=${SANDBOX_STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${SANDBOX_STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET=${SANDBOX_STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET}
+      - STRIPE_PUBLISHABLE_KEY=${SANDBOX_STRIPE_PUBLISHABLE_KEY}
+    depends_on:
+      postgres-sandbox:
+        condition: service_healthy
+    networks:
+      - kongossa-sandbox-network
+    volumes:
+      # Sandbox-only uploads. Do NOT bind-mount ./kongossa-backend/uploads.
+      - uploads_sandbox_data:/app/uploads
+    # Deliberately absent: /var/run/docker.sock, the production uploads bind mount,
+    # and any port publication — nginx on the host reaches this over the network.
+
+networks:
+  kongossa-sandbox-network:
+    driver: bridge
+    name: kongossa-sandbox-network
+
+volumes:
+  postgres_sandbox_data:
+    name: kongossa_postgres_sandbox_data
+  uploads_sandbox_data:
+    name: kongossa_uploads_sandbox_data
