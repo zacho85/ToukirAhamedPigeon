@@ -13,9 +13,7 @@ export default function AgentShell() {
     <div className="min-h-screen bg-[#F4F6F8] flex flex-col">
       <header className="bg-white px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-[#0B1226] flex items-center justify-center">
-            <span className="text-emerald-400 font-bold">K</span>
-          </div>
+          <img src="/favicon.svg" alt="" className="w-9 h-9" />
           <span className="font-semibold text-[#0B1226]">KongossaPay Agent</span>
         </div>
       </header>

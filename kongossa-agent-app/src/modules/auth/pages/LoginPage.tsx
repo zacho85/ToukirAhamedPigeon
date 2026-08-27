@@ -38,9 +38,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#F4F6F8] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-[#0B1226] flex items-center justify-center mb-4">
-            <span className="text-emerald-400 font-bold text-xl">K</span>
-          </div>
+          <img src="/favicon.svg" alt="" className="w-14 h-14 mb-4" />
           <h1 className="text-xl font-bold text-[#0B1226]">KongossaPay Agent</h1>
           <p className="text-sm text-gray-500 mt-1">Sign in to your agent account</p>
         </div>
