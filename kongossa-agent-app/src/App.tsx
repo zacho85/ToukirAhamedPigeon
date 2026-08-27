@@ -17,6 +17,7 @@ import StartDayPage from "@/modules/settlement/pages/StartDayPage";
 import EndDayPage from "@/modules/settlement/pages/EndDayPage";
 import FloatRequestPage from "@/modules/float-request/pages/FloatRequestPage";
 import SettingsPage from "@/modules/settings/pages/SettingsPage";
+import CreatePaymentRequestPage from "@/modules/pos/pages/CreatePaymentRequestPage";
 
 function App() {
   const dispatch = useDispatch<AppDispatch>();
@@ -47,6 +48,7 @@ function App() {
             <Route path="/settlement/start-day" element={<StartDayPage />} />
             <Route path="/settlement/end-day" element={<EndDayPage />} />
             <Route path="/float-request" element={<FloatRequestPage />} />
+            <Route path="/pos/get-paid" element={<CreatePaymentRequestPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

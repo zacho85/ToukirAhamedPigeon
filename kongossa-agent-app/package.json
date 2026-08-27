@@ -35,6 +35,7 @@
     "cmdk": "^1.1.1",
     "lucide-react": "^1.26.0",
     "postcss": "^8.5.23",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.83.0",
