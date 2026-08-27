@@ -247,12 +247,36 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
 - **Agent** — a human cash-in/cash-out point. `AgentProfile`, `AgentCashTransaction`,
   `AgentDaySettlement` (end-of-day reconciliation), and `FloatRequest` (agent asks to top up their float).
   Two distinct authorization models apply in `agents.controller.ts`: an agent's *own* routes
-  (`/agents/profile`, `/agents/my-code`, `/agents/dashboard/stats`) use `AgentGuard` — identity, not
-  privilege — while admin management (`/agents/all`, approve/suspend/activate/commission) uses
-  `PermissionsGuard` with `read:agent-crm` / `update:agent-crm`. `POST /agents/register` is `@Public()`
-  because it creates the user account itself. Note the DB carries two naming conventions for agent
-  permissions — kebab (`agent-crm`, `agent-dashboard`, what the frontend uses) and snake
-  (`agent_profile`, `agent_transactions`); prefer kebab.
+  (`/agents/profile`, `/agents/my-code`, `/agents/dashboard/stats`, cash-in/out, day settlement, float
+  requests) use `AgentGuard` — identity (active + KYC-verified), not privilege — while admin management
+  (`/agents/all`, approve/suspend/activate/commission, float-request review) uses `PermissionsGuard`
+  with `read:agent-crm` / `update:agent-crm`. `POST /agents/register` is `@Public()` and accepts the
+  four KYC images directly in the same multipart request (mirroring `auth.controller.ts`'s own register)
+  — every other `/agents` route requires `AgentGuard`, which a brand-new pending agent can never
+  satisfy, so there is no authenticated route they could reach afterward to attach documents.
+  `GET /agents/my-status` is the one deliberate exception — `JwtAuthGuard` only, no `AgentGuard` — so a
+  pending/rejected agent can see their own KYC status instead of only ever getting 403s.
+  Cash-in credits the end user's wallet and increases the agent's `cashOnHand` (the agent physically
+  receives cash); cash-out is the reverse, and is OTP-gated above `AGENT_CASHOUT_OTP_THRESHOLD` (env var,
+  default 500) — the OTP goes to the **end user**, not the agent, confirmed via the existing
+  `src/otp/otp.service.ts`. Day settlement (`/agents/day/start`, `/agents/day/end`) computes variance
+  against actual completed transactions since the day opened. Float-request approval is
+  bookkeeping-only: it increments `cashOnHand` directly, no real wallet debit anywhere — same trust
+  model as `AgentDaySettlement`'s own variance field.
+  Two apps make up the feature: `kongossa-agent-app` is the agent's own app (registration, KYC upload,
+  cash ops, day settlement, float requests, and "get paid" QR/payment-link generation — built on the
+  existing `payment-links` module, not `qr-payments`/`QRPayment`, which has no working customer-side
+  redemption flow anywhere in the codebase — `PendingQRPayments.tsx` in `kongossa-pay-ts` is dead,
+  unrouted code); `kongossa-pay-ts`'s `agent-crm` module is the admin panel (agent list/KYC review/
+  suspend/commission edit, float-request review), and `agent-dashboard` is a repurposed admin
+  drill-down (search one agent, reuse `agent-crm`'s detail dialog) — not a second agent-facing
+  dashboard, that lives only in `kongossa-agent-app`.
+  Note the DB carries two naming conventions for agent permissions — kebab (`agent-crm`, `agent-dashboard`,
+  what the frontend uses) and snake (`agent_profile`, `agent_transactions`); prefer kebab.
+  **`update:agent-crm` must be added to production's `Permission`/`RolePermission` tables manually**
+  (via the admin UI, or a direct insert) before any admin agent-management action will work there —
+  `prisma/seed.sandbox.ts` now creates it, but that script refuses to run outside the sandbox database,
+  so it never reaches production on its own.
 - **Payment link** — merchant-shareable Stripe-backed checkout URL. Public, unauthenticated routes:
   `/pay/:linkId`, `/payment-link/success`, `/payment-link/cancel`.
 - **KYC / approval** — `User.kycStatus`, `User.approvalStatus`, `User.agentStatus` are free-form strings
@@ -284,9 +308,11 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
    Schemas come from the `@nestjs/swagger` CLI plugin in `nest-cli.json`, which infers them from
    class-validator DTOs — so a new DTO is documented automatically, but a route taking a raw
    `@Body() body: any` documents as an empty object. See [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
-3. **Four modules are declared but never registered anywhere reachable from `app.module.ts`**, so their
-   controllers are dead code and their routes 404: `AgentsModule`, `RolePermissionsModule`,
-   `TransactionLimitsModule`, `UserRolesModule`. Before debugging "why does this endpoint 404", check
+3. **Three modules are declared but never registered anywhere reachable from `app.module.ts`**, so their
+   controllers are dead code and their routes 404: `RolePermissionsModule`,
+   `TransactionLimitsModule`, `UserRolesModule`. (`AgentsModule` used to be in this list — it is now
+   directly imported by `AppModule`, registered as part of building out the Agents App milestone.)
+   Before debugging "why does this endpoint 404", check
    the module's *whole* import chain, not just `app.module.ts`'s own `imports` array — Nest resolves
    modules transitively, so a module imported by another reachable module is live even if
    `app.module.ts` never mentions it directly. (`AirtelMoneyModule` used to be miscategorized here for
