@@ -66,8 +66,22 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // ✅ CORS
+  // Outside production, also allow any http://localhost:<port> -- multiple
+  // local dev servers (backend, kongossa-pay-ts, kongossa-agent-app, and
+  // whatever else is already running) compete for 5173+ and Vite silently
+  // moves to the next free port, so a fixed allowlist entry breaks the moment
+  // a second/third app is running locally at once. Production still only
+  // honours the explicit list (CORS_ORIGINS or the hardcoded fallback above).
+  const isProduction = process.env.NODE_ENV === 'production';
   app.enableCors({
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // same-origin / curl / server-to-server
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      if (!isProduction && /^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Stripe-Signature', 'X-Requested-With'],
