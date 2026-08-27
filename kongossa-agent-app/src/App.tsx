@@ -1,28 +1,62 @@
-import { useState } from 'react'
+import { useEffect } from "react";
+import { useDispatch } from "react-redux";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import type { AppDispatch } from "@/redux/store";
+import { logout } from "@/redux/slices/authSlice";
+import LoginPage from "@/modules/auth/pages/LoginPage";
+import RegisterPage from "@/modules/auth/pages/RegisterPage";
+import OtpVerificationPage from "@/modules/auth/pages/OtpVerificationPage";
+import AgentGate from "@/components/AgentGate";
+import AgentShell from "@/components/layout/AgentShell";
+import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
+import ComingSoon from "@/components/ComingSoon";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const dispatch = useDispatch<AppDispatch>();
+
+  // axios.ts dispatches this window event when a silent token refresh fails
+  // (the refresh cookie itself expired) -- without this listener the agent
+  // stays "logged in" in Redux while every request quietly 401s.
+  useEffect(() => {
+    const onLogout = () => dispatch(logout());
+    window.addEventListener("logout", onLogout);
+    return () => window.removeEventListener("logout", onLogout);
+  }, [dispatch]);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-4">
-          KongossaPay Agent
-        </h1>
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <button
-            className="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition"
-            onClick={() => setCount((count) => count + 1)}
-          >
-            Count is {count}
-          </button>
-          <p className="mt-2 text-sm text-gray-600 text-center">
-            Edit <code className="bg-gray-100 px-1 rounded">src/App.tsx</code> and save to test HMR
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-otp" element={<OtpVerificationPage />} />
+
+        <Route element={<AgentGate />}>
+          <Route element={<AgentShell />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/transactions" element={<ComingSoon title="Transaction history" />} />
+            <Route
+              path="/transactions/cash-in"
+              element={<ComingSoon title="Cash In" />}
+            />
+            <Route
+              path="/transactions/cash-out"
+              element={<ComingSoon title="Cash Out" />}
+            />
+            <Route path="/settlement" element={<ComingSoon title="Day settlement" />} />
+            <Route
+              path="/settlement/start-day"
+              element={<ComingSoon title="Start day" />}
+            />
+            <Route path="/settlement/end-day" element={<ComingSoon title="End day" />} />
+            <Route path="/float-request" element={<ComingSoon title="Request float" />} />
+            <Route path="/settings" element={<ComingSoon title="Settings" />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
