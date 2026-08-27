@@ -36,7 +36,7 @@ async index(
   @Query('dateFrom') dateFrom?: string,
   @Query('dateTo') dateTo?: string,
 ) {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   return {
     expenses: await this.service.getUserExpenses(userId, { search, category, dateFrom, dateTo }),
   };
@@ -95,7 +95,7 @@ async index(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     return this.service.getUserExpenseStats(userId, startDate, endDate);
   }
 }

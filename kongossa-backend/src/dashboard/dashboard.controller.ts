@@ -16,7 +16,7 @@ export class DashboardController {
   @Get()
   @ApiOperation({ summary: 'Get user dashboard info' })
   async getDashboard(@Req() req: Request): Promise<DashboardResponseDto> {
-    const user = req.user as any; // assuming req.user has { id }
-    return this.dashboardService.getDashboard(user.id);
+    const user = req.user as any;
+    return this.dashboardService.getDashboard(user.userId);
   }
 }
