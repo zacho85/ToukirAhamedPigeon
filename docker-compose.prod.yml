@@ -79,14 +79,32 @@ services:
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./kongossa-backend/uploads:/backend-uploads:ro
+      # Basic-auth credentials for the sandbox /api-docs vhost.
+      # Create on the host with: htpasswd -c ./nginx/.htpasswd-docs <username>
+      - ./nginx/.htpasswd-docs:/etc/nginx/.htpasswd-docs:ro
+      # Serve the nginx config from the host instead of the copy baked into the
+      # image at build time. The frontend runs a prebuilt GHCR image, so without
+      # this every vhost change would require rebuilding and pushing that image.
+      # With it: edit the file, then `docker exec kongossa-frontend nginx -s reload`.
+      - ./kongossa-pay-ts/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     networks:
       - kongossa-network
+      # This nginx also fronts sandbox-api.kongossapay.com, so it must be able
+      # to reach the sandbox stack. Only the reverse proxy joins both networks —
+      # the production backend and database never see the sandbox network.
+      - kongossa-sandbox-network
 
 networks:
   kongossa-network:
     driver: bridge
+  # Created by docker-compose.sandbox.yml. Bring the sandbox stack up first,
+  # or `docker network create kongossa-sandbox-network`, otherwise this stack
+  # will not start.
+  kongossa-sandbox-network:
+    external: true
+    name: kongossa-sandbox-network
 
 volumes:
   postgres_data:

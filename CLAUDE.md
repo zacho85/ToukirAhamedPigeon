@@ -35,12 +35,21 @@ Prisma:
 npx prisma migrate dev
 ```
 
-`npx prisma generate` · `npx prisma studio` · `npm run seed` (`prisma/seed.ts` — roles + one
-`read:dashboard` permission only) · `npm run seed:sandbox` (`prisma/seed.sandbox.ts` — full fake dataset,
-refuses to run unless `APP_ENV=sandbox` and the database name contains `sandbox`).
+`npx prisma generate` · `npx prisma studio` · `npm run seed` (roles + one `read:dashboard` permission
+only) · `npm run seed:sandbox` (full fake dataset, refuses to run unless `APP_ENV=sandbox` and the
+database name contains `sandbox`).
 
-Sandbox stack and API docs for external developers live on the `feature/sandbox-api-docs` branch
-(`docs/sandbox-api-access.md` + `docker-compose.sandbox.yml`), not yet merged to `main`.
+**Seed scripts run compiled JS, not `prisma/*.ts` directly.** `npm run build` is
+`nest build && tsc -p tsconfig.seed.json` — the second step compiles `prisma/seed.ts` and
+`prisma/seed.sandbox.ts` into `dist/prisma/`, which `seed`/`seed:sandbox` then run with plain `node`.
+This exists because `ts-node prisma/seed.sandbox.ts` failed inside the Alpine container with
+`TypeError: Unknown file extension ".ts"` — a Node/ts-node ESM-detection issue that only appears once
+`tsconfig.json` isn't present in the runtime image (production copies `dist` + `node_modules` only, not
+source config). Compiling ahead of time sidesteps it entirely and matches how `dist/main.js` already
+works. For quick local iteration on a seed script itself, `npm run seed:dev` / `seed:sandbox:dev` still
+run the `.ts` file directly through `ts-node`, no build step needed.
+
+Sandbox stack and API docs for external developers: see [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
 
 Frontend (`kongossa-pay-ts/`):
 
@@ -236,21 +245,19 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
    Verify on the server before relying on any nginx change being deployed.
    (`nginx.conf` is un-flagged as of the sandbox branch; `Dockerfile.prod` is still flagged.)
 
-1. **`req.user` shape mismatch (live bug — 6 remaining).** Fixed in `agents.controller.ts` and both
-   guards; still present in `auth.controller.ts` (`verify-email`, `confirm-password`, `set-password`),
-   `expenses.controller.ts` (×2) and `wallet-topup.controller.ts` (`getMonthlyStats`). Those endpoints
-   pass `undefined` as the user id today. Historical detail: the strategy returns `userId`, but call sites read
-   `req.user.id` — all of `agents.controller.ts`, three `auth.controller.ts` endpoints
-   (`verify-email`, `confirm-password`, `set-password`), `expenses.controller.ts`,
-   `wallet-topup.controller.ts` — and `SwaggerPermissionGuard` reads `user.sub || user.id`.
-   Those resolve to `undefined`, so e.g. `AgentGuard` queries `agentProfile` with `userId: undefined`.
-   Use `req.user.userId` in new code; **flag** existing occurrences rather than silently mass-fixing them.
+1. **`req.user` shape mismatch — fixed.** All known call sites now read `req.user.userId`, matching what
+   `JwtStrategy.validate()` actually returns. Fixed in this pass: `auth.controller.ts` (`verify-email`,
+   `confirm-password`, `set-password`), `expenses.controller.ts` (×2), `wallet-topup.controller.ts`
+   (`getMonthlyStats`) — the 6 originally flagged here — plus `dashboard.controller.ts`, a 7th occurrence
+   found during the same grep that this note had never listed (its own comment said "assuming req.user has
+   `{ id }`", which was never true). `SwaggerPermissionGuard` (previously noted as reading
+   `user.sub || user.id`) no longer exists in the codebase — verify with a fresh grep before assuming
+   otherwise if this note goes stale again. Use `req.user.userId` in new code.
 2. **Swagger is sandbox-only.** It mounts only when `ENABLE_SWAGGER=true` *and* `APP_ENV !== 'production'`
    (`src/swagger/setup-swagger.ts`), and nginx separately 404s `/api-docs*` on `api.kongossapay.com`.
    Schemas come from the `@nestjs/swagger` CLI plugin in `nest-cli.json`, which infers them from
    class-validator DTOs — so a new DTO is documented automatically, but a route taking a raw
-   `@Body() body: any` documents as an empty object. The sandbox host that serves these docs is set up
-   on the `feature/sandbox-api-docs` branch.
+   `@Body() body: any` documents as an empty object. See [docs/sandbox-api-access.md](docs/sandbox-api-access.md).
 3. **Four modules are declared but never registered anywhere reachable from `app.module.ts`**, so their
    controllers are dead code and their routes 404: `AgentsModule`, `RolePermissionsModule`,
    `TransactionLimitsModule`, `UserRolesModule`. Before debugging "why does this endpoint 404", check

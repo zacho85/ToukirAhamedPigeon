@@ -1,0 +1,21 @@
+# Keep secrets and runtime data out of the built image.
+#
+# NOTE: node_modules and dist are deliberately NOT excluded — Dockerfile.local
+# (used in production) copies both from the host rather than building inside
+# the image. Excluding them here would break that build.
+
+.env
+.env.*
+!.env.example
+
+uploads/
+backups/
+db_backups/
+*.sql
+*.sql.gz
+
+.git
+.github
+test/
+coverage/
+*.log
