@@ -1,101 +1,90 @@
-import React, { useState, useEffect } from 'react';
-// import { User, Remittance, FloatRequest } from '@/api/entities';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { DollarSign, Send, Users } from 'lucide-react';
-import { useAppSelector } from '@/hooks/useRedux';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
+import { getAllAgents } from "@/modules/agent-crm/api";
+import AgentDetailDialog from "@/modules/agent-crm/components/AgentDetailDialog";
 
-export default function AgentDashboard(): React.ReactElement {
-  const [agent, setAgent] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+// Repurposed as an admin drill-down: search for one specific agent (by name,
+// email, phone, or agent code) and open their full detail -- distinct from
+// the agent's own self-service dashboard, which lives in kongossa-agent-app.
+// The previous version of this page called useAppSelector() inside an async
+// useEffect callback, which violates the rules of hooks; that's gone too,
+// there's no reason for this admin-facing page to read the agent's own
+// Redux auth state at all.
+interface AgentResult {
+  id: number;
+  agentCode: string;
+  status: string;
+  user?: { fullName?: string; email?: string };
+}
 
-  useEffect(() => {
-    const fetchAgentData = async (): Promise<void> => {
-      try {
-        const currentAgent = useAppSelector((state) => state.auth.user);
-        setAgent(currentAgent);
-      } catch (error) {
-        console.error("Error fetching agent data:", error);
-      }
-      setIsLoading(false);
-    };
-    fetchAgentData();
-  }, []);
+export default function AgentDashboard() {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<AgentResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="p-6 text-gray-900 dark:text-gray-100">
-        Loading Agent Dashboard...
-      </div>
-    );
-  }
+  const onSearch = async () => {
+    if (!search.trim()) return;
+    setLoading(true);
+    try {
+      const res = await getAllAgents({ search, limit: 10 });
+      setResults(res.data || []);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <h1 className="text-3xl font-bold">Agent Dashboard</h1>
-      <p className="text-gray-700 dark:text-gray-300">
-        Welcome, {agent?.full_name}
+      <h1 className="text-3xl font-bold">Agent Lookup</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Find a specific agent by name, email, phone, or agent code.
       </p>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="dark:text-gray-100">Your Float</CardTitle>
-            <DollarSign className="w-5 h-5 text-slate-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold dark:text-gray-100">
-              ${(agent?.wallet_balance || 0).toLocaleString()}
-            </p>
-            <Button className="mt-4 w-full dark:bg-gray-800 dark:hover:bg-gray-700">
-              Request Float
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="dark:text-gray-100">New Remittance</CardTitle>
-            <Send className="w-5 h-5 text-slate-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-             <p className="text-sm text-slate-600 dark:text-gray-400 mb-8">
-               Process a new cash-in or cash-out transaction.
-             </p>
-             <Button className="w-full dark:bg-gray-800 dark:hover:bg-gray-700">
-               New Transaction
-             </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="dark:text-gray-100">My Contacts</CardTitle>
-            <Users className="w-5 h-5 text-slate-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-             <p className="text-sm text-slate-600 dark:text-gray-400 mb-8">
-               Manage your frequent senders and recipients.
-             </p>
-             <Button className="w-full dark:bg-gray-800 dark:hover:bg-gray-700">
-               Manage Contacts
-             </Button>
-          </CardContent>
-        </Card>
+      <div className="flex gap-2 max-w-lg">
+        <Input
+          placeholder="Search agents..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSearch()}
+        />
+        <Button onClick={onSearch} disabled={loading}>
+          <Search className="w-4 h-4 mr-2" />
+          Search
+        </Button>
       </div>
 
-       <Card className="dark:bg-gray-900 dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="dark:text-gray-100">
-              My Recent Remittances
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 dark:text-gray-400">
-              A list of your recent transactions will appear here.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 max-w-lg">
+        {results.map((agent) => (
+          <Card
+            key={agent.id}
+            className="cursor-pointer hover:bg-muted/50 dark:bg-gray-900 dark:border-gray-800"
+            onClick={() => setSelectedId(agent.id)}
+          >
+            <CardHeader className="p-4">
+              <CardTitle className="text-base dark:text-gray-100">
+                {agent.user?.fullName}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 px-4 pb-4 text-sm text-muted-foreground">
+              {agent.user?.email} -- {agent.agentCode} -- {agent.status}
+            </CardContent>
+          </Card>
+        ))}
+        {!loading && results.length === 0 && search && (
+          <p className="text-sm text-muted-foreground">No agents found.</p>
+        )}
+      </div>
+
+      <AgentDetailDialog
+        agentId={selectedId}
+        open={selectedId !== null}
+        onClose={() => setSelectedId(null)}
+        onChanged={onSearch}
+      />
     </div>
   );
 }
