@@ -1,17 +1,39 @@
-import { 
-  Injectable, 
-  ConflictException, 
-  NotFoundException, 
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterAgentDto, ApproveAgentDto, UpdateAgentDto } from './dto';
+import { OtpService } from '../otp/otp.service';
+import {
+  RegisterAgentDto,
+  ApproveAgentDto,
+  UpdateAgentDto,
+  CashTransactionDto,
+  ConfirmCashOutDto,
+  StartDayDto,
+  EndDayDto,
+} from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AgentsService {
-  constructor(private prisma: PrismaService) {}
+  // Below this amount a cash-out completes immediately; above it, the end
+  // user must confirm via OTP before any balance moves.
+  private readonly cashOutOtpThreshold: number;
+
+  constructor(
+    private prisma: PrismaService,
+    private otpService: OtpService,
+    private configService: ConfigService,
+  ) {
+    this.cashOutOtpThreshold = Number(
+      this.configService.get<string>('AGENT_CASHOUT_OTP_THRESHOLD'),
+    ) || 500;
+  }
 
   /**
    * Register a new agent
@@ -666,6 +688,322 @@ export class AgentsService {
       data: {
         cashOnHand: newCashOnHand,
       },
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Cash In / Cash Out
+  //
+  // "Cash in" = the end user hands the agent physical cash, the agent credits
+  // the user's digital wallet -- agent's cashOnHand goes UP.
+  // "Cash out" = the reverse: the agent hands over physical cash, debiting
+  // the user's digital wallet -- agent's cashOnHand goes DOWN.
+  // -----------------------------------------------------------------------
+
+  private async getOpenDaySettlement(agentId: number) {
+    const open = await this.prisma.agentDaySettlement.findFirst({
+      where: { agentId, status: 'open' },
+    });
+    if (!open) {
+      throw new BadRequestException('Start your day before processing transactions');
+    }
+    return open;
+  }
+
+  private async findUserByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new NotFoundException('No user found with that email');
+    return user;
+  }
+
+  private async assertWithinTransactionLimits(agentProfile: any, amount: number) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+
+    const activeStatuses = ['completed', 'pending_otp'];
+
+    const [dailySum, monthlySum] = await Promise.all([
+      this.prisma.agentCashTransaction.aggregate({
+        where: { agentId: agentProfile.id, status: { in: activeStatuses }, createdAt: { gte: todayStart } },
+        _sum: { amount: true },
+      }),
+      this.prisma.agentCashTransaction.aggregate({
+        where: { agentId: agentProfile.id, status: { in: activeStatuses }, createdAt: { gte: monthStart } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    if (Number(dailySum._sum.amount || 0) + amount > Number(agentProfile.dailyTransactionLimit)) {
+      throw new BadRequestException('This transaction would exceed your daily transaction limit');
+    }
+    if (Number(monthlySum._sum.amount || 0) + amount > Number(agentProfile.monthlyTransactionLimit)) {
+      throw new BadRequestException('This transaction would exceed your monthly transaction limit');
+    }
+  }
+
+  private generateReference(prefix: string): string {
+    return `${prefix}-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`;
+  }
+
+  async processCashIn(agentProfile: any, dto: CashTransactionDto) {
+    await this.getOpenDaySettlement(agentProfile.id);
+    const user = await this.findUserByEmail(dto.userEmail);
+    await this.assertWithinTransactionLimits(agentProfile, dto.amount);
+
+    const newCashOnHand = Number(agentProfile.cashOnHand) + dto.amount;
+    if (newCashOnHand > Number(agentProfile.maxCashOnHand)) {
+      throw new BadRequestException('This would exceed your maximum cash on hand');
+    }
+
+    const commission = (dto.amount * Number(agentProfile.commissionRate)) / 100;
+
+    return this.prisma.$transaction(async (tx) => {
+      const transaction = await tx.agentCashTransaction.create({
+        data: {
+          agentId: agentProfile.id,
+          userId: user.id,
+          type: 'cash_in',
+          amount: dto.amount,
+          commission,
+          status: 'completed',
+          reference: this.generateReference('CI'),
+          description: dto.notes,
+          completedAt: new Date(),
+        },
+      });
+
+      await tx.agentProfile.update({
+        where: { id: agentProfile.id },
+        data: { cashOnHand: newCashOnHand },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: { walletBalance: { increment: dto.amount } },
+      });
+
+      if (commission > 0) {
+        await tx.user.update({
+          where: { id: agentProfile.userId },
+          data: { walletBalance: { increment: commission } },
+        });
+      }
+
+      return transaction;
+    });
+  }
+
+  async processCashOut(agentProfile: any, dto: CashTransactionDto) {
+    await this.getOpenDaySettlement(agentProfile.id);
+    const user = await this.findUserByEmail(dto.userEmail);
+    await this.assertWithinTransactionLimits(agentProfile, dto.amount);
+
+    if (dto.amount > Number(agentProfile.cashOnHand)) {
+      throw new BadRequestException('Insufficient cash on hand to process this cash-out');
+    }
+    if (Number(user.walletBalance) < dto.amount) {
+      throw new BadRequestException("The user's wallet balance is insufficient for this cash-out");
+    }
+
+    const commission = (dto.amount * Number(agentProfile.commissionRate)) / 100;
+    const reference = this.generateReference('CO');
+
+    if (dto.amount <= this.cashOutOtpThreshold) {
+      return this.finalizeCashOut(agentProfile, user, dto.amount, commission, reference, dto.notes);
+    }
+
+    // Above threshold: park it as pending and require the END USER (not the
+    // agent) to confirm via OTP before any balance actually moves.
+    const pending = await this.prisma.agentCashTransaction.create({
+      data: {
+        agentId: agentProfile.id,
+        userId: user.id,
+        type: 'cash_out',
+        amount: dto.amount,
+        commission,
+        status: 'pending_otp',
+        reference,
+        description: dto.notes,
+      },
+    });
+
+    await this.otpService.sendOtp(user.email, 'agent_cashout', user.id);
+
+    return { ...pending, requiresOtp: true };
+  }
+
+  async confirmCashOut(agentProfile: any, transactionId: number, dto: ConfirmCashOutDto) {
+    const pending = await this.prisma.agentCashTransaction.findUnique({ where: { id: transactionId } });
+    if (!pending || pending.agentId !== agentProfile.id) {
+      throw new NotFoundException('Pending cash-out not found');
+    }
+    if (pending.status !== 'pending_otp') {
+      throw new BadRequestException('This cash-out is not awaiting OTP confirmation');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: pending.userId! } });
+    if (!user) throw new NotFoundException('User not found');
+
+    await this.otpService.verifyOtp(user.email, dto.code, 'agent_cashout');
+
+    return this.finalizeCashOut(
+      agentProfile,
+      user,
+      Number(pending.amount),
+      Number(pending.commission),
+      pending.reference,
+      pending.description ?? undefined,
+      pending.id,
+    );
+  }
+
+  private async finalizeCashOut(
+    agentProfile: any,
+    user: any,
+    amount: number,
+    commission: number,
+    reference: string,
+    notes?: string,
+    existingId?: number,
+  ) {
+    const newCashOnHand = Number(agentProfile.cashOnHand) - amount;
+    if (newCashOnHand < 0) {
+      throw new BadRequestException('Insufficient cash on hand to process this cash-out');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const transaction = existingId
+        ? await tx.agentCashTransaction.update({
+            where: { id: existingId },
+            data: { status: 'completed', completedAt: new Date() },
+          })
+        : await tx.agentCashTransaction.create({
+            data: {
+              agentId: agentProfile.id,
+              userId: user.id,
+              type: 'cash_out',
+              amount,
+              commission,
+              status: 'completed',
+              reference,
+              description: notes,
+              completedAt: new Date(),
+            },
+          });
+
+      await tx.agentProfile.update({
+        where: { id: agentProfile.id },
+        data: { cashOnHand: newCashOnHand },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: { walletBalance: { decrement: amount } },
+      });
+
+      if (commission > 0) {
+        await tx.user.update({
+          where: { id: agentProfile.userId },
+          data: { walletBalance: { increment: commission } },
+        });
+      }
+
+      return transaction;
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Day settlement
+  // -----------------------------------------------------------------------
+
+  async startDay(agentProfile: any, dto: StartDayDto) {
+    const existing = await this.prisma.agentDaySettlement.findFirst({
+      where: { agentId: agentProfile.id, status: 'open' },
+    });
+    if (existing) {
+      throw new BadRequestException('A day is already open -- end it before starting a new one');
+    }
+
+    return this.prisma.agentDaySettlement.create({
+      data: {
+        agentId: agentProfile.id,
+        startCash: dto.startCash,
+        endCash: 0,
+        expectedEndCash: dto.startCash,
+        variance: 0,
+        status: 'open',
+      },
+    });
+  }
+
+  async endDay(agentProfile: any, dto: EndDayDto) {
+    const open = await this.getOpenDaySettlement(agentProfile.id);
+
+    const [cashInSum, cashOutSum, totals] = await Promise.all([
+      this.prisma.agentCashTransaction.aggregate({
+        where: {
+          agentId: agentProfile.id,
+          type: 'cash_in',
+          status: 'completed',
+          createdAt: { gte: open.settlementDate },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.agentCashTransaction.aggregate({
+        where: {
+          agentId: agentProfile.id,
+          type: 'cash_out',
+          status: 'completed',
+          createdAt: { gte: open.settlementDate },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.agentCashTransaction.aggregate({
+        where: { agentId: agentProfile.id, status: 'completed', createdAt: { gte: open.settlementDate } },
+        _sum: { commission: true, feeAmount: true },
+      }),
+    ]);
+
+    const totalCashIn = Number(cashInSum._sum.amount || 0);
+    const totalCashOut = Number(cashOutSum._sum.amount || 0);
+    const expectedEndCash = Number(open.startCash) + totalCashIn - totalCashOut;
+    const variance = dto.endCash - expectedEndCash;
+
+    return this.prisma.agentDaySettlement.update({
+      where: { id: open.id },
+      data: {
+        endCash: dto.endCash,
+        totalCashIn,
+        totalCashOut,
+        totalCommission: Number(totals._sum.commission || 0),
+        totalFeeEarned: Number(totals._sum.feeAmount || 0),
+        expectedEndCash,
+        variance,
+        status: 'settled',
+        settledAt: new Date(),
+        notes: dto.notes,
+      },
+    });
+  }
+
+  async getCurrentDaySettlement(agentId: number) {
+    return this.prisma.agentDaySettlement.findFirst({ where: { agentId, status: 'open' } });
+  }
+
+  async getDaySettlements(agentId: number, limit = 30) {
+    return this.prisma.agentDaySettlement.findMany({
+      where: { agentId },
+      orderBy: { settlementDate: 'desc' },
+      take: limit,
+    });
+  }
+
+  async getOwnCashTransactions(agentId: number, limit = 50) {
+    return this.prisma.agentCashTransaction.findMany({
+      where: { agentId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
     });
   }
 }

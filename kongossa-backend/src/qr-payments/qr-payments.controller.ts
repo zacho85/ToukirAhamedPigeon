@@ -10,6 +10,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 @ApiTags('Qr Payments')
 @ApiBearerAuth('bearer')
 @Controller('qr-payments')
+@UseGuards(JwtAuthGuard)
 export class QRPaymentsController {
   constructor(
     private readonly qrPaymentsService: QRPaymentsService,
@@ -17,14 +18,14 @@ export class QRPaymentsController {
   ) {}
 
   @Post()
-  create(@Body() createDto: CreateQRPaymentDto) {
-    return this.qrPaymentsService.create(createDto);
+  create(@Req() req: any, @Body() createDto: CreateQRPaymentDto) {
+    return this.qrPaymentsService.create(req.user.userId, createDto);
   }
 
   @Get()
   findAll(
+    @Req() req: any,
     @Query('qrCode') qrCode?: string,
-    @Query('recipientId', ParseIntPipe) recipientId?: number,
     @Query('amount') amount?: number,
     @Query('currency') currency?: string,
     @Query('description') description?: string,
@@ -36,7 +37,6 @@ export class QRPaymentsController {
   ) {
     const query = {
       qrCode,
-      recipientId,
       amount,
       currency,
       description,
@@ -46,26 +46,30 @@ export class QRPaymentsController {
       usageCount,
       paymentType,
     };
-    return this.qrPaymentsService.findAll(query);
+    return this.qrPaymentsService.findAllForUser(req.user.userId, query);
   }
 
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.qrPaymentsService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.qrPaymentsService.findOwned(id, req.user.userId);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateQRPaymentDto) {
-    return this.qrPaymentsService.update(id, updateDto);
+  update(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateQRPaymentDto,
+  ) {
+    return this.qrPaymentsService.update(id, req.user.userId, updateDto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.qrPaymentsService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.qrPaymentsService.remove(id, req.user.userId);
   }
+
   @Post(':id/pay')
-  @UseGuards(JwtAuthGuard)
   async payQRPayment(
     @Req() req: any,
     @Param('id', ParseIntPipe) id: number,

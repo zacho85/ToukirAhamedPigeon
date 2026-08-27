@@ -74,6 +74,10 @@ function buildPermissionMatrix(): { action: string; resource: string }[] {
   perms.push({ action: 'read', resource: 'send-money' });
   // Gate used by the API documentation permission check.
   perms.push({ action: 'view', resource: 'api-docs' });
+  // agents.controller.ts guards approve/suspend/activate/commission with this,
+  // but 'agent-crm' only being in READ_ONLY_RESOURCES above never created it --
+  // those admin actions were unreachable by anyone until this was added.
+  perms.push({ action: 'update', resource: 'agent-crm' });
 
   // De-duplicate on the composite unique key.
   const seen = new Set<string>();
