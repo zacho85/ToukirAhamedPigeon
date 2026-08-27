@@ -17,6 +17,32 @@ plus a human **agent** network for cash-in/cash-out. Production domain: `kongoss
 
 CI: `.github/workflows/deploy.yml` builds Docker images to ghcr.io and deploys to Hetzner over SSH,
 taking a database backup first. Compose file: `docker-compose.prod.yml` (postgres + backend + frontend).
+**Its trigger is `workflow_dispatch` only, not `on: push`** — merging to `main` does not auto-deploy.
+In practice, deploys are currently done manually over SSH (see below), not through this workflow.
+
+**Manual deploy (backend), on the production server, repo at `/var/www/kongossa-pay`:**
+```bash
+git pull origin main
+cd kongossa-backend && npm run build && cd ..
+docker build -f kongossa-backend/Dockerfile.local -t kongossa-backend-local:latest kongossa-backend
+docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend
+```
+**The image tag must be exactly `kongossa-backend-local:latest`** — that is what
+`docker-compose.prod.yml`'s `backend.image` field actually references (it was switched from a
+compose-managed `build:` stanza to a pinned `image:` at some point outside of git, alongside the
+same swap for `frontend`; `docker-compose.prod.yml` in the repo now reflects this). Tagging a
+rebuild as anything else (e.g. `kongossa-backend:latest`, without `-local`) is silently invisible:
+`docker compose up --force-recreate` won't rebuild or pull, it just recreates the container from
+whatever image the compose file names, so a mistagged build never reaches the running container —
+`docker inspect kongossa-backend --format '{{.Image}}'` still shows the old image ID and nothing
+errors. This exact mistake happened once already: a same-day rebuild tagged `kongossa-backend:latest`
+sat unused while the container kept running a build from the day before. **Always verify the deploy
+by comparing `docker inspect kongossa-backend --format '{{.Image}}'` against the ID `docker build`
+just printed** — a clean boot log alone does not prove the new image is what's running, since a
+stale image boots just as cleanly as a fresh one.
+`Dockerfile.prod` (the full-build-inside-Docker path `docker-compose.prod.yml`'s old `build:` stanza
+used) has been fixed alongside this and should work if ever needed, but `Dockerfile.local` — copying
+the host's already-built `dist/` + `node_modules` — is faster and is what's actually in use.
 
 ## Commands
 
