@@ -15,10 +15,14 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AgentsService } from './agents.service';
-import { 
-  RegisterAgentDto, 
-  ApproveAgentDto, 
+import {
+  RegisterAgentDto,
+  ApproveAgentDto,
   UpdateAgentDto,
+  CashTransactionDto,
+  ConfirmCashOutDto,
+  StartDayDto,
+  EndDayDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -206,5 +210,73 @@ export class AgentsController {
       message: 'Commission rate updated successfully',
       data: agent,
     };
+  }
+
+  // -------------------------------------------------------------------
+  // Cash In / Cash Out
+  // -------------------------------------------------------------------
+
+  @Post('cash-in')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async cashIn(@Req() req, @Body() dto: CashTransactionDto) {
+    const transaction = await this.agentsService.processCashIn(req.agent, dto);
+    return { success: true, data: transaction };
+  }
+
+  @Post('cash-out')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async cashOut(@Req() req, @Body() dto: CashTransactionDto) {
+    const transaction = await this.agentsService.processCashOut(req.agent, dto);
+    return { success: true, data: transaction };
+  }
+
+  @Post('cash-out/:id/confirm')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async confirmCashOut(
+    @Req() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmCashOutDto,
+  ) {
+    const transaction = await this.agentsService.confirmCashOut(req.agent, id, dto);
+    return { success: true, data: transaction };
+  }
+
+  @Get('transactions/mine')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async myTransactions(@Req() req) {
+    const data = await this.agentsService.getOwnCashTransactions(req.agent.id);
+    return { success: true, data };
+  }
+
+  // -------------------------------------------------------------------
+  // Day settlement
+  // -------------------------------------------------------------------
+
+  @Post('day/start')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async startDay(@Req() req, @Body() dto: StartDayDto) {
+    const settlement = await this.agentsService.startDay(req.agent, dto);
+    return { success: true, data: settlement };
+  }
+
+  @Post('day/end')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async endDay(@Req() req, @Body() dto: EndDayDto) {
+    const settlement = await this.agentsService.endDay(req.agent, dto);
+    return { success: true, data: settlement };
+  }
+
+  @Get('day/current')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async currentDay(@Req() req) {
+    const settlement = await this.agentsService.getCurrentDaySettlement(req.agent.id);
+    return { success: true, data: settlement };
+  }
+
+  @Get('day/history')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async dayHistory(@Req() req) {
+    const data = await this.agentsService.getDaySettlements(req.agent.id);
+    return { success: true, data };
   }
 }

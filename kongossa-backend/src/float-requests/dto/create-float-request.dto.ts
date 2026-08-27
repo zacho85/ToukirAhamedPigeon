@@ -1,8 +1,9 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateFloatRequestDto {
   @IsNotEmpty()
   @IsNumber()
+  @Min(0.01)
   amount: number;
 
   @IsOptional()
@@ -11,13 +12,5 @@ export class CreateFloatRequestDto {
 
   @IsOptional()
   @IsString()
-  status?: string;
-
-  @IsOptional()
-  @IsString()
   notes?: string;
-
-  @IsNotEmpty()
-  @IsNumber()
-  agentId: number;
 }
