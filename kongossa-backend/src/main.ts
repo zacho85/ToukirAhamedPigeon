@@ -26,7 +26,10 @@ function resolveCorsOrigins(): string[] {
   return [
     'https://kongossapay.com',
     'https://www.kongossapay.com',
-    'https://agent.kongossapay.com',
+    // Agent app hosting moved from a agent.kongossapay.com subdomain to its
+    // own purchased domain -- see nginx.conf's matching server block.
+    'https://kongossapayagent.com',
+    'https://www.kongossapayagent.com',
     'http://localhost:5173',
     'http://localhost:4000',
   ];

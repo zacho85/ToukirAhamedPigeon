@@ -88,7 +88,8 @@ services:
       # With it: edit the file, then `docker exec kongossa-frontend nginx -s reload`.
       - ./kongossa-pay-ts/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # kongossa-agent-app is a separate Vite SPA served from this same nginx
-      # (agent.kongossapay.com's server block in nginx.conf), not its own
+      # (kongossapayagent.com's server block in nginx.conf -- its own
+      # purchased domain, not a kongossapay.com subdomain), not its own
       # container/image -- rebuild it on the host with `npm run build`, this
       # mount just needs its dist/ to exist.
       - ./kongossa-agent-app/dist:/usr/share/nginx/agent-html:ro
