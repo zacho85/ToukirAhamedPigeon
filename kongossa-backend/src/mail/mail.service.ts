@@ -126,6 +126,113 @@ export class MailService {
     return this.sendMail(to, subject, html, text);
   }
 
+  async sendAgentApplicationReceivedEmail(to: string, name: string, agentCode: string) {
+    const subject = '📝 Your KongossaPay Agent Application Has Been Received';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="UTF-8"><title>Application Received</title></head>
+      <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f7fb;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f7fb; padding: 20px;">
+          <tr>
+            <td align="center">
+              <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif;">
+                <tr>
+                  <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Agent Network</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px 20px;">
+                    <h2 style="color: #2d3748; margin: 0 0 16px 0; font-size: 22px; text-align: center;">Application Received</h2>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 16px 0;">
+                      Hi ${name},
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 16px 0;">
+                      Thanks for applying to become a KongossaPay agent. Your application
+                      (agent code <strong>${agentCode}</strong>) and KYC documents are now under review.
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 24px 0;">
+                      We'll email you as soon as a decision has been made. You can log in any time
+                      to check your status.
+                    </p>
+                    <p style="color: #a0aec0; font-size: 12px; margin: 16px 0 0 0; text-align: center;">
+                      If you didn't submit this application, please contact support.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f7fafc; border-radius: 0 0 12px 12px; padding: 16px 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #718096; font-size: 12px; margin: 0;">
+                      &copy; ${new Date().getFullYear()} Kongossa Pay. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    const text = `Hi ${name}, thanks for applying to become a KongossaPay agent (code ${agentCode}). Your application is under review -- we'll email you once it's decided.`;
+
+    return this.sendMail(to, subject, html, text);
+  }
+
+  async sendAgentApprovedEmail(to: string, name: string) {
+    const subject = '🎉 You\'re Approved as a KongossaPay Agent!';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="UTF-8"><title>Agent Approved</title></head>
+      <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f7fb;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f7fb; padding: 20px;">
+          <tr>
+            <td align="center">
+              <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif;">
+                <tr>
+                  <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Agent Network</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px 20px;">
+                    <h2 style="color: #2d3748; margin: 0 0 16px 0; font-size: 22px; text-align: center;">You're approved! 🎉</h2>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 16px 0;">
+                      Hi ${name},
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.6; margin: 0 0 24px 0;">
+                      Your KongossaPay agent application has been approved. You can now log in to the
+                      KongossaPay Agent app to start your day, process cash-in/cash-out transactions,
+                      and accept payments.
+                    </p>
+                    <p style="color: #a0aec0; font-size: 12px; margin: 16px 0 0 0; text-align: center;">
+                      Welcome to the network.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f7fafc; border-radius: 0 0 12px 12px; padding: 16px 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #718096; font-size: 12px; margin: 0;">
+                      &copy; ${new Date().getFullYear()} Kongossa Pay. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    const text = `Hi ${name}, your KongossaPay agent application has been approved. You can now log in to the KongossaPay Agent app.`;
+
+    return this.sendMail(to, subject, html, text);
+  }
+
   async sendMail(to: string, subject: string, html: string, text?: string) {
     console.log('🔵🔵🔵 MAIL SERVICE sendMail CALLED 🔵🔵🔵');
     console.log('=== MAIL SERVICE DEBUG ===');
