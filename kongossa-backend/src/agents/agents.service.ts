@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
+import { MailService } from '../mail/mail.service';
 import {
   RegisterAgentDto,
   ApproveAgentDto,
@@ -29,6 +30,7 @@ export class AgentsService {
     private prisma: PrismaService,
     private otpService: OtpService,
     private configService: ConfigService,
+    private mailService: MailService,
   ) {
     this.cashOutOtpThreshold = Number(
       this.configService.get<string>('AGENT_CASHOUT_OTP_THRESHOLD'),
@@ -61,7 +63,7 @@ export class AgentsService {
     const passwordHash = await bcrypt.hash(dto.password, saltRounds);
 
     // Create user and agent profile in transaction
-    return this.prisma.$transaction(async (tx) => {
+    const agentProfile = await this.prisma.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
@@ -117,6 +119,16 @@ export class AgentsService {
 
       return agentProfile;
     });
+
+    await this.sendAgentEmailSafely(() =>
+      this.mailService.sendAgentApplicationReceivedEmail(
+        dto.email,
+        dto.fullName,
+        agentCode,
+      ),
+    );
+
+    return agentProfile;
   }
 
   /**
@@ -433,7 +445,7 @@ export class AgentsService {
       throw new BadRequestException(`Agent is already ${agent.status}`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedAgent = await this.prisma.$transaction(async (tx) => {
       const isApproved = dto.status === 'approved';
 
       const updatedAgent = await tx.agentProfile.update({
@@ -502,6 +514,17 @@ export class AgentsService {
 
       return updatedAgent;
     });
+
+    if (dto.status === 'approved') {
+      await this.sendAgentEmailSafely(() =>
+        this.mailService.sendAgentApprovedEmail(
+          updatedAgent.user.email,
+          updatedAgent.user.fullName,
+        ),
+      );
+    }
+
+    return updatedAgent;
   }
 
   /**
@@ -744,6 +767,17 @@ export class AgentsService {
 
   private generateReference(prefix: string): string {
     return `${prefix}-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`;
+  }
+
+  // A flaky SMTP relay should never fail a registration or approval that
+  // otherwise succeeded -- log and move on rather than let the caller see
+  // an error for a side effect they didn't ask about.
+  private async sendAgentEmailSafely(send: () => Promise<unknown>) {
+    try {
+      await send();
+    } catch (error) {
+      console.error('Failed to send agent notification email:', error.message);
+    }
   }
 
   async processCashIn(agentProfile: any, dto: CashTransactionDto) {
