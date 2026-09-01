@@ -64,7 +64,7 @@ export default function OtpVerificationPage() {
     <div className="min-h-screen bg-[#F4F6F8] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <img src="/favicon.svg" alt="" className="w-14 h-14 mb-4" />
+          <img src="/logo.png" alt="" className="h-14 w-auto mb-4" />
           <h1 className="text-xl font-bold text-[#0B1226]">Verify your identity</h1>
           <p className="text-sm text-gray-500 mt-1 text-center">
             Enter the 6-digit code sent to <span className="font-medium">{email}</span>

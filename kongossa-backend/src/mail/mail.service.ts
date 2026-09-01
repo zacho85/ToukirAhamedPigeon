@@ -27,7 +27,12 @@ export class MailService {
   }
 
   async sendOtpEmail(to: string, otpCode: string, purpose: string = 'login') {
-    const subject = purpose === 'login' ? '🔐 Login Verification Code' : '📧 Welcome to Kongossa Pay';
+    const subject =
+      purpose === 'login'
+        ? '🔐 Login Verification Code'
+        : purpose === 'agent_cashout'
+          ? '💵 Confirm Your Cash-Out Code'
+          : '📧 Welcome to Kongossa Pay';
     
     // Gmail-friendly HTML (no complex CSS, inline styles only)
     const html = `
@@ -56,7 +61,13 @@ export class MailService {
                   <td style="padding: 30px 20px;">
                     <h2 style="color: #2d3748; margin: 0 0 16px 0; font-size: 22px; text-align: center;">Your Verification Code</h2>
                     <p style="color: #4a5568; line-height: 1.6; margin: 0 0 24px 0; text-align: center;">
-                      Use the code below to complete your ${purpose === 'login' ? 'login' : 'registration'}.
+                      Use the code below to complete your ${
+                        purpose === 'login'
+                          ? 'login'
+                          : purpose === 'agent_cashout'
+                            ? 'cash-out confirmation with your agent'
+                            : 'registration'
+                      }.
                     </p>
                     
                     <!-- OTP Code Box -->

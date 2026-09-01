@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsNumber, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, Max } from 'class-validator';
+
+export class UpdateCommissionDto {
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  commissionRate: number;
+}
 
 export class UpdateAgentDto {
   @IsOptional()

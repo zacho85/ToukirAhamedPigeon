@@ -273,10 +273,13 @@ custom shared widgets in `src/components/custom/`; admin chrome in `src/componen
   dashboard, that lives only in `kongossa-agent-app`.
   Note the DB carries two naming conventions for agent permissions — kebab (`agent-crm`, `agent-dashboard`,
   what the frontend uses) and snake (`agent_profile`, `agent_transactions`); prefer kebab.
-  **`update:agent-crm` must be added to production's `Permission`/`RolePermission` tables manually**
-  (via the admin UI, or a direct insert) before any admin agent-management action will work there —
-  `prisma/seed.sandbox.ts` now creates it, but that script refuses to run outside the sandbox database,
-  so it never reaches production on its own.
+  **`update:agent-crm` is present in production's `Permission`/`RolePermission` tables** — confirmed
+  2026-09-01 via a direct query, linked to all four roles (`admin`, `personal`, `merchant`,
+  `superadmin`), alongside `create`/`read`/`delete:agent-crm` too. (`prisma/seed.sandbox.ts` only ever
+  creates `read`/`update:agent-crm` and only grants full access to its own `admin` role, and refuses to
+  run outside the sandbox database — so this full CRUD matrix across all four production roles came
+  from a separate, production-specific seeding/admin-UI path, not from that script.) No manual fix is
+  needed before admin agent-management actions will work.
 - **Payment link** — merchant-shareable Stripe-backed checkout URL. Public, unauthenticated routes:
   `/pay/:linkId`, `/payment-link/success`, `/payment-link/cancel`.
 - **KYC / approval** — `User.kycStatus`, `User.approvalStatus`, `User.agentStatus` are free-form strings

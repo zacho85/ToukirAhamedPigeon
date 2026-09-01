@@ -441,7 +441,12 @@ export class AgentsService {
       throw new NotFoundException('Agent not found');
     }
 
-    if (agent.status !== 'pending' && agent.status !== 'active') {
+    // Only a pending application can be approved/rejected -- 'active' is
+    // deliberately excluded even though the UI never re-shows this action
+    // for an active agent, because re-running it crashed on a duplicate
+    // UserRole unique-constraint violation (already-active agents already
+    // hold the 'agent' role from their first approval).
+    if (agent.status !== 'pending') {
       throw new BadRequestException(`Agent is already ${agent.status}`);
     }
 
@@ -620,7 +625,15 @@ export class AgentsService {
   }
 
   /**
-   * Update agent profile
+   * Update agent profile (self-service, via PATCH /agents/profile -- AgentGuard
+   * only, identity not privilege). Deliberately does NOT honour
+   * commissionRate/maxCashOnHand/dailyTransactionLimit/monthlyTransactionLimit
+   * from the dto even though UpdateAgentDto still declares them: those are
+   * admin-controlled business parameters (commission has its own admin-only
+   * updateCommissionRate above), and this route has no permission check --
+   * only AgentGuard's active+verified identity check -- so honouring them
+   * here would let any agent silently raise their own commission rate or
+   * transaction limits by calling this endpoint directly.
    */
   async updateAgentProfile(userId: number, dto: UpdateAgentDto) {
     const agent = await this.prisma.agentProfile.findUnique({
@@ -637,11 +650,36 @@ export class AgentsService {
         businessName: dto.businessName,
         registrationNumber: dto.registrationNumber,
         taxId: dto.taxId,
-        commissionRate: dto.commissionRate,
-        maxCashOnHand: dto.maxCashOnHand ? dto.maxCashOnHand : undefined,
-        dailyTransactionLimit: dto.dailyTransactionLimit ? dto.dailyTransactionLimit : undefined,
-        monthlyTransactionLimit: dto.monthlyTransactionLimit ? dto.monthlyTransactionLimit : undefined,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phoneNumber: true,
+            walletBalance: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Update an agent's commission rate (admin action, keyed by AgentProfile.id
+   * like approve/suspend/activate/getAgentById -- unlike updateAgentProfile
+   * above, which is keyed by userId for the agent's own self-service route).
+   */
+  async updateCommissionRate(agentId: number, commissionRate: number) {
+    const agent = await this.prisma.agentProfile.findUnique({ where: { id: agentId } });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    return this.prisma.agentProfile.update({
+      where: { id: agentId },
+      data: { commissionRate },
       include: {
         user: {
           select: {
