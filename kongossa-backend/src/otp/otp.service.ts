@@ -1,5 +1,5 @@
 // kongossa-backend/src/auth/otp.service.ts
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
@@ -42,12 +42,12 @@ export class OtpService {
     });
 
     if (!otp) {
-      throw new Error('OTP not found or expired');
+      throw new BadRequestException('OTP not found or expired');
     }
 
     const isValid = await bcrypt.compare(code, otp.codeHash);
     if (!isValid) {
-      throw new Error('Invalid OTP');
+      throw new BadRequestException('Invalid OTP');
     }
 
     // Mark as used

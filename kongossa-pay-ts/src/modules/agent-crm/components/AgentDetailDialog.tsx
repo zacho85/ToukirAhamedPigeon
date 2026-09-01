@@ -231,32 +231,34 @@ export default function AgentDetailDialog({
                 </div>
               </div>
 
-              <div className="border rounded-lg p-3 space-y-2">
-                <p className="text-sm font-medium">Status</p>
-                {agent.status === "active" ? (
-                  <>
-                    <Input
-                      placeholder="Suspension reason"
-                      value={suspendReason}
-                      onChange={(e) => setSuspendReason(e.target.value)}
-                    />
+              {(agent.status === "active" || agent.status === "suspended") && (
+                <div className="border rounded-lg p-3 space-y-2">
+                  <p className="text-sm font-medium">Status</p>
+                  {agent.status === "active" ? (
+                    <>
+                      <Input
+                        placeholder="Suspension reason"
+                        value={suspendReason}
+                        onChange={(e) => setSuspendReason(e.target.value)}
+                      />
+                      <Button
+                        variant="destructive"
+                        className="w-full"
+                        onClick={() => act(() => suspendAgent(agent.id, suspendReason), "Agent suspended")}
+                      >
+                        Suspend agent
+                      </Button>
+                    </>
+                  ) : (
                     <Button
-                      variant="destructive"
                       className="w-full"
-                      onClick={() => act(() => suspendAgent(agent.id, suspendReason), "Agent suspended")}
+                      onClick={() => act(() => activateAgent(agent.id), "Agent activated")}
                     >
-                      Suspend agent
+                      Reactivate agent
                     </Button>
-                  </>
-                ) : agent.status === "suspended" ? (
-                  <Button
-                    className="w-full"
-                    onClick={() => act(() => activateAgent(agent.id), "Agent activated")}
-                  >
-                    Reactivate agent
-                  </Button>
-                ) : null}
-              </div>
+                  )}
+                </div>
+              )}
             </Can>
 
             {(agent.cashTransactions?.length ?? 0) > 0 && (

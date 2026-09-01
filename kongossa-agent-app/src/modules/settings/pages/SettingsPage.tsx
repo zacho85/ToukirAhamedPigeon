@@ -46,9 +46,11 @@ export default function SettingsPage() {
 
 function Row({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="flex justify-between text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium text-[#0B1226]">{value ?? "--"}</span>
+    <div className="flex justify-between items-start gap-3 text-sm">
+      <span className="text-gray-500 shrink-0">{label}</span>
+      <span className="font-medium text-[#0B1226] text-right break-words min-w-0">
+        {value ?? "--"}
+      </span>
     </div>
   );
 }

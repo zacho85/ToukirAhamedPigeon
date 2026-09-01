@@ -25,6 +25,7 @@ import {
   RegisterAgentDto,
   ApproveAgentDto,
   UpdateAgentDto,
+  UpdateCommissionDto,
   CashTransactionDto,
   ConfirmCashOutDto,
   StartDayDto,
@@ -273,9 +274,9 @@ export class AgentsController {
   @RequirePermissions('update:agent-crm')
   async updateCommission(
     @Param('id', ParseIntPipe) agentId: number,
-    @Body('commissionRate') commissionRate: number,
+    @Body() dto: UpdateCommissionDto,
   ) {
-    const agent = await this.agentsService.updateAgentProfile(agentId, { commissionRate });
+    const agent = await this.agentsService.updateCommissionRate(agentId, dto.commissionRate);
     return {
       success: true,
       message: 'Commission rate updated successfully',
