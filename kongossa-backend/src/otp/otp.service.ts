@@ -39,6 +39,10 @@ export class OtpService {
         used: false,
         expiresAt: { gt: new Date() },
       },
+      // The code the user just received is the newest one; without this an
+      // older unused code for the same email and purpose could be checked
+      // instead, and the correct code would be rejected.
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!otp) {

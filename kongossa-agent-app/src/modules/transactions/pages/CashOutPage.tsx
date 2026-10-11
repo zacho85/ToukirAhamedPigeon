@@ -15,6 +15,17 @@ export default function CashOutPage() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Set when the pending cash-out was cancelled or expired, so the OTP form
+  // can no longer succeed and the agent has to start again.
+  const [otpClosed, setOtpClosed] = useState(false);
+
+  const startOver = () => {
+    setStep("form");
+    setPendingId(null);
+    setCode("");
+    setError("");
+    setOtpClosed(false);
+  };
 
   const onSubmitForm = async (e: FormEvent) => {
     e.preventDefault();
@@ -47,10 +58,12 @@ export default function CashOutPage() {
       await confirmCashOut(pendingId, code);
       setStep("success");
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Invalid or expired code.";
-      setError(message);
+      const data = (err as { response?: { data?: { message?: string; code?: string } } })?.response
+        ?.data;
+      setError(data?.message || "Invalid or expired code.");
+      if (data?.code === "CASHOUT_CANCELLED" || data?.code === "CASHOUT_EXPIRED") {
+        setOtpClosed(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,13 +109,23 @@ export default function CashOutPage() {
             placeholder="------"
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl disabled:opacity-60"
-          >
-            {loading ? "Confirming..." : "Confirm"}
-          </button>
+          {otpClosed ? (
+            <button
+              type="button"
+              onClick={startOver}
+              className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl"
+            >
+              Start a new cash-out
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl disabled:opacity-60"
+            >
+              {loading ? "Confirming..." : "Confirm"}
+            </button>
+          )}
         </form>
       </div>
     );

@@ -16,6 +16,8 @@ const STATUS_STYLE: Record<string, string> = {
   completed: "bg-emerald-100 text-emerald-700",
   pending_otp: "bg-amber-100 text-amber-700",
   pending: "bg-gray-100 text-gray-600",
+  expired: "bg-gray-100 text-gray-500",
+  failed: "bg-red-100 text-red-700",
 };
 
 export default function TransactionsPage() {

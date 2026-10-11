@@ -780,6 +780,7 @@ model AgentCashTransaction {
   feeAmount       Decimal  @default(0) @db.Decimal(10, 2)
   commission      Decimal  @default(0) @db.Decimal(10, 2)
   status          String   @default("pending")
+  otpAttempts     Int      @default(0) // wrong OTP codes entered while pending_otp
   paymentMethod   String?
   reference       String   @unique
   transactionId   Int?     // Reference ID only - no Prisma relation

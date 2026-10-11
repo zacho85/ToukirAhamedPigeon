@@ -169,6 +169,11 @@ export default function History() {
     };
 
     const getTransactionTitle = (transaction: TransactionType) => {
+        // Agent cash in/out and commission rows have only one party, so the
+        // "Sent to / Received from" titles below would read "User undefined".
+        if (transaction.type.startsWith('agent_') && transaction.description) {
+            return transaction.description;
+        }
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {
             return 'Wallet Top Up';
         }

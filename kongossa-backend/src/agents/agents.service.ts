@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
@@ -759,7 +760,24 @@ export class AgentsService {
   // the user's digital wallet -- agent's cashOnHand goes UP.
   // "Cash out" = the reverse: the agent hands over physical cash, debiting
   // the user's digital wallet -- agent's cashOnHand goes DOWN.
+  //
+  // Every balance change happens inside one prisma.$transaction together with
+  // a matching Transaction (ledger) row, so a wallet balance can always be
+  // explained from its history. Balances move through conditional updates
+  // (updateMany + a guard in `where` + a count check) instead of
+  // read-compute-write, so two racing requests can never take cash on hand or
+  // a wallet below zero, or cash on hand above its maximum.
   // -----------------------------------------------------------------------
+
+  /** Same lifetime as the OTP itself (otp.service.ts); a pending cash-out expires with it. */
+  private static readonly PENDING_OTP_TTL_MS = 10 * 60 * 1000;
+
+  /** Wrong codes allowed on one pending cash-out before it is cancelled. */
+  private static readonly MAX_OTP_ATTEMPTS = 5;
+
+  private toMoney(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
 
   private async getOpenDaySettlement(agentId: number) {
     const open = await this.prisma.agentDaySettlement.findFirst({
@@ -771,9 +789,10 @@ export class AgentsService {
     return open;
   }
 
-  private async findUserByEmail(email: string) {
+  private async findActiveUserByEmail(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new NotFoundException('No user found with that email');
+    if (user.status !== 'active') throw new BadRequestException('This user account is not active');
     return user;
   }
 
@@ -782,15 +801,25 @@ export class AgentsService {
     todayStart.setHours(0, 0, 0, 0);
     const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
 
-    const activeStatuses = ['completed', 'pending_otp'];
+    // A pending cash-out holds its amount against the limits only while its
+    // OTP can still be confirmed.
+    const counted = {
+      OR: [
+        { status: 'completed' },
+        {
+          status: 'pending_otp',
+          createdAt: { gte: new Date(Date.now() - AgentsService.PENDING_OTP_TTL_MS) },
+        },
+      ],
+    };
 
     const [dailySum, monthlySum] = await Promise.all([
       this.prisma.agentCashTransaction.aggregate({
-        where: { agentId: agentProfile.id, status: { in: activeStatuses }, createdAt: { gte: todayStart } },
+        where: { agentId: agentProfile.id, createdAt: { gte: todayStart }, ...counted },
         _sum: { amount: true },
       }),
       this.prisma.agentCashTransaction.aggregate({
-        where: { agentId: agentProfile.id, status: { in: activeStatuses }, createdAt: { gte: monthStart } },
+        where: { agentId: agentProfile.id, createdAt: { gte: monthStart }, ...counted },
         _sum: { amount: true },
       }),
     ]);
@@ -818,71 +847,149 @@ export class AgentsService {
     }
   }
 
-  async processCashIn(agentProfile: any, dto: CashTransactionDto) {
-    await this.getOpenDaySettlement(agentProfile.id);
-    const user = await this.findUserByEmail(dto.userEmail);
-    await this.assertWithinTransactionLimits(agentProfile, dto.amount);
+  /**
+   * Writes the user's ledger row for a completed cash-in/out, links it to the
+   * AgentCashTransaction, and credits the agent's commission with its own
+   * ledger row. Must run inside the same $transaction as the balance changes.
+   */
+  private async recordLedgerAndCommission(
+    tx: Prisma.TransactionClient,
+    p: {
+      agentProfile: any;
+      userId: number;
+      type: 'cash_in' | 'cash_out';
+      amount: number;
+      commission: number;
+      reference: string;
+      cashTransactionId: number;
+    },
+  ) {
+    const isCashIn = p.type === 'cash_in';
+    const ledger = await tx.transaction.create({
+      data: {
+        transactionId: p.reference,
+        senderId: isCashIn ? null : p.userId,
+        recipientId: isCashIn ? p.userId : null,
+        amount: p.amount,
+        currency: 'USD',
+        type: isCashIn ? 'agent_cash_in' : 'agent_cash_out',
+        status: 'completed',
+        paymentMethod: 'agent_cash',
+        referenceNumber: p.reference,
+        description: `${isCashIn ? 'Cash in' : 'Cash out'} at agent ${p.agentProfile.agentCode}`,
+      },
+    });
 
-    const newCashOnHand = Number(agentProfile.cashOnHand) + dto.amount;
-    if (newCashOnHand > Number(agentProfile.maxCashOnHand)) {
-      throw new BadRequestException('This would exceed your maximum cash on hand');
+    if (p.commission > 0) {
+      await tx.user.update({
+        where: { id: p.agentProfile.userId },
+        data: { walletBalance: { increment: p.commission } },
+      });
+      await tx.transaction.create({
+        data: {
+          transactionId: `${p.reference}-COM`,
+          recipientId: p.agentProfile.userId,
+          amount: p.commission,
+          currency: 'USD',
+          type: 'agent_commission',
+          status: 'completed',
+          paymentMethod: 'agent_commission',
+          referenceNumber: p.reference,
+          description: `Commission on ${isCashIn ? 'cash in' : 'cash out'} ${p.reference}`,
+        },
+      });
     }
 
-    const commission = (dto.amount * Number(agentProfile.commissionRate)) / 100;
+    return tx.agentCashTransaction.update({
+      where: { id: p.cashTransactionId },
+      data: { transactionId: ledger.id },
+    });
+  }
+
+  async processCashIn(agentProfile: any, dto: CashTransactionDto) {
+    await this.getOpenDaySettlement(agentProfile.id);
+    const user = await this.findActiveUserByEmail(dto.userEmail);
+    const amount = this.toMoney(dto.amount);
+    await this.assertWithinTransactionLimits(agentProfile, amount);
+
+    const commission = this.toMoney((amount * Number(agentProfile.commissionRate)) / 100);
+    const reference = this.generateReference('CI');
 
     return this.prisma.$transaction(async (tx) => {
+      // The profile AgentGuard attached may be stale; read the limit fresh.
+      const { maxCashOnHand } = await tx.agentProfile.findUniqueOrThrow({
+        where: { id: agentProfile.id },
+        select: { maxCashOnHand: true },
+      });
+      const received = await tx.agentProfile.updateMany({
+        where: {
+          id: agentProfile.id,
+          cashOnHand: { lte: this.toMoney(Number(maxCashOnHand) - amount) },
+        },
+        data: { cashOnHand: { increment: amount } },
+      });
+      if (received.count === 0) {
+        throw new BadRequestException('This would exceed your maximum cash on hand');
+      }
+
+      const credited = await tx.user.updateMany({
+        where: { id: user.id, status: 'active' },
+        data: { walletBalance: { increment: amount } },
+      });
+      if (credited.count === 0) {
+        throw new BadRequestException('This user account is not active');
+      }
+
       const transaction = await tx.agentCashTransaction.create({
         data: {
           agentId: agentProfile.id,
           userId: user.id,
           type: 'cash_in',
-          amount: dto.amount,
+          amount,
           commission,
           status: 'completed',
-          reference: this.generateReference('CI'),
+          reference,
           description: dto.notes,
           completedAt: new Date(),
         },
       });
 
-      await tx.agentProfile.update({
-        where: { id: agentProfile.id },
-        data: { cashOnHand: newCashOnHand },
+      return this.recordLedgerAndCommission(tx, {
+        agentProfile,
+        userId: user.id,
+        type: 'cash_in',
+        amount,
+        commission,
+        reference,
+        cashTransactionId: transaction.id,
       });
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { walletBalance: { increment: dto.amount } },
-      });
-
-      if (commission > 0) {
-        await tx.user.update({
-          where: { id: agentProfile.userId },
-          data: { walletBalance: { increment: commission } },
-        });
-      }
-
-      return transaction;
     });
   }
 
   async processCashOut(agentProfile: any, dto: CashTransactionDto) {
     await this.getOpenDaySettlement(agentProfile.id);
-    const user = await this.findUserByEmail(dto.userEmail);
-    await this.assertWithinTransactionLimits(agentProfile, dto.amount);
+    const user = await this.findActiveUserByEmail(dto.userEmail);
+    const amount = this.toMoney(dto.amount);
+    await this.assertWithinTransactionLimits(agentProfile, amount);
 
-    if (dto.amount > Number(agentProfile.cashOnHand)) {
+    // Early checks so the agent gets a clear message before any OTP is sent.
+    // finalizeCashOut enforces both again atomically.
+    const { cashOnHand } = await this.prisma.agentProfile.findUniqueOrThrow({
+      where: { id: agentProfile.id },
+      select: { cashOnHand: true },
+    });
+    if (amount > Number(cashOnHand)) {
       throw new BadRequestException('Insufficient cash on hand to process this cash-out');
     }
-    if (Number(user.walletBalance) < dto.amount) {
+    if (Number(user.walletBalance) < amount) {
       throw new BadRequestException("The user's wallet balance is insufficient for this cash-out");
     }
 
-    const commission = (dto.amount * Number(agentProfile.commissionRate)) / 100;
+    const commission = this.toMoney((amount * Number(agentProfile.commissionRate)) / 100);
     const reference = this.generateReference('CO');
 
-    if (dto.amount <= this.cashOutOtpThreshold) {
-      return this.finalizeCashOut(agentProfile, user, dto.amount, commission, reference, dto.notes);
+    if (amount <= this.cashOutOtpThreshold) {
+      return this.finalizeCashOut(agentProfile, user, amount, commission, reference, dto.notes);
     }
 
     // Above threshold: park it as pending and require the END USER (not the
@@ -892,7 +999,7 @@ export class AgentsService {
         agentId: agentProfile.id,
         userId: user.id,
         type: 'cash_out',
-        amount: dto.amount,
+        amount,
         commission,
         status: 'pending_otp',
         reference,
@@ -914,10 +1021,44 @@ export class AgentsService {
       throw new BadRequestException('This cash-out is not awaiting OTP confirmation');
     }
 
+    if (pending.createdAt.getTime() < Date.now() - AgentsService.PENDING_OTP_TTL_MS) {
+      await this.prisma.agentCashTransaction.updateMany({
+        where: { id: pending.id, status: 'pending_otp' },
+        data: { status: 'expired' },
+      });
+      throw new BadRequestException({
+        message: 'This cash-out has expired. Start a new one.',
+        code: 'CASHOUT_EXPIRED',
+      });
+    }
+
+    await this.getOpenDaySettlement(agentProfile.id);
+
     const user = await this.prisma.user.findUnique({ where: { id: pending.userId! } });
     if (!user) throw new NotFoundException('User not found');
 
-    await this.otpService.verifyOtp(user.email, dto.code, 'agent_cashout');
+    try {
+      await this.otpService.verifyOtp(user.email, dto.code, 'agent_cashout');
+    } catch (error) {
+      if (!(error instanceof BadRequestException) || error.message !== 'Invalid OTP') throw error;
+
+      const { otpAttempts } = await this.prisma.agentCashTransaction.update({
+        where: { id: pending.id },
+        data: { otpAttempts: { increment: 1 } },
+      });
+      if (otpAttempts >= AgentsService.MAX_OTP_ATTEMPTS) {
+        await this.prisma.agentCashTransaction.updateMany({
+          where: { id: pending.id, status: 'pending_otp' },
+          data: { status: 'failed' },
+        });
+        throw new BadRequestException({
+          message: 'Too many incorrect codes. This cash-out has been cancelled.',
+          code: 'CASHOUT_CANCELLED',
+        });
+      }
+      const left = AgentsService.MAX_OTP_ATTEMPTS - otpAttempts;
+      throw new BadRequestException(`Invalid OTP. ${left} attempt${left === 1 ? '' : 's'} left.`);
+    }
 
     return this.finalizeCashOut(
       agentProfile,
@@ -939,57 +1080,74 @@ export class AgentsService {
     notes?: string,
     existingId?: number,
   ) {
-    const newCashOnHand = Number(agentProfile.cashOnHand) - amount;
-    if (newCashOnHand < 0) {
-      throw new BadRequestException('Insufficient cash on hand to process this cash-out');
-    }
-
     return this.prisma.$transaction(async (tx) => {
-      const transaction = existingId
-        ? await tx.agentCashTransaction.update({
-            where: { id: existingId },
-            data: { status: 'completed', completedAt: new Date() },
-          })
-        : await tx.agentCashTransaction.create({
-            data: {
-              agentId: agentProfile.id,
-              userId: user.id,
-              type: 'cash_out',
-              amount,
-              commission,
-              status: 'completed',
-              reference,
-              description: notes,
-              completedAt: new Date(),
-            },
-          });
-
-      await tx.agentProfile.update({
-        where: { id: agentProfile.id },
-        data: { cashOnHand: newCashOnHand },
-      });
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { walletBalance: { decrement: amount } },
-      });
-
-      if (commission > 0) {
-        await tx.user.update({
-          where: { id: agentProfile.userId },
-          data: { walletBalance: { increment: commission } },
+      let cashTransactionId: number;
+      if (existingId) {
+        // Claim the pending row: only one confirmation can ever complete it.
+        const claimed = await tx.agentCashTransaction.updateMany({
+          where: { id: existingId, status: 'pending_otp' },
+          data: { status: 'completed', completedAt: new Date() },
         });
+        if (claimed.count === 0) {
+          throw new BadRequestException('This cash-out is not awaiting OTP confirmation');
+        }
+        cashTransactionId = existingId;
+      } else {
+        const created = await tx.agentCashTransaction.create({
+          data: {
+            agentId: agentProfile.id,
+            userId: user.id,
+            type: 'cash_out',
+            amount,
+            commission,
+            status: 'completed',
+            reference,
+            description: notes,
+            completedAt: new Date(),
+          },
+        });
+        cashTransactionId = created.id;
       }
 
-      return transaction;
+      const paidOut = await tx.agentProfile.updateMany({
+        where: { id: agentProfile.id, cashOnHand: { gte: amount } },
+        data: { cashOnHand: { decrement: amount } },
+      });
+      if (paidOut.count === 0) {
+        throw new BadRequestException('Insufficient cash on hand to process this cash-out');
+      }
+
+      const debited = await tx.user.updateMany({
+        where: { id: user.id, status: 'active', walletBalance: { gte: amount } },
+        data: { walletBalance: { decrement: amount } },
+      });
+      if (debited.count === 0) {
+        throw new BadRequestException("The user's wallet balance is insufficient for this cash-out");
+      }
+
+      return this.recordLedgerAndCommission(tx, {
+        agentProfile,
+        userId: user.id,
+        type: 'cash_out',
+        amount,
+        commission,
+        reference,
+        cashTransactionId,
+      });
     });
   }
 
   // -----------------------------------------------------------------------
   // Day settlement
+  //
+  // The counted opening cash becomes the agent's cash on hand, and the
+  // counted closing cash replaces it at the end of the day, so during a day
+  // cashOnHand is always opening + cash in - cash out.
   // -----------------------------------------------------------------------
 
   async startDay(agentProfile: any, dto: StartDayDto) {
+    const startCash = this.toMoney(dto.startCash);
+
     const existing = await this.prisma.agentDaySettlement.findFirst({
       where: { agentId: agentProfile.id, status: 'open' },
     });
@@ -997,20 +1155,38 @@ export class AgentsService {
       throw new BadRequestException('A day is already open -- end it before starting a new one');
     }
 
-    return this.prisma.agentDaySettlement.create({
-      data: {
-        agentId: agentProfile.id,
-        startCash: dto.startCash,
-        endCash: 0,
-        expectedEndCash: dto.startCash,
-        variance: 0,
-        status: 'open',
-      },
+    const { maxCashOnHand } = await this.prisma.agentProfile.findUniqueOrThrow({
+      where: { id: agentProfile.id },
+      select: { maxCashOnHand: true },
+    });
+    if (startCash > Number(maxCashOnHand)) {
+      throw new BadRequestException(
+        'Opening cash exceeds your maximum cash on hand. Contact an administrator to raise the limit.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const settlement = await tx.agentDaySettlement.create({
+        data: {
+          agentId: agentProfile.id,
+          startCash,
+          endCash: 0,
+          expectedEndCash: startCash,
+          variance: 0,
+          status: 'open',
+        },
+      });
+      await tx.agentProfile.update({
+        where: { id: agentProfile.id },
+        data: { cashOnHand: startCash },
+      });
+      return settlement;
     });
   }
 
   async endDay(agentProfile: any, dto: EndDayDto) {
     const open = await this.getOpenDaySettlement(agentProfile.id);
+    const endCash = this.toMoney(dto.endCash);
 
     const [cashInSum, cashOutSum, totals] = await Promise.all([
       this.prisma.agentCashTransaction.aggregate({
@@ -1039,23 +1215,34 @@ export class AgentsService {
 
     const totalCashIn = Number(cashInSum._sum.amount || 0);
     const totalCashOut = Number(cashOutSum._sum.amount || 0);
-    const expectedEndCash = Number(open.startCash) + totalCashIn - totalCashOut;
-    const variance = dto.endCash - expectedEndCash;
+    const expectedEndCash = this.toMoney(Number(open.startCash) + totalCashIn - totalCashOut);
+    const variance = this.toMoney(endCash - expectedEndCash);
 
-    return this.prisma.agentDaySettlement.update({
-      where: { id: open.id },
-      data: {
-        endCash: dto.endCash,
-        totalCashIn,
-        totalCashOut,
-        totalCommission: Number(totals._sum.commission || 0),
-        totalFeeEarned: Number(totals._sum.feeAmount || 0),
-        expectedEndCash,
-        variance,
-        status: 'settled',
-        settledAt: new Date(),
-        notes: dto.notes,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // A cash-out still waiting for its OTP cannot be confirmed into a closed day.
+      await tx.agentCashTransaction.updateMany({
+        where: { agentId: agentProfile.id, status: 'pending_otp' },
+        data: { status: 'expired' },
+      });
+      await tx.agentProfile.update({
+        where: { id: agentProfile.id },
+        data: { cashOnHand: endCash },
+      });
+      return tx.agentDaySettlement.update({
+        where: { id: open.id },
+        data: {
+          endCash,
+          totalCashIn,
+          totalCashOut,
+          totalCommission: Number(totals._sum.commission || 0),
+          totalFeeEarned: Number(totals._sum.feeAmount || 0),
+          expectedEndCash,
+          variance,
+          status: 'settled',
+          settledAt: new Date(),
+          notes: dto.notes,
+        },
+      });
     });
   }
 
