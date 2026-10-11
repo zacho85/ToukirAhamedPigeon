@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Can } from "@/components/custom/Can";
 import { useDispatch } from "react-redux";
 import { showToast } from "@/redux/slices/toastSlice";
@@ -19,6 +20,9 @@ import {
   activateAgent,
   updateCommission,
 } from "../api";
+import AgentLimitsSection from "./AgentLimitsSection";
+import AgentWalletSection from "./AgentWalletSection";
+import AgentInventoryTab from "./AgentInventoryTab";
 
 const API_URL = import.meta.env.VITE_APP_API_URL as string;
 
@@ -31,11 +35,20 @@ interface AgentDetail {
   commissionRate: number;
   cashOnHand: number;
   maxCashOnHand: number;
+  dailyTransactionLimit: number;
+  monthlyTransactionLimit: number;
+  maxTransactionAmount: number;
   idFrontImage?: string | null;
   idBackImage?: string | null;
   selfieImage?: string | null;
   addressProofImage?: string | null;
-  user?: { fullName?: string; email?: string; phoneNumber?: string; createdAt?: string };
+  user?: {
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+    createdAt?: string;
+    walletBalance?: number;
+  };
   cashTransactions?: Array<{
     id: number;
     type: string;
@@ -66,7 +79,11 @@ function DocThumb({ label, path }: { label: string; path?: string | null }) {
       rel="noreferrer"
       className="block border rounded-lg overflow-hidden hover:opacity-80"
     >
-      <img src={`${API_URL}/${path}`} alt={label} className="w-full h-24 object-cover" />
+      <img
+        src={`${API_URL}/${path}`}
+        alt={label}
+        className="w-full h-24 object-cover"
+      />
       <p className="text-xs text-center py-1 text-muted-foreground">{label}</p>
     </a>
   );
@@ -115,8 +132,8 @@ export default function AgentDetailDialog({
       await refresh();
     } catch (err) {
       const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Action failed.";
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Action failed.";
       dispatch(showToast({ type: "danger", message }));
     }
   };
@@ -136,13 +153,23 @@ export default function AgentDetailDialog({
           <div className="space-y-5">
             <div>
               <p className="font-semibold">{agent.user?.fullName}</p>
-              <p className="text-sm text-muted-foreground">{agent.user?.email}</p>
-              <p className="text-sm text-muted-foreground">{agent.user?.phoneNumber}</p>
+              <p className="text-sm text-muted-foreground">
+                {agent.user?.email}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {agent.user?.phoneNumber}
+              </p>
               <div className="flex gap-2 mt-2">
-                <Badge variant={agent.status === "active" ? "default" : "secondary"}>
+                <Badge
+                  variant={agent.status === "active" ? "default" : "secondary"}
+                >
                   {agent.status}
                 </Badge>
-                <Badge variant={agent.kycStatus === "verified" ? "default" : "secondary"}>
+                <Badge
+                  variant={
+                    agent.kycStatus === "verified" ? "default" : "secondary"
+                  }
+                >
                   KYC: {agent.kycStatus}
                 </Badge>
               </div>
@@ -153,143 +180,225 @@ export default function AgentDetailDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Cash on hand: </span>
-                {Number(agent.cashOnHand).toFixed(2)}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Max limit: </span>
-                {Number(agent.maxCashOnHand).toFixed(2)}
-              </div>
-            </div>
+            <Tabs defaultValue="profile">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="profile">Profile</TabsTrigger>
+                <TabsTrigger value="limits">Limits</TabsTrigger>
+                <TabsTrigger value="inventory">Inventory</TabsTrigger>
+                <TabsTrigger value="wallet">Wallet</TabsTrigger>
+              </TabsList>
 
-            <div>
-              <p className="text-sm font-medium mb-2">KYC documents</p>
-              <div className="grid grid-cols-2 gap-2">
-                <DocThumb label="ID front" path={agent.idFrontImage} />
-                <DocThumb label="ID back" path={agent.idBackImage} />
-                <DocThumb label="Selfie" path={agent.selfieImage} />
-                <DocThumb label="Address proof" path={agent.addressProofImage} />
-              </div>
-            </div>
+              <TabsContent value="limits" className="pt-3">
+                <AgentLimitsSection
+                  agentId={agent.id}
+                  limits={{
+                    dailyTransactionLimit: agent.dailyTransactionLimit,
+                    monthlyTransactionLimit: agent.monthlyTransactionLimit,
+                    maxTransactionAmount: agent.maxTransactionAmount,
+                    maxCashOnHand: agent.maxCashOnHand,
+                  }}
+                  onSaved={refresh}
+                />
+              </TabsContent>
 
-            {(agent.status === "pending" || agent.kycStatus === "submitted") && (
-              <Can anyOf={["update:agent-crm"]}>
-                <div className="border rounded-lg p-3 space-y-2">
-                  <p className="text-sm font-medium">Review application</p>
-                  <Textarea
-                    placeholder="Rejection reason (required to reject)"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={() => act(() => approveAgent(agent.id, "approved"), "Agent approved")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      disabled={!rejectionReason}
-                      onClick={() =>
-                        act(
-                          () => approveAgent(agent.id, "rejected", rejectionReason),
-                          "Agent rejected",
-                        )
-                      }
-                    >
-                      Reject
-                    </Button>
+              <TabsContent value="inventory" className="pt-3">
+                <AgentInventoryTab agentId={agent.id} />
+              </TabsContent>
+
+              <TabsContent value="wallet" className="pt-3">
+                <AgentWalletSection
+                  agentId={agent.id}
+                  agentName={agent.user?.fullName ?? agent.agentCode}
+                  walletBalance={Number(agent.user?.walletBalance ?? 0)}
+                  onChanged={refresh}
+                />
+              </TabsContent>
+
+              <TabsContent value="profile" className="pt-3 space-y-5">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">
+                      Cash on hand:{" "}
+                    </span>
+                    {Number(agent.cashOnHand).toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Max limit: </span>
+                    {Number(agent.maxCashOnHand).toFixed(2)}
                   </div>
                 </div>
-              </Can>
-            )}
 
-            <Can anyOf={["update:agent-crm"]}>
-              <div className="border rounded-lg p-3 space-y-2">
-                <p className="text-sm font-medium">Commission rate (%)</p>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={commissionRate}
-                    onChange={(e) => setCommissionRate(e.target.value)}
-                  />
-                  <Button
-                    onClick={() =>
-                      act(
-                        () => updateCommission(agent.id, Number(commissionRate)),
-                        "Commission rate updated",
-                      )
-                    }
-                  >
-                    Save
-                  </Button>
+                <div>
+                  <p className="text-sm font-medium mb-2">KYC documents</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <DocThumb label="ID front" path={agent.idFrontImage} />
+                    <DocThumb label="ID back" path={agent.idBackImage} />
+                    <DocThumb label="Selfie" path={agent.selfieImage} />
+                    <DocThumb
+                      label="Address proof"
+                      path={agent.addressProofImage}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {(agent.status === "active" || agent.status === "suspended") && (
-                <div className="border rounded-lg p-3 space-y-2">
-                  <p className="text-sm font-medium">Status</p>
-                  {agent.status === "active" ? (
-                    <>
+                {(agent.status === "pending" ||
+                  agent.kycStatus === "submitted") && (
+                  <Can anyOf={["update:agent-crm"]}>
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <p className="text-sm font-medium">Review application</p>
+                      <Textarea
+                        placeholder="Rejection reason (required to reject)"
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          onClick={() =>
+                            act(
+                              () => approveAgent(agent.id, "approved"),
+                              "Agent approved",
+                            )
+                          }
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          className="flex-1"
+                          disabled={!rejectionReason}
+                          onClick={() =>
+                            act(
+                              () =>
+                                approveAgent(
+                                  agent.id,
+                                  "rejected",
+                                  rejectionReason,
+                                ),
+                              "Agent rejected",
+                            )
+                          }
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </Can>
+                )}
+
+                <Can anyOf={["update:agent-crm"]}>
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-medium">Commission rate (%)</p>
+                    <div className="flex gap-2">
                       <Input
-                        placeholder="Suspension reason"
-                        value={suspendReason}
-                        onChange={(e) => setSuspendReason(e.target.value)}
+                        type="number"
+                        step="0.1"
+                        value={commissionRate}
+                        onChange={(e) => setCommissionRate(e.target.value)}
                       />
                       <Button
-                        variant="destructive"
-                        className="w-full"
-                        onClick={() => act(() => suspendAgent(agent.id, suspendReason), "Agent suspended")}
+                        onClick={() =>
+                          act(
+                            () =>
+                              updateCommission(
+                                agent.id,
+                                Number(commissionRate),
+                              ),
+                            "Commission rate updated",
+                          )
+                        }
                       >
-                        Suspend agent
+                        Save
                       </Button>
-                    </>
-                  ) : (
-                    <Button
-                      className="w-full"
-                      onClick={() => act(() => activateAgent(agent.id), "Agent activated")}
-                    >
-                      Reactivate agent
-                    </Button>
+                    </div>
+                  </div>
+
+                  {(agent.status === "active" ||
+                    agent.status === "suspended") && (
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <p className="text-sm font-medium">Status</p>
+                      {agent.status === "active" ? (
+                        <>
+                          <Input
+                            placeholder="Suspension reason"
+                            value={suspendReason}
+                            onChange={(e) => setSuspendReason(e.target.value)}
+                          />
+                          <Button
+                            variant="destructive"
+                            className="w-full"
+                            onClick={() =>
+                              act(
+                                () => suspendAgent(agent.id, suspendReason),
+                                "Agent suspended",
+                              )
+                            }
+                          >
+                            Suspend agent
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          onClick={() =>
+                            act(
+                              () => activateAgent(agent.id),
+                              "Agent activated",
+                            )
+                          }
+                        >
+                          Reactivate agent
+                        </Button>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </Can>
+                </Can>
 
-            {(agent.cashTransactions?.length ?? 0) > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">Recent transactions</p>
-                <div className="space-y-1">
-                  {agent.cashTransactions!.map((t) => (
-                    <div key={t.id} className="flex justify-between text-xs text-muted-foreground">
-                      <span className="capitalize">{t.type.replace("_", " ")}</span>
-                      <span>${Number(t.amount).toFixed(2)}</span>
-                      <span>{t.status}</span>
+                {(agent.cashTransactions?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">
+                      Recent transactions
+                    </p>
+                    <div className="space-y-1">
+                      {agent.cashTransactions!.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex justify-between text-xs text-muted-foreground"
+                        >
+                          <span className="capitalize">
+                            {t.type.replace("_", " ")}
+                          </span>
+                          <span>${Number(t.amount).toFixed(2)}</span>
+                          <span>{t.status}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
 
-            {(agent.daySettlements?.length ?? 0) > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">Recent day settlements</p>
-                <div className="space-y-1">
-                  {agent.daySettlements!.map((s) => (
-                    <div key={s.id} className="flex justify-between text-xs text-muted-foreground">
-                      <span>{new Date(s.settlementDate).toLocaleDateString()}</span>
-                      <span>{s.status}</span>
-                      <span>Variance: {Number(s.variance).toFixed(2)}</span>
+                {(agent.daySettlements?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">
+                      Recent day settlements
+                    </p>
+                    <div className="space-y-1">
+                      {agent.daySettlements!.map((s) => (
+                        <div
+                          key={s.id}
+                          className="flex justify-between text-xs text-muted-foreground"
+                        >
+                          <span>
+                            {new Date(s.settlementDate).toLocaleDateString()}
+                          </span>
+                          <span>{s.status}</span>
+                          <span>Variance: {Number(s.variance).toFixed(2)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </DialogContent>

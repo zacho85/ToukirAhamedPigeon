@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAllAgents } from "../api";
+import OtpThresholdCard from "./OtpThresholdCard";
 
 interface Counts {
   total: number;
@@ -40,17 +41,22 @@ export default function AgentCrmDashboard() {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-      {cards.map((c) => (
-        <Card key={c.label}>
-          <CardHeader className="p-4">
-            <CardTitle className="text-sm text-muted-foreground">{c.label}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 px-4 pb-4">
-            <div className="text-2xl font-bold">{c.value ?? "--"}</div>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {cards.map((c) => (
+          <Card key={c.label}>
+            <CardHeader className="p-4">
+              <CardTitle className="text-sm text-muted-foreground">
+                {c.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 px-4 pb-4">
+              <div className="text-2xl font-bold">{c.value ?? "--"}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <OtpThresholdCard />
     </div>
   );
 }

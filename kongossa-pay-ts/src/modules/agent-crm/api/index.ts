@@ -53,3 +53,91 @@ export const reviewFloatRequest = async (
   const res = await api.patch(`/float-requests/${id}/review`, { status, notes });
   return res.data;
 };
+
+// ---- Limits, OTP threshold, wallet adjustments, inventory (Milestone 3) ----
+
+export type AgentLimits = {
+  dailyTransactionLimit: number;
+  monthlyTransactionLimit: number;
+  maxTransactionAmount: number;
+  maxCashOnHand: number;
+};
+
+export const updateLimits = async (id: number, limits: Partial<AgentLimits>) => {
+  const res = await api.patch(`/agents/${id}/limits`, limits);
+  return res.data as { message: string; warning?: string };
+};
+
+export type OtpThreshold = { value: number; source: "admin" | "env" | "default" };
+
+export const getOtpThreshold = async () => {
+  const res = await api.get("/agents/settings/otp-threshold");
+  return res.data.data as OtpThreshold;
+};
+
+export const updateOtpThreshold = async (value: number) => {
+  const res = await api.patch("/agents/settings/otp-threshold", { value });
+  return res.data.data as OtpThreshold;
+};
+
+export type WalletAdjustment = {
+  id: number;
+  direction: "credit" | "debit";
+  amount: number;
+  reason: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: string;
+  admin?: { fullName?: string; email?: string };
+};
+
+export const adjustWallet = async (
+  id: number,
+  direction: "credit" | "debit",
+  amount: number,
+  reason: string,
+) => {
+  const res = await api.post(`/agents/${id}/wallet-adjustments`, { direction, amount, reason });
+  return res.data.data as WalletAdjustment;
+};
+
+export const getWalletAdjustments = async (id: number) => {
+  const res = await api.get(`/agents/${id}/wallet-adjustments`);
+  return res.data.data as WalletAdjustment[];
+};
+
+export type AgentInventory = {
+  cashOnHand: number;
+  maxCashOnHand: number;
+  currentDay: null | {
+    startedAt: string;
+    startCash: number;
+    totalCashIn: number;
+    totalCashOut: number;
+    totalCommission: number;
+    transactions: number;
+    expectedCash: number;
+  };
+};
+
+export const getInventory = async (id: number) => {
+  const res = await api.get(`/agents/${id}/inventory`);
+  return res.data.data as AgentInventory;
+};
+
+export type DaySettlement = {
+  id: number;
+  settlementDate: string;
+  status: string;
+  startCash: number;
+  totalCashIn: number;
+  totalCashOut: number;
+  expectedEndCash: number;
+  endCash: number;
+  variance: number;
+};
+
+export const getAgentDayHistory = async (id: number) => {
+  const res = await api.get(`/agents/${id}/day/history`);
+  return res.data.data as DaySettlement[];
+};
