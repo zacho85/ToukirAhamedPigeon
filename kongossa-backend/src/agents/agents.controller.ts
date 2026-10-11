@@ -33,6 +33,7 @@ import {
   UpdateAgentLimitsDto,
   UpdateOtpThresholdDto,
   WalletAdjustmentDto,
+  AgentTransferDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -205,6 +206,13 @@ export class AgentsController {
     };
   }
 
+  // Declared before GET ':id' so "lookup-user" is never parsed as an agent id.
+  @Get('lookup-user')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async lookupUser(@Query('email') email: string) {
+    return { success: true, data: await this.agentsService.lookupUser(email) };
+  }
+
   // Declared before GET ':id' so "settings" is never parsed as an agent id.
   @Get('settings/otp-threshold')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -373,6 +381,24 @@ export class AgentsController {
     @Body() dto: ConfirmCashOutDto,
   ) {
     const transaction = await this.agentsService.confirmCashOut(req.agent, id, dto);
+    return { success: true, data: transaction };
+  }
+
+  @Post('transfer')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async transfer(@Req() req, @Body() dto: AgentTransferDto) {
+    const transaction = await this.agentsService.processTransfer(req.agent, dto);
+    return { success: true, data: transaction };
+  }
+
+  @Post('transfer/:id/confirm')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async confirmTransfer(
+    @Req() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmCashOutDto,
+  ) {
+    const transaction = await this.agentsService.confirmTransfer(req.agent, id, dto);
     return { success: true, data: transaction };
   }
 

@@ -32,7 +32,9 @@ export class MailService {
         ? '🔐 Login Verification Code'
         : purpose === 'agent_cashout'
           ? '💵 Confirm Your Cash-Out Code'
-          : '📧 Welcome to Kongossa Pay';
+          : purpose === 'agent_transfer'
+            ? '💸 Confirm Your Transfer Code'
+            : '📧 Welcome to Kongossa Pay';
     
     // Gmail-friendly HTML (no complex CSS, inline styles only)
     const html = `
@@ -66,7 +68,9 @@ export class MailService {
                           ? 'login'
                           : purpose === 'agent_cashout'
                             ? 'cash-out confirmation with your agent'
-                            : 'registration'
+                            : purpose === 'agent_transfer'
+                              ? 'transfer from your wallet with your agent'
+                              : 'registration'
                       }.
                     </p>
                     

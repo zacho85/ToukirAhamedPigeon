@@ -52,6 +52,26 @@ export const confirmCashOut = async (transactionId: number, code: string) => {
   return res.data.data;
 };
 
+export const lookupUser = async (email: string) => {
+  const res = await api.get("/agents/lookup-user", { params: { email } });
+  return res.data.data as { email: string; fullName: string; active: boolean };
+};
+
+export const transfer = async (
+  senderEmail: string,
+  recipientEmail: string,
+  amount: number,
+  notes?: string,
+) => {
+  const res = await api.post("/agents/transfer", { senderEmail, recipientEmail, amount, notes });
+  return res.data.data;
+};
+
+export const confirmTransfer = async (transactionId: number, code: string) => {
+  const res = await api.post(`/agents/transfer/${transactionId}/confirm`, { code });
+  return res.data.data;
+};
+
 export const getMyTransactions = async () => {
   const res = await api.get("/agents/transactions/mine");
   return res.data.data;

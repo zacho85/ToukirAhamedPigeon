@@ -40,3 +40,22 @@ export class EndDayDto {
   @IsString()
   notes?: string;
 }
+
+export class AgentTransferDto {
+  @IsNotEmpty()
+  @IsEmail()
+  senderEmail: string;
+
+  @IsNotEmpty()
+  @IsEmail()
+  recipientEmail: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

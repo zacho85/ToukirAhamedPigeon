@@ -52,12 +52,19 @@ export default function TransactionsPage() {
                 </p>
                 <p className="text-xs text-gray-400">{t.reference}</p>
               </div>
+              {/* Cash in adds to the agent's cash, cash out removes it; a
+                  transfer moves no cash at all, so it has no sign. */}
               <p
                 className={`font-semibold ${
-                  t.type === "cash_in" ? "text-emerald-600" : "text-red-500"
+                  t.type === "cash_in"
+                    ? "text-emerald-600"
+                    : t.type === "transfer"
+                      ? "text-indigo-600"
+                      : "text-red-500"
                 }`}
               >
-                {t.type === "cash_in" ? "+" : "-"}${Number(t.amount).toFixed(2)}
+                {t.type === "cash_in" ? "+" : t.type === "transfer" ? "" : "-"}$
+                {Number(t.amount).toFixed(2)}
               </p>
             </div>
             <div className="flex justify-between items-center mt-2">

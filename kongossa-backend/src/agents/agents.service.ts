@@ -19,6 +19,7 @@ import {
   EndDayDto,
   UpdateAgentLimitsDto,
   WalletAdjustmentDto,
+  AgentTransferDto,
 } from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -355,10 +356,12 @@ export class AgentsService {
     });
 
     // Pending transactions
+    // Cash-outs and transfers still waiting for the customer's OTP.
     const pendingCount = await this.prisma.agentCashTransaction.count({
       where: {
         agentId: agent.id,
-        status: 'pending',
+        status: 'pending_otp',
+        createdAt: { gte: new Date(Date.now() - AgentsService.PENDING_OTP_TTL_MS) },
       },
     });
 
@@ -1152,13 +1155,23 @@ export class AgentsService {
     return { ...pending, requiresOtp: true };
   }
 
-  async confirmCashOut(agentProfile: any, transactionId: number, dto: ConfirmCashOutDto) {
+  /**
+   * Checks the customer's OTP for a pending cash-out or transfer. Expires the
+   * row once the OTP lifetime has passed and cancels it after too many wrong
+   * codes; either way no balance moves. Returns the customer whose OTP it was.
+   */
+  private async verifyPendingOtp(
+    agentProfile: any,
+    transactionId: number,
+    code: string,
+    kind: { type: 'cash_out' | 'transfer'; purpose: string; label: string; codePrefix: string },
+  ) {
     const pending = await this.prisma.agentCashTransaction.findUnique({ where: { id: transactionId } });
-    if (!pending || pending.agentId !== agentProfile.id) {
-      throw new NotFoundException('Pending cash-out not found');
+    if (!pending || pending.agentId !== agentProfile.id || pending.type !== kind.type) {
+      throw new NotFoundException(`Pending ${kind.label} not found`);
     }
     if (pending.status !== 'pending_otp') {
-      throw new BadRequestException('This cash-out is not awaiting OTP confirmation');
+      throw new BadRequestException(`This ${kind.label} is not awaiting OTP confirmation`);
     }
 
     if (pending.createdAt.getTime() < Date.now() - AgentsService.PENDING_OTP_TTL_MS) {
@@ -1167,8 +1180,8 @@ export class AgentsService {
         data: { status: 'expired' },
       });
       throw new BadRequestException({
-        message: 'This cash-out has expired. Start a new one.',
-        code: 'CASHOUT_EXPIRED',
+        message: `This ${kind.label} has expired. Start a new one.`,
+        code: `${kind.codePrefix}_EXPIRED`,
       });
     }
 
@@ -1178,7 +1191,7 @@ export class AgentsService {
     if (!user) throw new NotFoundException('User not found');
 
     try {
-      await this.otpService.verifyOtp(user.email, dto.code, 'agent_cashout');
+      await this.otpService.verifyOtp(user.email, code, kind.purpose);
     } catch (error) {
       if (!(error instanceof BadRequestException) || error.message !== 'Invalid OTP') throw error;
 
@@ -1192,13 +1205,24 @@ export class AgentsService {
           data: { status: 'failed' },
         });
         throw new BadRequestException({
-          message: 'Too many incorrect codes. This cash-out has been cancelled.',
-          code: 'CASHOUT_CANCELLED',
+          message: `Too many incorrect codes. This ${kind.label} has been cancelled.`,
+          code: `${kind.codePrefix}_CANCELLED`,
         });
       }
       const left = AgentsService.MAX_OTP_ATTEMPTS - otpAttempts;
       throw new BadRequestException(`Invalid OTP. ${left} attempt${left === 1 ? '' : 's'} left.`);
     }
+
+    return { pending, user };
+  }
+
+  async confirmCashOut(agentProfile: any, transactionId: number, dto: ConfirmCashOutDto) {
+    const { pending, user } = await this.verifyPendingOtp(agentProfile, transactionId, dto.code, {
+      type: 'cash_out',
+      purpose: 'agent_cashout',
+      label: 'cash-out',
+      codePrefix: 'CASHOUT',
+    });
 
     return this.finalizeCashOut(
       agentProfile,
@@ -1273,6 +1297,162 @@ export class AgentsService {
         commission,
         reference,
         cashTransactionId,
+      });
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Agent-assisted transfer
+  //
+  // The agent helps a customer send money from their wallet to another
+  // customer's wallet. No physical cash moves, so cash on hand is untouched
+  // and no commission is earned. The amount still counts toward the agent's
+  // limits, and above the OTP threshold the SENDER must confirm by OTP.
+  // AgentCashTransaction.userId is the sender, counterpartyUserId the recipient.
+  // -----------------------------------------------------------------------
+
+  /** Name lookup so the agent can confirm who they are dealing with. */
+  async lookupUser(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: (email || '').trim() },
+      select: { email: true, fullName: true, status: true },
+    });
+    if (!user) throw new NotFoundException('No user found with that email');
+    return { email: user.email, fullName: user.fullName, active: user.status === 'active' };
+  }
+
+  async processTransfer(agentProfile: any, dto: AgentTransferDto) {
+    await this.getOpenDaySettlement(agentProfile.id);
+    if (dto.senderEmail.trim().toLowerCase() === dto.recipientEmail.trim().toLowerCase()) {
+      throw new BadRequestException('Sender and recipient must be different users');
+    }
+
+    const sender = await this.findActiveUserByEmail(dto.senderEmail.trim());
+    const recipient = await this.prisma.user.findUnique({ where: { email: dto.recipientEmail.trim() } });
+    if (!recipient) throw new NotFoundException('No recipient found with that email');
+    if (recipient.status !== 'active') throw new BadRequestException('The recipient account is not active');
+
+    const amount = this.toMoney(dto.amount);
+    await this.assertWithinTransactionLimits(agentProfile, amount);
+    if (Number(sender.walletBalance) < amount) {
+      throw new BadRequestException("The sender's wallet balance is insufficient for this transfer");
+    }
+
+    const reference = this.generateReference('TR');
+    const { value: otpThreshold } = await this.getOtpThreshold();
+    if (amount <= otpThreshold) {
+      return this.finalizeTransfer(agentProfile, sender.id, recipient.id, amount, reference, dto.notes);
+    }
+
+    const pending = await this.prisma.agentCashTransaction.create({
+      data: {
+        agentId: agentProfile.id,
+        userId: sender.id,
+        counterpartyUserId: recipient.id,
+        type: 'transfer',
+        amount,
+        commission: 0,
+        status: 'pending_otp',
+        reference,
+        description: dto.notes,
+      },
+    });
+
+    await this.otpService.sendOtp(sender.email, 'agent_transfer', sender.id);
+
+    return { ...pending, requiresOtp: true };
+  }
+
+  async confirmTransfer(agentProfile: any, transactionId: number, dto: ConfirmCashOutDto) {
+    const { pending } = await this.verifyPendingOtp(agentProfile, transactionId, dto.code, {
+      type: 'transfer',
+      purpose: 'agent_transfer',
+      label: 'transfer',
+      codePrefix: 'TRANSFER',
+    });
+
+    return this.finalizeTransfer(
+      agentProfile,
+      pending.userId!,
+      pending.counterpartyUserId!,
+      Number(pending.amount),
+      pending.reference,
+      pending.description ?? undefined,
+      pending.id,
+    );
+  }
+
+  private async finalizeTransfer(
+    agentProfile: any,
+    senderId: number,
+    recipientId: number,
+    amount: number,
+    reference: string,
+    notes?: string,
+    existingId?: number,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      let cashTransactionId: number;
+      if (existingId) {
+        const claimed = await tx.agentCashTransaction.updateMany({
+          where: { id: existingId, status: 'pending_otp' },
+          data: { status: 'completed', completedAt: new Date() },
+        });
+        if (claimed.count === 0) {
+          throw new BadRequestException('This transfer is not awaiting OTP confirmation');
+        }
+        cashTransactionId = existingId;
+      } else {
+        const created = await tx.agentCashTransaction.create({
+          data: {
+            agentId: agentProfile.id,
+            userId: senderId,
+            counterpartyUserId: recipientId,
+            type: 'transfer',
+            amount,
+            commission: 0,
+            status: 'completed',
+            reference,
+            description: notes,
+            completedAt: new Date(),
+          },
+        });
+        cashTransactionId = created.id;
+      }
+
+      const debited = await tx.user.updateMany({
+        where: { id: senderId, status: 'active', walletBalance: { gte: amount } },
+        data: { walletBalance: { decrement: amount } },
+      });
+      if (debited.count === 0) {
+        throw new BadRequestException("The sender's wallet balance is insufficient for this transfer");
+      }
+      const credited = await tx.user.updateMany({
+        where: { id: recipientId, status: 'active' },
+        data: { walletBalance: { increment: amount } },
+      });
+      if (credited.count === 0) {
+        throw new BadRequestException('The recipient account is not active');
+      }
+
+      const ledger = await tx.transaction.create({
+        data: {
+          transactionId: reference,
+          senderId,
+          recipientId,
+          amount,
+          currency: 'USD',
+          type: 'agent_transfer',
+          status: 'completed',
+          paymentMethod: 'agent_transfer',
+          referenceNumber: reference,
+          description: `Transfer via agent ${agentProfile.agentCode}`,
+        },
+      });
+
+      return tx.agentCashTransaction.update({
+        where: { id: cashTransactionId },
+        data: { transactionId: ledger.id },
       });
     });
   }

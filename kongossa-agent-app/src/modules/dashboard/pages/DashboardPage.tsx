@@ -98,6 +98,15 @@ export default function DashboardPage() {
         >
           Cash Out
         </Link>
+        <Link
+          to="/transactions/transfer"
+          aria-disabled={!dayOpen}
+          className={`col-span-2 rounded-2xl p-4 bg-white shadow-sm text-center font-medium ${
+            dayOpen ? "text-[#0B1226]" : "pointer-events-none text-gray-300"
+          }`}
+        >
+          Transfer between customers
+        </Link>
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm">
@@ -122,7 +131,7 @@ export default function DashboardPage() {
 
       {(stats?.pendingTransactions ?? 0) > 0 && (
         <div className="bg-amber-50 rounded-2xl p-4 text-sm text-amber-700">
-          {stats?.pendingTransactions} cash-out(s) awaiting customer OTP confirmation.
+          {stats?.pendingTransactions} transaction(s) awaiting customer OTP confirmation.
         </div>
       )}
 
