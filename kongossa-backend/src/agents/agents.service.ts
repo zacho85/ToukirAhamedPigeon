@@ -1250,38 +1250,41 @@ export class AgentsService {
     });
   }
 
-  async endDay(agentProfile: any, dto: EndDayDto) {
-    const open = await this.getOpenDaySettlement(agentProfile.id);
-    const endCash = this.toMoney(dto.endCash);
-
+  /**
+   * Running totals of an open day: what End Day would record if the agent
+   * closed it right now. Shared by End Day and the admin inventory view so
+   * both always show the same numbers.
+   */
+  private async getDayTotals(open: { agentId: number; settlementDate: Date; startCash: unknown }) {
+    const since = { agentId: open.agentId, status: 'completed', createdAt: { gte: open.settlementDate } };
     const [cashInSum, cashOutSum, totals] = await Promise.all([
+      this.prisma.agentCashTransaction.aggregate({ where: { ...since, type: 'cash_in' }, _sum: { amount: true } }),
+      this.prisma.agentCashTransaction.aggregate({ where: { ...since, type: 'cash_out' }, _sum: { amount: true } }),
       this.prisma.agentCashTransaction.aggregate({
-        where: {
-          agentId: agentProfile.id,
-          type: 'cash_in',
-          status: 'completed',
-          createdAt: { gte: open.settlementDate },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.agentCashTransaction.aggregate({
-        where: {
-          agentId: agentProfile.id,
-          type: 'cash_out',
-          status: 'completed',
-          createdAt: { gte: open.settlementDate },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.agentCashTransaction.aggregate({
-        where: { agentId: agentProfile.id, status: 'completed', createdAt: { gte: open.settlementDate } },
+        where: since,
+        _count: true,
         _sum: { commission: true, feeAmount: true },
       }),
     ]);
 
     const totalCashIn = Number(cashInSum._sum.amount || 0);
     const totalCashOut = Number(cashOutSum._sum.amount || 0);
-    const expectedEndCash = this.toMoney(Number(open.startCash) + totalCashIn - totalCashOut);
+    return {
+      totalCashIn,
+      totalCashOut,
+      totalCommission: Number(totals._sum.commission || 0),
+      totalFeeEarned: Number(totals._sum.feeAmount || 0),
+      transactions: totals._count,
+      expectedCash: this.toMoney(Number(open.startCash) + totalCashIn - totalCashOut),
+    };
+  }
+
+  async endDay(agentProfile: any, dto: EndDayDto) {
+    const open = await this.getOpenDaySettlement(agentProfile.id);
+    const endCash = this.toMoney(dto.endCash);
+
+    const { totalCashIn, totalCashOut, totalCommission, totalFeeEarned, expectedCash: expectedEndCash } =
+      await this.getDayTotals(open);
     const variance = this.toMoney(endCash - expectedEndCash);
 
     return this.prisma.$transaction(async (tx) => {
@@ -1300,8 +1303,8 @@ export class AgentsService {
           endCash,
           totalCashIn,
           totalCashOut,
-          totalCommission: Number(totals._sum.commission || 0),
-          totalFeeEarned: Number(totals._sum.feeAmount || 0),
+          totalCommission,
+          totalFeeEarned,
           expectedEndCash,
           variance,
           status: 'settled',
@@ -1322,6 +1325,40 @@ export class AgentsService {
       orderBy: { settlementDate: 'desc' },
       take: limit,
     });
+  }
+
+  /**
+   * Admin view of an agent's cash: what they hold now and, if their day is
+   * open, the running totals of that day.
+   */
+  async getAgentInventory(agentId: number) {
+    const agent = await this.prisma.agentProfile.findUnique({
+      where: { id: agentId },
+      select: { id: true, agentCode: true, cashOnHand: true, maxCashOnHand: true },
+    });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    const open = await this.getCurrentDaySettlement(agentId);
+    return {
+      agentId: agent.id,
+      agentCode: agent.agentCode,
+      cashOnHand: Number(agent.cashOnHand),
+      maxCashOnHand: Number(agent.maxCashOnHand),
+      currentDay: open
+        ? {
+            id: open.id,
+            startedAt: open.settlementDate,
+            startCash: Number(open.startCash),
+            ...(await this.getDayTotals(open)),
+          }
+        : null,
+    };
+  }
+
+  async getAgentDayHistory(agentId: number) {
+    const exists = await this.prisma.agentProfile.findUnique({ where: { id: agentId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Agent not found');
+    return this.getDaySettlements(agentId);
   }
 
   async getOwnCashTransactions(agentId: number, limit = 50) {

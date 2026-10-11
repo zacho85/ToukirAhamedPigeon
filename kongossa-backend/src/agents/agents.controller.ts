@@ -302,6 +302,20 @@ export class AgentsController {
     };
   }
 
+  @Get(':id/inventory')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getInventory(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getAgentInventory(agentId) };
+  }
+
+  @Get(':id/day/history')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getAgentDayHistory(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getAgentDayHistory(agentId) };
+  }
+
   @Patch(':id/limits')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('update:agent-crm')
