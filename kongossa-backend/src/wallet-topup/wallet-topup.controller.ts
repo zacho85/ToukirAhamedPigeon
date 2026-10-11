@@ -167,6 +167,19 @@ export class WalletTopUpController {
     return this.service.checkMpesaTopUpStatus(Number(id));
   }
 
+  // C2B URLs registered with Safaricom (scripts/mpesa-sandbox-check.ts register-c2b).
+  @Public()
+  @Post('mpesa/c2b/validation')
+  async mpesaC2BValidation(@Body() body: any) {
+    return this.service.handleMpesaC2BValidation(body);
+  }
+
+  @Public()
+  @Post('mpesa/c2b/confirmation')
+  async mpesaC2BConfirmation(@Body() body: any) {
+    return this.service.handleMpesaC2BConfirmation(body);
+  }
+
   @Public()
   @Post('mpesa/webhook')
   async handleMpesaWebhook(@Body() body: any) {

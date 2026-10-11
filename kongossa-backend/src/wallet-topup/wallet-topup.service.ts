@@ -52,11 +52,11 @@ export class WalletTopUpService {
     if (topup.status === 'failed') return { status: 'FAILED' };
 
     if (outcome === 'FAILED') {
-      await this.prisma.walletTopUp.update({
-        where: { id: topup.id },
+      await this.prisma.walletTopUp.updateMany({
+        where: { id: topup.id, status: 'pending' },
         data: { status: 'failed' },
       });
-      return { status: 'FAILED' };
+      return this.currentTopUpOutcome(topup.id);
     }
 
     const exchangeResult = await this.exchangeRateService.convertAmount(
@@ -64,18 +64,23 @@ export class WalletTopUpService {
       topup.currency,
       'USD',
     );
-    const amountInUSD = exchangeResult.convertedAmount;
+    const amountInUSD = Math.round(exchangeResult.convertedAmount * 100) / 100;
 
-    await this.prisma.$transaction([
-      this.prisma.walletTopUp.update({
-        where: { id: topup.id },
+    // Claim the pending row inside the transaction: if two callbacks (or a
+    // callback and a status poll) arrive together, only the one that moves it
+    // from pending to succeeded credits the wallet.
+    const credited = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.walletTopUp.updateMany({
+        where: { id: topup.id, status: 'pending' },
         data: { status: 'succeeded' },
-      }),
-      this.prisma.user.update({
+      });
+      if (claimed.count === 0) return false;
+
+      await tx.user.update({
         where: { id: topup.userId },
         data: { walletBalance: { increment: amountInUSD } },
-      }),
-      this.prisma.transaction.upsert({
+      });
+      await tx.transaction.upsert({
         where: { transactionId: topup.stripeIntentId! },
         update: { status: 'completed' },
         create: {
@@ -88,10 +93,18 @@ export class WalletTopUpService {
           paymentMethod: paymentMethodLabel,
           description: `Wallet top-up via ${paymentMethodLabel} (${topup.amount} ${topup.currency} → $${amountInUSD} USD)`,
         },
-      }),
-    ]);
+      });
+      return true;
+    });
 
+    if (!credited) return this.currentTopUpOutcome(topup.id);
     return { status: 'SUCCESSFUL', amountAdded: amountInUSD };
+  }
+
+  /** The settled outcome of a top-up another request already finalized. */
+  private async currentTopUpOutcome(id: number): Promise<{ status: 'SUCCESSFUL' | 'FAILED' }> {
+    const current = await this.prisma.walletTopUp.findUnique({ where: { id }, select: { status: true } });
+    return { status: current?.status === 'succeeded' ? 'SUCCESSFUL' : 'FAILED' };
   }
 
   /**
@@ -216,7 +229,8 @@ export class WalletTopUpService {
         data: {
           userId,
           amount,
-          currency: paymentMethod.currency || 'USD',
+          // Daraja always charges in KES, whatever the payment method says.
+          currency,
           stripeIntentId: referenceId,
           paymentMethodId: String(paymentMethodId),
           status: 'pending',
@@ -1285,8 +1299,123 @@ export class WalletTopUpService {
     }
 
     const outcome: 'SUCCESSFUL' | 'FAILED' = Number(callback.ResultCode) === 0 ? 'SUCCESSFUL' : 'FAILED';
+
+    // The callback is unsigned, so a success must at least report the amount
+    // we asked Safaricom to charge before anything is credited.
+    if (outcome === 'SUCCESSFUL') {
+      const items: { Name: string; Value?: unknown }[] = callback?.CallbackMetadata?.Item ?? [];
+      const paid = Number(items.find((i) => i.Name === 'Amount')?.Value);
+      if (!(paid > 0) || Math.round(paid) !== Math.round(topup.amount)) {
+        this.logger.warn(
+          `M-Pesa callback for ${checkoutRequestId} reports amount ${paid}, expected ${topup.amount}; not credited`,
+        );
+        return { received: true };
+      }
+    }
+
     await this.finalizeTopUp(topup, outcome, 'mpesa');
     return { received: true };
+  }
+
+  // -----------------------------------
+  // M-Pesa C2B (customer pays the paybill from their phone)
+  //
+  // The customer enters their registered Kongossa phone number as the
+  // account number (BillRefNumber). Safaricom calls validation first, then
+  // confirmation once the money has moved. Each TransID is credited once.
+  // -----------------------------------
+
+  /** Users store phone numbers in several formats; match on the Kenyan MSISDN. */
+  private async findUserByKenyanPhone(raw: string) {
+    const digits = String(raw || '').replace(/[^0-9]/g, '');
+    let msisdn = '';
+    if (digits.startsWith('254') && digits.length === 12) msisdn = digits;
+    else if (digits.startsWith('0') && digits.length === 10) msisdn = `254${digits.slice(1)}`;
+    else if (digits.length === 9) msisdn = `254${digits}`;
+    if (!msisdn) return null;
+
+    return this.prisma.user.findFirst({
+      where: {
+        status: 'active',
+        phoneNumber: { in: [`+${msisdn}`, msisdn, `0${msisdn.slice(3)}`, msisdn.slice(3)] },
+      },
+    });
+  }
+
+  async handleMpesaC2BValidation(body: any) {
+    const user = await this.findUserByKenyanPhone(body?.BillRefNumber);
+    const amount = Number(body?.TransAmount);
+    if (!user || !(amount > 0)) {
+      this.logger.warn(`M-Pesa C2B validation rejected: account "${body?.BillRefNumber}", amount ${body?.TransAmount}`);
+      // C2B00012 = invalid account number (Daraja C2B validation result codes).
+      return { ResultCode: 'C2B00012', ResultDesc: 'Rejected' };
+    }
+    return { ResultCode: '0', ResultDesc: 'Accepted' };
+  }
+
+  async handleMpesaC2BConfirmation(body: any) {
+    const transId = String(body?.TransID || '').trim();
+    const amountKes = Number(body?.TransAmount);
+    const accepted = { ResultCode: '0', ResultDesc: 'Accepted' };
+
+    if (!transId || !(amountKes > 0)) {
+      this.logger.warn(`M-Pesa C2B confirmation ignored: missing TransID or amount (${JSON.stringify(body)})`);
+      return accepted;
+    }
+
+    const user = await this.findUserByKenyanPhone(body?.BillRefNumber);
+    if (!user) {
+      // Money has already moved on Safaricom's side; leave it for manual
+      // reconciliation rather than guessing whose wallet it belongs to.
+      this.logger.warn(`M-Pesa C2B ${transId}: no active user for account "${body?.BillRefNumber}", not credited`);
+      return accepted;
+    }
+
+    const reference = `C2B-${transId}`;
+    const { convertedAmount } = await this.exchangeRateService.convertAmount(amountKes, 'KES', 'USD');
+    const amountInUSD = Math.round(convertedAmount * 100) / 100;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // stripeIntentId is unique: a repeated TransID fails here and nothing is credited twice.
+        await tx.walletTopUp.create({
+          data: {
+            userId: user.id,
+            amount: amountKes,
+            currency: 'KES',
+            stripeIntentId: reference,
+            paymentMethodId: 'mpesa_c2b',
+            status: 'succeeded',
+          },
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { walletBalance: { increment: amountInUSD } },
+        });
+        await tx.transaction.create({
+          data: {
+            transactionId: reference,
+            senderId: user.id,
+            amount: amountInUSD,
+            currency: 'USD',
+            type: 'wallet_topup',
+            status: 'completed',
+            paymentMethod: 'mpesa_c2b',
+            referenceNumber: transId,
+            description: `Wallet top-up via M-Pesa paybill (${amountKes} KES → $${amountInUSD} USD)`,
+          },
+        });
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        this.logger.log(`M-Pesa C2B ${transId} already processed, ignored`);
+        return accepted;
+      }
+      throw error;
+    }
+
+    this.logger.log(`M-Pesa C2B ${transId}: credited user ${user.id} $${amountInUSD}`);
+    return accepted;
   }
 
   /**
