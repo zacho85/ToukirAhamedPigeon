@@ -181,6 +181,7 @@ async function main() {
   // ------------------------------------------------- wipe previous test state
   const agentProfiles = await prisma.agentProfile.findMany({ where: { userId: { in: ids } }, select: { id: true } });
   const agentIds = agentProfiles.map((a) => a.id);
+  await prisma.agentWalletAdjustment.deleteMany({ where: { agentId: { in: agentIds } } });
   await prisma.agentCashTransaction.deleteMany({ where: { OR: [{ agentId: { in: agentIds } }, { userId: { in: ids } }] } });
   await prisma.agentDaySettlement.deleteMany({ where: { agentId: { in: agentIds } } });
   await prisma.transaction.deleteMany({ where: { OR: [{ senderId: { in: ids } }, { recipientId: { in: ids } }] } });

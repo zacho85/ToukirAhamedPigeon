@@ -85,6 +85,7 @@ model User {
   agentProfile           AgentProfile?         // One-to-One with AgentProfile (implicit relation)
   agentApprovals         AgentProfile[]        @relation("AgentApprover") // Users who approved agents
   agentCashTransactions  AgentCashTransaction[] // Cash transactions made by this user as customer
+  agentWalletAdjustments AgentWalletAdjustment[] @relation("AgentWalletAdjustmentAdmin") // made by this admin
 
   @@map("User")
 }
@@ -765,6 +766,7 @@ model AgentProfile {
   approvedByUser    User?    @relation("AgentApprover", fields: [approvedBy], references: [id])
   cashTransactions  AgentCashTransaction[]
   daySettlements    AgentDaySettlement[]
+  walletAdjustments AgentWalletAdjustment[]
   
   @@index([userId])
   @@index([agentCode])
@@ -842,4 +844,25 @@ model AgentSettings {
   updatedAt           DateTime @updatedAt
 
   @@map("AgentSettings")
+}
+
+// Admin credit/debit of an agent's wallet balance (not cash on hand), with
+// the reason and who made it. Each one also writes a Transaction row.
+model AgentWalletAdjustment {
+  id            Int      @id @default(autoincrement())
+  agentId       Int
+  adminUserId   Int
+  direction     String   // credit, debit
+  amount        Decimal  @db.Decimal(10, 2)
+  reason        String
+  balanceBefore Float
+  balanceAfter  Float
+  transactionId Int?     // the matching Transaction row
+  createdAt     DateTime @default(now())
+
+  agent AgentProfile @relation(fields: [agentId], references: [id])
+  admin User         @relation("AgentWalletAdjustmentAdmin", fields: [adminUserId], references: [id])
+
+  @@index([agentId])
+  @@map("AgentWalletAdjustment")
 }

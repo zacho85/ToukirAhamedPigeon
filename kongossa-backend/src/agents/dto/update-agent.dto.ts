@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, Max } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, IsNumber, Min, Max, MinLength, MaxLength } from 'class-validator';
 
 export class UpdateCommissionDto {
   @IsNotEmpty()
@@ -70,4 +70,18 @@ export class UpdateOtpThresholdDto {
   @IsNumber()
   @Min(0.01)
   value: number;
+}
+
+export class WalletAdjustmentDto {
+  @IsIn(['credit', 'debit'])
+  direction: 'credit' | 'debit';
+
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
 }

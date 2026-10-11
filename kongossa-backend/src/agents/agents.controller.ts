@@ -32,6 +32,7 @@ import {
   EndDayDto,
   UpdateAgentLimitsDto,
   UpdateOtpThresholdDto,
+  WalletAdjustmentDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -314,6 +315,25 @@ export class AgentsController {
   @RequirePermissions('read:agent-crm')
   async getAgentDayHistory(@Param('id', ParseIntPipe) agentId: number) {
     return { success: true, data: await this.agentsService.getAgentDayHistory(agentId) };
+  }
+
+  @Post(':id/wallet-adjustments')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
+  async adjustWallet(
+    @Param('id', ParseIntPipe) agentId: number,
+    @Body() dto: WalletAdjustmentDto,
+    @Req() req,
+  ) {
+    const data = await this.agentsService.adjustAgentWallet(agentId, dto, req.user.userId);
+    return { success: true, message: `Agent wallet ${dto.direction === 'credit' ? 'credited' : 'debited'}`, data };
+  }
+
+  @Get(':id/wallet-adjustments')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getWalletAdjustments(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getWalletAdjustments(agentId) };
   }
 
   @Patch(':id/limits')

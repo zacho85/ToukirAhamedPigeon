@@ -18,6 +18,7 @@ import {
   StartDayDto,
   EndDayDto,
   UpdateAgentLimitsDto,
+  WalletAdjustmentDto,
 } from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -750,6 +751,79 @@ export class AgentsService {
           },
         },
       },
+    });
+  }
+
+  /**
+   * Admin action: credit or debit an agent's wallet balance (not cash on
+   * hand) with a required reason. The balance change, its ledger row and the
+   * audit record are written together; a debit can never go below zero.
+   */
+  async adjustAgentWallet(agentId: number, dto: WalletAdjustmentDto, adminUserId: number) {
+    const reason = dto.reason.trim();
+    if (reason.length < 5) throw new BadRequestException('reason must be at least 5 characters');
+    const amount = this.toMoney(dto.amount);
+    const isCredit = dto.direction === 'credit';
+
+    const agent = await this.prisma.agentProfile.findUnique({
+      where: { id: agentId },
+      select: { id: true, userId: true, agentCode: true },
+    });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      const moved = await tx.user.updateMany({
+        where: { id: agent.userId, ...(isCredit ? {} : { walletBalance: { gte: amount } }) },
+        data: { walletBalance: isCredit ? { increment: amount } : { decrement: amount } },
+      });
+      if (moved.count === 0) {
+        throw new BadRequestException("The agent's wallet balance is insufficient for this debit");
+      }
+      const { walletBalance: balanceAfter } = await tx.user.findUniqueOrThrow({
+        where: { id: agent.userId },
+        select: { walletBalance: true },
+      });
+
+      const reference = this.generateReference(isCredit ? 'ADJC' : 'ADJD');
+      const ledger = await tx.transaction.create({
+        data: {
+          transactionId: reference,
+          senderId: isCredit ? null : agent.userId,
+          recipientId: isCredit ? agent.userId : null,
+          amount,
+          currency: 'USD',
+          type: isCredit ? 'admin_credit' : 'admin_debit',
+          status: 'completed',
+          paymentMethod: 'admin_adjustment',
+          referenceNumber: reference,
+          description: `Admin ${dto.direction}: ${reason}`,
+        },
+      });
+
+      return tx.agentWalletAdjustment.create({
+        data: {
+          agentId: agent.id,
+          adminUserId,
+          direction: dto.direction,
+          amount,
+          reason,
+          balanceBefore: this.toMoney(balanceAfter + (isCredit ? -amount : amount)),
+          balanceAfter,
+          transactionId: ledger.id,
+        },
+        include: { admin: { select: { id: true, fullName: true, email: true } } },
+      });
+    });
+  }
+
+  async getWalletAdjustments(agentId: number) {
+    const exists = await this.prisma.agentProfile.findUnique({ where: { id: agentId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Agent not found');
+    return this.prisma.agentWalletAdjustment.findMany({
+      where: { agentId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { admin: { select: { id: true, fullName: true, email: true } } },
     });
   }
 
