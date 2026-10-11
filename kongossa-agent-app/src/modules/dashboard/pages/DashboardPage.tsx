@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboardStats, getCurrentDay } from "@/modules/agents/api";
+import { getDashboardStats, getCurrentDay, getDailyCommission } from "@/modules/agents/api";
+import type { DailyCommission } from "@/modules/agents/api";
 
 interface DashboardStats {
   walletBalance: number;
@@ -21,12 +22,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [currentDay, setCurrentDay] = useState<DaySettlement | null>(null);
   const [loading, setLoading] = useState(true);
+  const [daily, setDaily] = useState<DailyCommission[]>([]);
+  const [showAllDays, setShowAllDays] = useState(false);
 
   useEffect(() => {
-    Promise.all([getDashboardStats(), getCurrentDay()])
-      .then(([statsData, dayData]) => {
+    Promise.all([getDashboardStats(), getCurrentDay(), getDailyCommission(30)])
+      .then(([statsData, dayData, dailyData]) => {
         setStats(statsData);
         setCurrentDay(dayData);
+        setDaily(dailyData);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -127,6 +131,60 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <div className="flex justify-between items-baseline mb-3">
+          <p className="text-sm font-semibold text-[#0B1226]">Commission by day</p>
+          <p className="text-xs text-gray-400">
+            Last {showAllDays ? 30 : 7} days: $
+            {daily
+              .slice(0, showAllDays ? 30 : 7)
+              .reduce((sum, d) => sum + d.commission, 0)
+              .toFixed(2)}
+          </p>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-gray-400">
+              <th className="text-left font-normal pb-1">Day</th>
+              <th className="text-right font-normal pb-1">Transactions</th>
+              <th className="text-right font-normal pb-1">Commission</th>
+            </tr>
+          </thead>
+          <tbody>
+            {daily.slice(0, showAllDays ? 30 : 7).map((d, i) => (
+              <tr key={d.date} className="border-t border-gray-50">
+                <td className="py-1.5 text-gray-600">
+                  {i === 0
+                    ? "Today"
+                    : new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                </td>
+                <td className="py-1.5 text-right tabular-nums text-gray-600">{d.transactions}</td>
+                <td
+                  className={`py-1.5 text-right tabular-nums font-medium ${
+                    d.commission > 0 ? "text-emerald-600" : "text-gray-300"
+                  }`}
+                >
+                  ${d.commission.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {daily.length > 7 && (
+          <button
+            type="button"
+            onClick={() => setShowAllDays((v) => !v)}
+            className="w-full mt-2 text-xs font-medium text-[#0B1226] py-2"
+          >
+            {showAllDays ? "Show last 7 days" : "Show 30 days"}
+          </button>
+        )}
       </div>
 
       {(stats?.pendingTransactions ?? 0) > 0 && (

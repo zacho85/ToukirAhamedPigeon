@@ -418,6 +418,52 @@ export class AgentsService {
   }
 
   /**
+   * Commission per calendar day (server time) for the last `days` days,
+   * today first. Days without completed transactions are included as zero
+   * so the list always has `days` rows.
+   */
+  async getDailyCommission(userId: number, days = 30) {
+    const agent = await this.prisma.agentProfile.findUnique({ where: { userId }, select: { id: true } });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    const span = Math.min(Math.max(Math.floor(days) || 30, 1), 90);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - (span - 1));
+
+    const rows = await this.prisma.agentCashTransaction.findMany({
+      where: { agentId: agent.id, status: 'completed', completedAt: { gte: from } },
+      select: { completedAt: true, commission: true },
+    });
+
+    const dayKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const byDay = new Map<string, { transactions: number; commission: number }>();
+    for (const row of rows) {
+      const key = dayKey(row.completedAt!);
+      const day = byDay.get(key) ?? { transactions: 0, commission: 0 };
+      day.transactions += 1;
+      day.commission += Number(row.commission);
+      byDay.set(key, day);
+    }
+
+    const result: { date: string; transactions: number; commission: number }[] = [];
+    for (let i = 0; i < span; i++) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const key = dayKey(d);
+      const day = byDay.get(key);
+      result.push({
+        date: key,
+        transactions: day?.transactions ?? 0,
+        commission: this.toMoney(day?.commission ?? 0),
+      });
+    }
+    return result;
+  }
+
+  /**
    * Get all agents (admin only)
    */
   async getAllAgents(filters?: { 

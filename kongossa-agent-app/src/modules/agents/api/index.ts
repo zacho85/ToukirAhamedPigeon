@@ -17,6 +17,13 @@ export const getDashboardStats = async () => {
   return res.data.data;
 };
 
+export type DailyCommission = { date: string; transactions: number; commission: number };
+
+export const getDailyCommission = async (days = 30) => {
+  const res = await api.get("/agents/commission/daily", { params: { days } });
+  return res.data.data as DailyCommission[];
+};
+
 export const getCurrentDay = async () => {
   const res = await api.get("/agents/day/current");
   return res.data.data;

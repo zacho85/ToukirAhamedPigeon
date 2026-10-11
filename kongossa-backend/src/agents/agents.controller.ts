@@ -144,6 +144,13 @@ export class AgentsController {
     };
   }
 
+  @Get('commission/daily')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async getDailyCommission(@Req() req, @Query('days') days?: string) {
+    const data = await this.agentsService.getDailyCommission(req.user.userId, days ? parseInt(days) : 30);
+    return { success: true, data };
+  }
+
   @Get('my-code')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async getAgentCode(@Req() req) {
