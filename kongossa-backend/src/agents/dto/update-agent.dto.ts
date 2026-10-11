@@ -42,3 +42,32 @@ export class UpdateAgentDto {
   @Min(0)
   monthlyTransactionLimit?: number;
 }
+/** Admin-only: any subset of an agent's transaction limits. */
+export class UpdateAgentLimitsDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  dailyTransactionLimit?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  monthlyTransactionLimit?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  maxTransactionAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  maxCashOnHand?: number;
+}
+
+export class UpdateOtpThresholdDto {
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0.01)
+  value: number;
+}

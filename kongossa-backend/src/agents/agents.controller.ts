@@ -30,6 +30,8 @@ import {
   ConfirmCashOutDto,
   StartDayDto,
   EndDayDto,
+  UpdateAgentLimitsDto,
+  UpdateOtpThresholdDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -202,6 +204,22 @@ export class AgentsController {
     };
   }
 
+  // Declared before GET ':id' so "settings" is never parsed as an agent id.
+  @Get('settings/otp-threshold')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getOtpThreshold() {
+    return { success: true, data: await this.agentsService.getOtpThreshold() };
+  }
+
+  @Patch('settings/otp-threshold')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
+  async updateOtpThreshold(@Body() dto: UpdateOtpThresholdDto, @Req() req) {
+    const data = await this.agentsService.updateOtpThreshold(dto.value, req.user.userId);
+    return { success: true, message: 'Cash-out OTP threshold updated', data };
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('read:agent-crm')
@@ -282,6 +300,17 @@ export class AgentsController {
       message: 'Commission rate updated successfully',
       data: agent,
     };
+  }
+
+  @Patch(':id/limits')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
+  async updateLimits(
+    @Param('id', ParseIntPipe) agentId: number,
+    @Body() dto: UpdateAgentLimitsDto,
+  ) {
+    const { agent, warning } = await this.agentsService.updateAgentLimits(agentId, dto);
+    return { success: true, message: 'Agent limits updated', warning, data: agent };
   }
 
   // -------------------------------------------------------------------

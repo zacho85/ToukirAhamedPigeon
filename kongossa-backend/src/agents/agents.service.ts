@@ -17,25 +17,83 @@ import {
   ConfirmCashOutDto,
   StartDayDto,
   EndDayDto,
+  UpdateAgentLimitsDto,
 } from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AgentsService {
-  // Below this amount a cash-out completes immediately; above it, the end
-  // user must confirm via OTP before any balance moves.
-  private readonly cashOutOtpThreshold: number;
+  /** Used when neither the admin setting nor AGENT_CASHOUT_OTP_THRESHOLD is set. */
+  private static readonly DEFAULT_OTP_THRESHOLD = 500;
 
   constructor(
     private prisma: PrismaService,
     private otpService: OtpService,
     private configService: ConfigService,
     private mailService: MailService,
-  ) {
-    this.cashOutOtpThreshold = Number(
-      this.configService.get<string>('AGENT_CASHOUT_OTP_THRESHOLD'),
-    ) || 500;
+  ) {}
+
+  /**
+   * Amounts above this need the customer's OTP before any balance moves; at
+   * or below it a cash-out completes immediately. Read on every request so an
+   * admin change applies without a restart: admin setting, then the
+   * AGENT_CASHOUT_OTP_THRESHOLD env var, then the default.
+   */
+  async getOtpThreshold(): Promise<{ value: number; source: 'admin' | 'env' | 'default' }> {
+    const settings = await this.prisma.agentSettings.findUnique({ where: { id: 1 } });
+    if (settings?.cashoutOtpThreshold != null) {
+      return { value: settings.cashoutOtpThreshold, source: 'admin' };
+    }
+    const fromEnv = Number(this.configService.get<string>('AGENT_CASHOUT_OTP_THRESHOLD'));
+    if (fromEnv > 0) return { value: fromEnv, source: 'env' };
+    return { value: AgentsService.DEFAULT_OTP_THRESHOLD, source: 'default' };
+  }
+
+  async updateOtpThreshold(value: number, adminUserId: number) {
+    await this.prisma.agentSettings.upsert({
+      where: { id: 1 },
+      update: { cashoutOtpThreshold: value, updatedBy: adminUserId },
+      create: { id: 1, cashoutOtpThreshold: value, updatedBy: adminUserId },
+    });
+    return this.getOtpThreshold();
+  }
+
+  /**
+   * Admin action: change any of an agent's transaction limits. The merged
+   * result must satisfy per-transaction <= daily <= monthly.
+   */
+  async updateAgentLimits(agentId: number, dto: UpdateAgentLimitsDto) {
+    const agent = await this.prisma.agentProfile.findUnique({ where: { id: agentId } });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    const next = {
+      dailyTransactionLimit: dto.dailyTransactionLimit ?? Number(agent.dailyTransactionLimit),
+      monthlyTransactionLimit: dto.monthlyTransactionLimit ?? Number(agent.monthlyTransactionLimit),
+      maxTransactionAmount: dto.maxTransactionAmount ?? Number(agent.maxTransactionAmount),
+      maxCashOnHand: dto.maxCashOnHand ?? Number(agent.maxCashOnHand),
+    };
+    if (next.maxTransactionAmount > next.dailyTransactionLimit) {
+      throw new BadRequestException('maxTransactionAmount cannot be greater than dailyTransactionLimit');
+    }
+    if (next.dailyTransactionLimit > next.monthlyTransactionLimit) {
+      throw new BadRequestException('dailyTransactionLimit cannot be greater than monthlyTransactionLimit');
+    }
+
+    const updated = await this.prisma.agentProfile.update({
+      where: { id: agentId },
+      data: next,
+      include: {
+        user: { select: { id: true, email: true, fullName: true, phoneNumber: true, walletBalance: true } },
+      },
+    });
+
+    const warning =
+      Number(updated.cashOnHand) > next.maxCashOnHand
+        ? `This agent currently holds ${Number(updated.cashOnHand).toFixed(2)} in cash, above the new maximum. ` +
+          'New cash-ins are blocked until cash on hand drops below it.'
+        : undefined;
+    return { agent: updated, warning };
   }
 
   /**
@@ -797,6 +855,13 @@ export class AgentsService {
   }
 
   private async assertWithinTransactionLimits(agentProfile: any, amount: number) {
+    const maxPerTransaction = Number(agentProfile.maxTransactionAmount);
+    if (amount > maxPerTransaction) {
+      throw new BadRequestException(
+        `This amount exceeds the maximum amount per transaction (${maxPerTransaction.toFixed(2)})`,
+      );
+    }
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
@@ -988,7 +1053,8 @@ export class AgentsService {
     const commission = this.toMoney((amount * Number(agentProfile.commissionRate)) / 100);
     const reference = this.generateReference('CO');
 
-    if (amount <= this.cashOutOtpThreshold) {
+    const { value: otpThreshold } = await this.getOtpThreshold();
+    if (amount <= otpThreshold) {
       return this.finalizeCashOut(agentProfile, user, amount, commission, reference, dto.notes);
     }
 

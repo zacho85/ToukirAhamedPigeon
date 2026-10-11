@@ -185,6 +185,8 @@ async function main() {
   await prisma.agentDaySettlement.deleteMany({ where: { agentId: { in: agentIds } } });
   await prisma.transaction.deleteMany({ where: { OR: [{ senderId: { in: ids } }, { recipientId: { in: ids } }] } });
   await prisma.otp.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
+  // Back to the env/default OTP threshold.
+  await prisma.agentSettings.deleteMany({});
 
   // ------------------------------------------------------------------- agents
   for (const a of AGENTS) {
@@ -204,6 +206,7 @@ async function main() {
       maxCashOnHand: 5000,
       dailyTransactionLimit: 10000,
       monthlyTransactionLimit: 100000,
+      maxTransactionAmount: 5000,
     };
     await prisma.agentProfile.upsert({
       where: { userId: userIds[a.userKey] },

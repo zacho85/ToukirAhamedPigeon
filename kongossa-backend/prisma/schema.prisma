@@ -752,6 +752,7 @@ model AgentProfile {
   maxCashOnHand     Decimal  @default(5000) @db.Decimal(10, 2)
   dailyTransactionLimit Decimal @default(10000) @db.Decimal(10, 2)
   monthlyTransactionLimit Decimal @default(100000) @db.Decimal(10, 2)
+  maxTransactionAmount Decimal @default(5000) @db.Decimal(10, 2) // per single cash in/out/transfer
   approvedAt        DateTime?
   approvedBy        Int?     // Admin userId who approved
   status            String   @default("pending") // pending, active, suspended, terminated
@@ -830,4 +831,15 @@ model AgentDaySettlement {
   @@index([agentId])
   @@index([status])
   @@map("AgentDaySettlement")
+}
+
+// Global agent-network settings, edited by admins. A single row (id = 1);
+// a null value falls back to the environment default.
+model AgentSettings {
+  id                  Int      @id @default(1)
+  cashoutOtpThreshold Float?   // cash-outs and transfers above this need the customer's OTP
+  updatedBy           Int?     // admin userId
+  updatedAt           DateTime @updatedAt
+
+  @@map("AgentSettings")
 }
