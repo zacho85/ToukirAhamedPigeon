@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "@/redux/store";
 import {
   completeCashOut,
   declineCashOut,
   getCashOutRequests,
+  getMyAgentProfile,
   type CashOutRequest,
 } from "@/modules/agents/api";
 
@@ -20,7 +19,7 @@ const money = (n: number) => `$${Number(n).toFixed(2)}`;
  * the agent hands over the cash and taps "Cash given".
  */
 export default function CashOutPage() {
-  const agentCode = useSelector((state: RootState) => state.auth.user?.agent?.agentCode);
+  const [agentCode, setAgentCode] = useState("");
   const [requests, setRequests] = useState<CashOutRequest[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [confirming, setConfirming] = useState<CashOutRequest | null>(null);
@@ -36,6 +35,12 @@ export default function CashOutPage() {
         .finally(() => setLoaded(true)),
     [],
   );
+
+  useEffect(() => {
+    getMyAgentProfile()
+      .then((profile) => setAgentCode(profile?.agentCode ?? ""))
+      .catch(() => undefined);
+  }, []);
 
   // New approvals arrive from the customer's phone, so keep the list fresh.
   useEffect(() => {
