@@ -27,7 +27,6 @@ import {
   UpdateAgentDto,
   UpdateCommissionDto,
   CashTransactionDto,
-  ConfirmCashOutDto,
   StartDayDto,
   EndDayDto,
   UpdateAgentLimitsDto,
@@ -373,21 +372,27 @@ export class AgentsController {
     return { success: true, data: transaction };
   }
 
-  @Post('cash-out')
+  // An agent never debits a customer's wallet: the customer starts a
+  // cash-out in their own app (/agent-requests), and the agent only sees the
+  // approved request and confirms the cash hand-over.
+  @Get('cash-out/requests')
   @UseGuards(JwtAuthGuard, AgentGuard)
-  async cashOut(@Req() req, @Body() dto: CashTransactionDto) {
-    const transaction = await this.agentsService.processCashOut(req.agent, dto);
+  async cashOutRequests(@Req() req) {
+    const data = await this.agentsService.getCashOutRequests(req.agent);
+    return { success: true, data };
+  }
+
+  @Post('cash-out/:id/complete')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async completeCashOut(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const transaction = await this.agentsService.completeCashOut(req.agent, id);
     return { success: true, data: transaction };
   }
 
-  @Post('cash-out/:id/confirm')
+  @Post('cash-out/:id/decline')
   @UseGuards(JwtAuthGuard, AgentGuard)
-  async confirmCashOut(
-    @Req() req,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ConfirmCashOutDto,
-  ) {
-    const transaction = await this.agentsService.confirmCashOut(req.agent, id, dto);
+  async declineCashOut(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const transaction = await this.agentsService.declineCashOut(req.agent, id);
     return { success: true, data: transaction };
   }
 
@@ -398,21 +403,17 @@ export class AgentsController {
     return { success: true, data: transaction };
   }
 
-  @Post('transfer/:id/confirm')
-  @UseGuards(JwtAuthGuard, AgentGuard)
-  async confirmTransfer(
-    @Req() req,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ConfirmCashOutDto,
-  ) {
-    const transaction = await this.agentsService.confirmTransfer(req.agent, id, dto);
-    return { success: true, data: transaction };
-  }
-
   @Get('transactions/mine')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async myTransactions(@Req() req) {
     const data = await this.agentsService.getOwnCashTransactions(req.agent.id);
+    return { success: true, data };
+  }
+
+  @Get('transactions/:id')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async myTransaction(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const data = await this.agentsService.getOwnCashTransaction(req.agent.id, id);
     return { success: true, data };
   }
 

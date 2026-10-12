@@ -1,13 +1,14 @@
 /**
- * Integration tests for the agent money paths: cash in, cash out (with and
- * without OTP), transfer, admin wallet adjustments, concurrency and rollback.
+ * Integration tests for the agent money paths: cash in, customer-started cash
+ * out (customer OTP, then the agent's cash hand-over), customer-approved
+ * transfer, admin wallet adjustments, concurrency and rollback.
  *
  * They run against a real PostgreSQL database: the one named in DATABASE_URL
  * with "_test" appended (e.g. kongossa_m3_test), or TEST_DATABASE_URL if set.
  * Pending migrations are applied with `prisma migrate deploy` (created if
  * missing), and the tests delete the rows they work with. The name must end
  * in "_test", so a development or production database is never touched.
- * OTP delivery is faked; everything else is the real service and database.
+ * OTP and mail delivery are faked; everything else is the real service and database.
  *
  *   npm test
  */
@@ -48,6 +49,8 @@ describe('Agent money paths (integration)', () => {
     },
   };
 
+  const fakeMail = { sendReceiptEmail: jest.fn(async () => undefined) };
+
   const agentProfile = () => prisma.agentProfile.findUniqueOrThrow({ where: { id: ids.agent } });
   const wallet = async (id: number) => (await prisma.user.findUniqueOrThrow({ where: { id } })).walletBalance;
   const cash = async () => Number((await agentProfile()).cashOnHand);
@@ -79,7 +82,7 @@ describe('Agent money paths (integration)', () => {
 
     prisma = new PrismaService({ datasources: { db: { url: DB_URL } } });
     await prisma.$connect();
-    service = new AgentsService(prisma, fakeOtp as any, new ConfigService({}), {} as any);
+    service = new AgentsService(prisma, fakeOtp as any, new ConfigService({}), fakeMail as any);
 
     // Leftovers from an earlier run of this suite.
     await prisma.agentWalletAdjustment.deleteMany();
@@ -110,7 +113,10 @@ describe('Agent money paths (integration)', () => {
     await prisma?.$disconnect();
   });
 
-  beforeEach(() => resetState());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    return resetState();
+  });
 
   it('cash in credits the user, adds to cash on hand and pays commission, with ledger rows', async () => {
     await service.processCashIn(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 });
@@ -124,54 +130,131 @@ describe('Agent money paths (integration)', () => {
     await expectLedgerMatchesWallet(ids.agentUser, 0);
   });
 
-  it('cash out below the OTP threshold completes at once', async () => {
-    const tx = await service.processCashOut(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 });
+  /** Customer u1 starts a cash-out at the test agent and enters the right code. */
+  async function approvedCashOut(amount: number, userId = ids.u1) {
+    const started = await service.createCustomerCashOut(userId, { agentCode: 'ag-test', amount });
+    await service.confirmCustomerRequest(userId, started.id, TEST_OTP);
+    return started.id;
+  }
 
-    expect(tx.status).toBe('completed');
+  it('cash out: the customer starts and approves, money moves only when the agent gives the cash', async () => {
+    const started = await service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 100 });
+    expect(started.status).toBe('pending_otp');
+    expect(fakeOtp.sendOtp).toHaveBeenLastCalledWith(
+      'u1@test.local',
+      'agent_cashout',
+      ids.u1,
+      expect.arrayContaining([['Cash out', '$100.00'], ['Agent', 'Agent (AG-TEST)']]),
+    );
+
+    await expect(service.confirmCustomerRequest(ids.u1, started.id, '000000')).rejects.toThrow('Invalid OTP');
+    const approved: any = await service.confirmCustomerRequest(ids.u1, started.id, TEST_OTP);
+    expect(approved.status).toBe('awaiting_agent');
+    expect(await wallet(ids.u1)).toBe(1000);
+    expect(await cash()).toBe(1000);
+
+    const requests = await service.getCashOutRequests(await agentProfile());
+    expect(requests.map((r) => r.id)).toEqual([started.id]);
+
+    await service.completeCashOut(await agentProfile(), started.id);
     expect(await wallet(ids.u1)).toBe(900);
     expect(await cash()).toBe(900);
     expect(await wallet(ids.agentUser)).toBe(2);
     await expectLedgerMatchesWallet(ids.u1, 1000);
+    await expectLedgerMatchesWallet(ids.agentUser, 0);
+    expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('u1@test.local', 'Cash-out receipt', expect.anything());
+    expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('agent@test.local', 'Cash-out completed', expect.anything());
+
+    await expect(service.completeCashOut(await agentProfile(), started.id)).rejects.toThrow('no longer open');
+    expect(await wallet(ids.u1)).toBe(900);
   });
 
-  it('cash out above the threshold moves nothing until the customer OTP, and only once', async () => {
-    const pending: any = await service.processCashOut(await agentProfile(), { userEmail: 'u1@test.local', amount: 600 });
-    expect(pending.requiresOtp).toBe(true);
-    expect(await wallet(ids.u1)).toBe(1000);
-
-    await expect(service.confirmCashOut(await agentProfile(), pending.id, { code: '000000' })).rejects.toThrow('Invalid OTP');
-    expect(await wallet(ids.u1)).toBe(1000);
-
-    await service.confirmCashOut(await agentProfile(), pending.id, { code: TEST_OTP });
-    expect(await wallet(ids.u1)).toBe(400);
-    expect(await cash()).toBe(400);
-    expect(await wallet(ids.agentUser)).toBe(12);
-
-    await expect(service.confirmCashOut(await agentProfile(), pending.id, { code: TEST_OTP })).rejects.toThrow(
-      'not awaiting OTP',
+  it('the agent cannot complete a cash-out the customer has not approved', async () => {
+    const started = await service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 100 });
+    await expect(service.completeCashOut(await agentProfile(), started.id)).rejects.toThrow(
+      "waiting for the customer's confirmation",
     );
-    expect(await wallet(ids.u1)).toBe(400);
-    await expectLedgerMatchesWallet(ids.u1, 1000);
+    expect(await wallet(ids.u1)).toBe(1000);
+    expect(await cash()).toBe(1000);
+  });
+
+  it('a cancelled, declined or expired cash-out moves nothing', async () => {
+    const cancelledId = await approvedCashOut(100);
+    await service.cancelCustomerRequest(ids.u1, cancelledId);
+    await expect(service.completeCashOut(await agentProfile(), cancelledId)).rejects.toThrow('no longer open');
+
+    const declinedId = await approvedCashOut(100);
+    await service.declineCashOut(await agentProfile(), declinedId);
+    await expect(service.completeCashOut(await agentProfile(), declinedId)).rejects.toThrow('no longer open');
+    await expect(service.cancelCustomerRequest(ids.u1, declinedId)).rejects.toThrow('can no longer be cancelled');
+
+    const expiredId = await approvedCashOut(100);
+    await prisma.agentCashTransaction.update({
+      where: { id: expiredId },
+      data: { createdAt: new Date(Date.now() - 16 * 60 * 1000) },
+    });
+    await expect(service.completeCashOut(await agentProfile(), expiredId)).rejects.toThrow('expired');
+    expect((await prisma.agentCashTransaction.findUniqueOrThrow({ where: { id: expiredId } })).status).toBe('expired');
+
+    expect(await wallet(ids.u1)).toBe(1000);
+    expect(await cash()).toBe(1000);
+    expect(await prisma.transaction.count()).toBe(0);
   });
 
   it('cancels a pending cash-out after 5 wrong codes', async () => {
-    const pending: any = await service.processCashOut(await agentProfile(), { userEmail: 'u1@test.local', amount: 600 });
+    const started = await service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 600 });
     for (let i = 0; i < 4; i++) {
-      await expect(service.confirmCashOut(await agentProfile(), pending.id, { code: '000000' })).rejects.toThrow();
+      await expect(service.confirmCustomerRequest(ids.u1, started.id, '000000')).rejects.toThrow();
     }
-    await expect(service.confirmCashOut(await agentProfile(), pending.id, { code: '000000' })).rejects.toThrow(
-      'cancelled',
-    );
-    await expect(service.confirmCashOut(await agentProfile(), pending.id, { code: TEST_OTP })).rejects.toThrow();
+    await expect(service.confirmCustomerRequest(ids.u1, started.id, '000000')).rejects.toThrow('cancelled');
+    await expect(service.confirmCustomerRequest(ids.u1, started.id, TEST_OTP)).rejects.toThrow();
+    await expect(service.completeCashOut(await agentProfile(), started.id)).rejects.toThrow();
     expect(await wallet(ids.u1)).toBe(1000);
   });
 
-  it('transfer moves money between customers without touching cash or commission', async () => {
-    await service.processTransfer(await agentProfile(), {
+  it('rejects a cash-out the customer or agent cannot cover, a closed agent, and someone else\'s request', async () => {
+    await resetState({ cash: 500 });
+    await expect(service.createCustomerCashOut(ids.u2, { agentCode: 'AG-TEST', amount: 51 })).rejects.toThrow(
+      'balance is insufficient',
+    );
+    await expect(service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 600 })).rejects.toThrow(
+      'enough cash',
+    );
+    await expect(service.createCustomerCashOut(ids.agentUser, { agentCode: 'AG-TEST', amount: 1 })).rejects.toThrow(
+      'your own agent account',
+    );
+    await expect(service.createCustomerCashOut(ids.u1, { agentCode: 'AG-NOPE', amount: 1 })).rejects.toThrow(
+      'No active agent',
+    );
+
+    const started = await service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 100 });
+    await expect(service.confirmCustomerRequest(ids.u2, started.id, TEST_OTP)).rejects.toThrow('not found');
+    await expect(service.cancelCustomerRequest(ids.u2, started.id)).rejects.toThrow();
+
+    await service.endDay(await agentProfile(), { endCash: 1000 });
+    await expect(service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 100 })).rejects.toThrow(
+      'not open',
+    );
+    expect(await wallet(ids.u1)).toBe(1000);
+  });
+
+  it('transfer moves money only after the sender enters the code in their own app', async () => {
+    const pending: any = await service.processTransfer(await agentProfile(), {
       senderEmail: 'u1@test.local',
       recipientEmail: 'u2@test.local',
       amount: 30,
     });
+    expect(pending.status).toBe('pending_otp');
+    expect(fakeOtp.sendOtp).toHaveBeenLastCalledWith(
+      'u1@test.local',
+      'agent_transfer',
+      ids.u1,
+      expect.arrayContaining([['Transfer', '$30.00'], ['To', 'User Two']]),
+    );
+    expect(await wallet(ids.u1)).toBe(1000);
+
+    await expect(service.confirmCustomerRequest(ids.u2, pending.id, TEST_OTP)).rejects.toThrow('not found');
+    await service.confirmCustomerRequest(ids.u1, pending.id, TEST_OTP);
 
     expect(await wallet(ids.u1)).toBe(970);
     expect(await wallet(ids.u2)).toBe(80);
@@ -179,20 +262,10 @@ describe('Agent money paths (integration)', () => {
     expect(await wallet(ids.agentUser)).toBe(0);
     await expectLedgerMatchesWallet(ids.u1, 1000);
     await expectLedgerMatchesWallet(ids.u2, 50);
-  });
+    expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('u2@test.local', 'Money received', expect.anything());
 
-  it('transfer above the threshold waits for the sender OTP', async () => {
-    const pending: any = await service.processTransfer(await agentProfile(), {
-      senderEmail: 'u1@test.local',
-      recipientEmail: 'u2@test.local',
-      amount: 700,
-    });
-    expect(pending.requiresOtp).toBe(true);
-    expect(await wallet(ids.u1)).toBe(1000);
-
-    await service.confirmTransfer(await agentProfile(), pending.id, { code: TEST_OTP });
-    expect(await wallet(ids.u1)).toBe(300);
-    expect(await wallet(ids.u2)).toBe(750);
+    await expect(service.confirmCustomerRequest(ids.u1, pending.id, TEST_OTP)).rejects.toThrow('not waiting');
+    expect(await wallet(ids.u1)).toBe(970);
   });
 
   it('admin credit and debit change the agent wallet with ledger and audit rows; no overdraft', async () => {
@@ -209,20 +282,33 @@ describe('Agent money paths (integration)', () => {
     await expectLedgerMatchesWallet(ids.agentUser, 0);
   });
 
-  it('two cash-outs at the same moment cannot take cash on hand below zero', async () => {
+  it('two cash-outs given at the same moment cannot take cash on hand below zero', async () => {
     await prisma.agentDaySettlement.deleteMany();
     await prisma.agentProfile.update({ where: { id: ids.agent }, data: { cashOnHand: 0 } });
     await service.startDay(await agentProfile(), { startCash: 100 });
 
+    const first = await approvedCashOut(80);
+    const second = await approvedCashOut(80);
     const profile = await agentProfile();
     const results = await Promise.allSettled([
-      service.processCashOut(profile, { userEmail: 'u1@test.local', amount: 80 }),
-      service.processCashOut(profile, { userEmail: 'u1@test.local', amount: 80 }),
+      service.completeCashOut(profile, first),
+      service.completeCashOut(profile, second),
     ]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(await cash()).toBe(20);
     expect(await wallet(ids.u1)).toBe(920);
+  });
+
+  it('the same cash-out given twice at the same moment pays out once', async () => {
+    const id = await approvedCashOut(100);
+    const profile = await agentProfile();
+    const results = await Promise.allSettled([service.completeCashOut(profile, id), service.completeCashOut(profile, id)]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await cash()).toBe(900);
+    expect(await wallet(ids.u1)).toBe(900);
+    await expectLedgerMatchesWallet(ids.u1, 1000);
   });
 
   it('rolls back every balance change when a step inside the transaction fails', async () => {
