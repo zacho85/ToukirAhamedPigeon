@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { confirmTransfer, lookupUser, transfer } from "@/modules/agents/api";
+import { getMyTransaction, lookupUser, transfer } from "@/modules/agents/api";
 
-type Step = "form" | "review" | "otp" | "success";
+type Step = "form" | "review" | "waiting" | "success";
 type Party = { email: string; fullName: string; active: boolean };
 
 const apiError = (err: unknown) =>
@@ -19,19 +19,40 @@ export default function TransferPage() {
   const [sender, setSender] = useState<Party | null>(null);
   const [recipient, setRecipient] = useState<Party | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
-  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Set when the pending transfer was cancelled or expired.
-  const [otpClosed, setOtpClosed] = useState(false);
+  // Set when the sender's approval can no longer arrive (cancelled, expired,
+  // too many wrong codes).
+  const [closed, setClosed] = useState(false);
 
   const startOver = () => {
     setStep("form");
     setPendingId(null);
-    setCode("");
     setError("");
-    setOtpClosed(false);
+    setClosed(false);
   };
+
+  // The sender approves in their own app; follow the request until it ends.
+  useEffect(() => {
+    if (step !== "waiting" || !pendingId || closed) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const { status } = await getMyTransaction(pendingId);
+        if (status === "completed") setStep("success");
+        else if (status !== "pending_otp") {
+          setClosed(true);
+          setError(
+            status === "expired"
+              ? "The sender did not approve in time. Start a new transfer."
+              : "The sender cancelled or could not approve this transfer. Nothing was moved.",
+          );
+        }
+      } catch {
+        // Keep polling; a network blip is not a result.
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [step, pendingId, closed]);
 
   // Step 1: look both customers up so the agent can check the names.
   const onSubmitForm = async (e: FormEvent) => {
@@ -56,39 +77,16 @@ export default function TransferPage() {
     }
   };
 
-  // Step 2: send it. Above the OTP threshold the sender confirms by code.
+  // Step 2: send it. The sender approves every transfer in their own app.
   const onConfirm = async () => {
     setError("");
     setLoading(true);
     try {
       const result = await transfer(senderEmail, recipientEmail, Number(amount), notes || undefined);
-      if (result.requiresOtp) {
-        setPendingId(result.id);
-        setStep("otp");
-      } else {
-        setStep("success");
-      }
+      setPendingId(result.id);
+      setStep("waiting");
     } catch (err) {
       setError(apiError(err)?.message || "Transfer failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onSubmitOtp = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!pendingId) return;
-    setError("");
-    setLoading(true);
-    try {
-      await confirmTransfer(pendingId, code);
-      setStep("success");
-    } catch (err) {
-      const data = apiError(err);
-      setError(data?.message || "Invalid or expired code.");
-      if (data?.code === "TRANSFER_CANCELLED" || data?.code === "TRANSFER_EXPIRED") {
-        setOtpClosed(true);
-      }
     } finally {
       setLoading(false);
     }
@@ -116,44 +114,32 @@ export default function TransferPage() {
     );
   }
 
-  if (step === "otp") {
+  if (step === "waiting") {
     return (
       <div className="space-y-4">
-        <h1 className="text-lg font-bold text-[#0B1226]">Confirm with the sender</h1>
-        <p className="text-sm text-gray-500">
-          This amount is above the instant-confirm threshold. Ask {sender?.fullName} for the 6-digit
-          code sent to {sender?.email}.
-        </p>
-        <form onSubmit={onSubmitOtp} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em]"
-            placeholder="------"
-          />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {otpClosed ? (
-            <button
-              type="button"
-              onClick={startOver}
-              className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl"
-            >
-              Start a new transfer
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl disabled:opacity-60"
-            >
-              {loading ? "Confirming..." : "Confirm"}
-            </button>
-          )}
-        </form>
+        <h1 className="text-lg font-bold text-[#0B1226]">Waiting for the sender</h1>
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-3 text-sm">
+          <p className="text-gray-500">
+            {sender?.fullName} got a code at {sender?.email}. They approve the transfer of{" "}
+            <span className="font-semibold text-[#0B1226]">{money}</span> to {recipient?.fullName} by
+            entering it in their own Kongossa Pay app.
+          </p>
+          <p className="text-xs text-gray-400">
+            Never ask the customer for the code. This screen updates by itself.
+          </p>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {closed ? (
+          <button
+            type="button"
+            onClick={startOver}
+            className="w-full bg-[#0B1226] text-white font-medium py-3 rounded-xl"
+          >
+            Start a new transfer
+          </button>
+        ) : (
+          <p className="text-center text-sm text-gray-400">Waiting for approval...</p>
+        )}
       </div>
     );
   }
