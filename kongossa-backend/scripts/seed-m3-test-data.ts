@@ -186,8 +186,6 @@ async function main() {
   await prisma.agentDaySettlement.deleteMany({ where: { agentId: { in: agentIds } } });
   await prisma.transaction.deleteMany({ where: { OR: [{ senderId: { in: ids } }, { recipientId: { in: ids } }] } });
   await prisma.otp.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
-  // Back to the env/default OTP threshold.
-  await prisma.agentSettings.deleteMany({});
 
   // ------------------------------------------------------------------- agents
   for (const a of AGENTS) {

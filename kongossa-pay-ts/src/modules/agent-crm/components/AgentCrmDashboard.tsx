@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAllAgents } from "../api";
-import OtpThresholdCard from "./OtpThresholdCard";
 
 interface Counts {
   total: number;
@@ -56,7 +55,6 @@ export default function AgentCrmDashboard() {
           </Card>
         ))}
       </div>
-      <OtpThresholdCard />
     </div>
   );
 }

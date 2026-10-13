@@ -30,7 +30,6 @@ import {
   StartDayDto,
   EndDayDto,
   UpdateAgentLimitsDto,
-  UpdateOtpThresholdDto,
   WalletAdjustmentDto,
   AgentTransferDto,
 } from './dto';
@@ -217,22 +216,6 @@ export class AgentsController {
   @UseGuards(JwtAuthGuard, AgentGuard)
   async lookupUser(@Query('email') email: string) {
     return { success: true, data: await this.agentsService.lookupUser(email) };
-  }
-
-  // Declared before GET ':id' so "settings" is never parsed as an agent id.
-  @Get('settings/otp-threshold')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('read:agent-crm')
-  async getOtpThreshold() {
-    return { success: true, data: await this.agentsService.getOtpThreshold() };
-  }
-
-  @Patch('settings/otp-threshold')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('update:agent-crm')
-  async updateOtpThreshold(@Body() dto: UpdateOtpThresholdDto, @Req() req) {
-    const data = await this.agentsService.updateOtpThreshold(dto.value, req.user.userId);
-    return { success: true, message: 'Cash-out OTP threshold updated', data };
   }
 
   @Get(':id')

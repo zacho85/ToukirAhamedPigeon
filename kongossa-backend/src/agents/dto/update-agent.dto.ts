@@ -65,13 +65,6 @@ export class UpdateAgentLimitsDto {
   maxCashOnHand?: number;
 }
 
-export class UpdateOtpThresholdDto {
-  @IsNotEmpty()
-  @IsNumber()
-  @Min(0.01)
-  value: number;
-}
-
 export class WalletAdjustmentDto {
   @IsIn(['credit', 'debit'])
   direction: 'credit' | 'debit';

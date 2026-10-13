@@ -836,17 +836,6 @@ model AgentDaySettlement {
   @@map("AgentDaySettlement")
 }
 
-// Global agent-network settings, edited by admins. A single row (id = 1);
-// a null value falls back to the environment default.
-model AgentSettings {
-  id                  Int      @id @default(1)
-  cashoutOtpThreshold Float?   // cash-outs and transfers above this need the customer's OTP
-  updatedBy           Int?     // admin userId
-  updatedAt           DateTime @updatedAt
-
-  @@map("AgentSettings")
-}
-
 // Admin credit/debit of an agent's wallet balance (not cash on hand), with
 // the reason and who made it. Each one also writes a Transaction row.
 model AgentWalletAdjustment {

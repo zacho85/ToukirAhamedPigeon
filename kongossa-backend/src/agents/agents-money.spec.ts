@@ -15,7 +15,6 @@
 import 'dotenv/config';
 import { execSync } from 'child_process';
 import { BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentsService } from './agents.service';
 
@@ -82,7 +81,7 @@ describe('Agent money paths (integration)', () => {
 
     prisma = new PrismaService({ datasources: { db: { url: DB_URL } } });
     await prisma.$connect();
-    service = new AgentsService(prisma, fakeOtp as any, new ConfigService({}), fakeMail as any);
+    service = new AgentsService(prisma, fakeOtp as any, fakeMail as any);
 
     // Leftovers from an earlier run of this suite.
     await prisma.agentWalletAdjustment.deleteMany();

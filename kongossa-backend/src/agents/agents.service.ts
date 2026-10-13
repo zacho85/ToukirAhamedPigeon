@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
@@ -26,39 +25,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AgentsService {
-  /** Used when neither the admin setting nor AGENT_CASHOUT_OTP_THRESHOLD is set. */
-  private static readonly DEFAULT_OTP_THRESHOLD = 500;
-
   constructor(
     private prisma: PrismaService,
     private otpService: OtpService,
-    private configService: ConfigService,
     private mailService: MailService,
   ) {}
-
-  /**
-   * The admin-editable OTP threshold: admin setting, then the
-   * AGENT_CASHOUT_OTP_THRESHOLD env var, then the default. It no longer gates
-   * consent -- every cash-out and transfer needs the customer's OTP.
-   */
-  async getOtpThreshold(): Promise<{ value: number; source: 'admin' | 'env' | 'default' }> {
-    const settings = await this.prisma.agentSettings.findUnique({ where: { id: 1 } });
-    if (settings?.cashoutOtpThreshold != null) {
-      return { value: settings.cashoutOtpThreshold, source: 'admin' };
-    }
-    const fromEnv = Number(this.configService.get<string>('AGENT_CASHOUT_OTP_THRESHOLD'));
-    if (fromEnv > 0) return { value: fromEnv, source: 'env' };
-    return { value: AgentsService.DEFAULT_OTP_THRESHOLD, source: 'default' };
-  }
-
-  async updateOtpThreshold(value: number, adminUserId: number) {
-    await this.prisma.agentSettings.upsert({
-      where: { id: 1 },
-      update: { cashoutOtpThreshold: value, updatedBy: adminUserId },
-      create: { id: 1, cashoutOtpThreshold: value, updatedBy: adminUserId },
-    });
-    return this.getOtpThreshold();
-  }
 
   /**
    * Admin action: change any of an agent's transaction limits. The merged

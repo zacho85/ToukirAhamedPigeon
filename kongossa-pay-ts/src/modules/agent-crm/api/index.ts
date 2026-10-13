@@ -54,7 +54,7 @@ export const reviewFloatRequest = async (
   return res.data;
 };
 
-// ---- Limits, OTP threshold, wallet adjustments, inventory (Milestone 3) ----
+// ---- Limits, wallet adjustments, inventory (Milestone 3) ----
 
 export type AgentLimits = {
   dailyTransactionLimit: number;
@@ -68,17 +68,6 @@ export const updateLimits = async (id: number, limits: Partial<AgentLimits>) => 
   return res.data as { message: string; warning?: string };
 };
 
-export type OtpThreshold = { value: number; source: "admin" | "env" | "default" };
-
-export const getOtpThreshold = async () => {
-  const res = await api.get("/agents/settings/otp-threshold");
-  return res.data.data as OtpThreshold;
-};
-
-export const updateOtpThreshold = async (value: number) => {
-  const res = await api.patch("/agents/settings/otp-threshold", { value });
-  return res.data.data as OtpThreshold;
-};
 
 export type WalletAdjustment = {
   id: number;
