@@ -6,6 +6,7 @@
 // transfer an agent started for them. Codes are entered only here, never
 // told to the agent.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Banknote, Clock } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -340,6 +341,18 @@ export function AgentRequestsCard({
     setActive(r);
     setDialogOpen(true);
   };
+
+  // The banner on other pages links here with ?agentRequest=<id>: open that request once it is listed.
+  const [params, setParams] = useSearchParams();
+  const wanted = Number(params.get("agentRequest"));
+  useEffect(() => {
+    if (!wanted) return;
+    const r = requests.find((x) => x.id === wanted);
+    if (!r) return;
+    open(r);
+    params.delete("agentRequest");
+    setParams(params, { replace: true });
+  }, [wanted, requests, params, setParams]);
 
   const reject = async (r: AgentRequest) => {
     try {

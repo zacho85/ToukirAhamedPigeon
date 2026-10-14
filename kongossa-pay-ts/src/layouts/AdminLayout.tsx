@@ -383,6 +383,7 @@ import Header from "@/components/module/admin/layout/Header";
 import Sidebar from "@/components/module/admin/layout/Sidebar";
 import Main from "@/components/module/admin/layout/Main";
 import RouteProgress from "@/components/module/admin/layout/RouteProgress";
+import AgentRequestBanner from "@/modules/wallet/components/AgentRequestBanner";
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -398,6 +399,7 @@ export default function AdminLayout() {
           <Sidebar />
 
           <Main>
+            <AgentRequestBanner />
             <AnimatePresence mode="wait" initial={false}>
               {/* Render nested routes here */}
               <Outlet key={location.pathname} />
