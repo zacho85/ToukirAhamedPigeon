@@ -27,9 +27,11 @@ import {
   UpdateAgentDto,
   UpdateCommissionDto,
   CashTransactionDto,
-  ConfirmCashOutDto,
   StartDayDto,
   EndDayDto,
+  UpdateAgentLimitsDto,
+  WalletAdjustmentDto,
+  AgentTransferDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -140,6 +142,13 @@ export class AgentsController {
     };
   }
 
+  @Get('commission/daily')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async getDailyCommission(@Req() req, @Query('days') days?: string) {
+    const data = await this.agentsService.getDailyCommission(req.user.userId, days ? parseInt(days) : 30);
+    return { success: true, data };
+  }
+
   @Get('my-code')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async getAgentCode(@Req() req) {
@@ -200,6 +209,13 @@ export class AgentsController {
       success: true,
       ...result,
     };
+  }
+
+  // Declared before GET ':id' so "lookup-user" is never parsed as an agent id.
+  @Get('lookup-user')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async lookupUser(@Query('email') email: string) {
+    return { success: true, data: await this.agentsService.lookupUser(email) };
   }
 
   @Get(':id')
@@ -284,6 +300,50 @@ export class AgentsController {
     };
   }
 
+  @Get(':id/inventory')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getInventory(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getAgentInventory(agentId) };
+  }
+
+  @Get(':id/day/history')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getAgentDayHistory(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getAgentDayHistory(agentId) };
+  }
+
+  @Post(':id/wallet-adjustments')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
+  async adjustWallet(
+    @Param('id', ParseIntPipe) agentId: number,
+    @Body() dto: WalletAdjustmentDto,
+    @Req() req,
+  ) {
+    const data = await this.agentsService.adjustAgentWallet(agentId, dto, req.user.userId);
+    return { success: true, message: `Agent wallet ${dto.direction === 'credit' ? 'credited' : 'debited'}`, data };
+  }
+
+  @Get(':id/wallet-adjustments')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('read:agent-crm')
+  async getWalletAdjustments(@Param('id', ParseIntPipe) agentId: number) {
+    return { success: true, data: await this.agentsService.getWalletAdjustments(agentId) };
+  }
+
+  @Patch(':id/limits')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:agent-crm')
+  async updateLimits(
+    @Param('id', ParseIntPipe) agentId: number,
+    @Body() dto: UpdateAgentLimitsDto,
+  ) {
+    const { agent, warning } = await this.agentsService.updateAgentLimits(agentId, dto);
+    return { success: true, message: 'Agent limits updated', warning, data: agent };
+  }
+
   // -------------------------------------------------------------------
   // Cash In / Cash Out
   // -------------------------------------------------------------------
@@ -295,21 +355,34 @@ export class AgentsController {
     return { success: true, data: transaction };
   }
 
-  @Post('cash-out')
+  // An agent never debits a customer's wallet: the customer starts a
+  // cash-out in their own app (/agent-requests), and the agent only sees the
+  // approved request and confirms the cash hand-over.
+  @Get('cash-out/requests')
   @UseGuards(JwtAuthGuard, AgentGuard)
-  async cashOut(@Req() req, @Body() dto: CashTransactionDto) {
-    const transaction = await this.agentsService.processCashOut(req.agent, dto);
+  async cashOutRequests(@Req() req) {
+    const data = await this.agentsService.getCashOutRequests(req.agent);
+    return { success: true, data };
+  }
+
+  @Post('cash-out/:id/complete')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async completeCashOut(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const transaction = await this.agentsService.completeCashOut(req.agent, id);
     return { success: true, data: transaction };
   }
 
-  @Post('cash-out/:id/confirm')
+  @Post('cash-out/:id/decline')
   @UseGuards(JwtAuthGuard, AgentGuard)
-  async confirmCashOut(
-    @Req() req,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ConfirmCashOutDto,
-  ) {
-    const transaction = await this.agentsService.confirmCashOut(req.agent, id, dto);
+  async declineCashOut(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const transaction = await this.agentsService.declineCashOut(req.agent, id);
+    return { success: true, data: transaction };
+  }
+
+  @Post('transfer')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async transfer(@Req() req, @Body() dto: AgentTransferDto) {
+    const transaction = await this.agentsService.processTransfer(req.agent, dto);
     return { success: true, data: transaction };
   }
 
@@ -317,6 +390,13 @@ export class AgentsController {
   @UseGuards(JwtAuthGuard, AgentGuard)
   async myTransactions(@Req() req) {
     const data = await this.agentsService.getOwnCashTransactions(req.agent.id);
+    return { success: true, data };
+  }
+
+  @Get('transactions/:id')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async myTransaction(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    const data = await this.agentsService.getOwnCashTransaction(req.agent.id, id);
     return { success: true, data };
   }
 

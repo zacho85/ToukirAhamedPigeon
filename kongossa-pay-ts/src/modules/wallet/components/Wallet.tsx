@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import {
     ArrowUpFromLine,
     ArrowDownToLine,
+  Banknote,
   Plus,
   Shield
 } from "lucide-react";
@@ -26,6 +27,7 @@ import {
 } from "../api";
 import { PayoutDialog } from "./PayoutDialog";
 import { TopUpDialog } from "./TopUpDialog";
+import { AgentRequestsCard } from "./AgentRequests";
 import { syncWalletBalance  } from "@/lib/dispatch";
 
 /* ---------------- Types ---------------- */
@@ -70,6 +72,7 @@ export default function Wallet() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPayout, setShowPayout] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
+  const [agentCashOutSignal, setAgentCashOutSignal] = useState(0);
 
   /* ---------------- Loaders ---------------- */
 
@@ -159,12 +162,24 @@ export default function Wallet() {
             Withdraw
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={() => setAgentCashOutSignal((n) => n + 1)}
+            className="w-full sm:w-auto"
+          >
+            <Banknote className="w-4 h-4 mr-2" />
+            Cash out at agent
+          </Button>
+
           <Button variant="outline" onClick={() => setShowAddMethod(true)} className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Add Payment Method
           </Button>
         </div>
       </div>
+
+      {/* Cash-outs at an agent and agent-assisted transfers waiting for this customer */}
+      <AgentRequestsCard maxAmount={currentUser?.walletBalance || 0} startSignal={agentCashOutSignal} />
 
       {/* User Wallet */}
       <WalletBalance user={currentUser} stats={walletStats} />

@@ -17,6 +17,13 @@ export const getDashboardStats = async () => {
   return res.data.data;
 };
 
+export type DailyCommission = { date: string; transactions: number; commission: number };
+
+export const getDailyCommission = async (days = 30) => {
+  const res = await api.get("/agents/commission/daily", { params: { days } });
+  return res.data.data as DailyCommission[];
+};
+
 export const getCurrentDay = async () => {
   const res = await api.get("/agents/day/current");
   return res.data.data;
@@ -42,14 +49,52 @@ export const cashIn = async (userEmail: string, amount: number, notes?: string) 
   return res.data.data;
 };
 
-export const cashOut = async (userEmail: string, amount: number, notes?: string) => {
-  const res = await api.post("/agents/cash-out", { userEmail, amount, notes });
+// A cash-out is started and approved by the customer in their own app; the
+// agent only sees approved requests and confirms the cash hand-over.
+export interface CashOutRequest {
+  id: number;
+  amount: number;
+  commission: number;
+  reference: string;
+  notes: string | null;
+  createdAt: string;
+  expiresAt: string;
+  customer: { fullName: string | null; email: string } | null;
+}
+
+export const getCashOutRequests = async () => {
+  const res = await api.get("/agents/cash-out/requests");
+  return res.data.data as CashOutRequest[];
+};
+
+export const completeCashOut = async (requestId: number) => {
+  const res = await api.post(`/agents/cash-out/${requestId}/complete`);
   return res.data.data;
 };
 
-export const confirmCashOut = async (transactionId: number, code: string) => {
-  const res = await api.post(`/agents/cash-out/${transactionId}/confirm`, { code });
+export const declineCashOut = async (requestId: number) => {
+  const res = await api.post(`/agents/cash-out/${requestId}/decline`);
   return res.data.data;
+};
+
+export const lookupUser = async (email: string) => {
+  const res = await api.get("/agents/lookup-user", { params: { email } });
+  return res.data.data as { email: string; fullName: string; active: boolean };
+};
+
+export const transfer = async (
+  senderEmail: string,
+  recipientEmail: string,
+  amount: number,
+  notes?: string,
+) => {
+  const res = await api.post("/agents/transfer", { senderEmail, recipientEmail, amount, notes });
+  return res.data.data;
+};
+
+export const getMyTransaction = async (transactionId: number) => {
+  const res = await api.get(`/agents/transactions/${transactionId}`);
+  return res.data.data as { id: number; status: string };
 };
 
 export const getMyTransactions = async () => {

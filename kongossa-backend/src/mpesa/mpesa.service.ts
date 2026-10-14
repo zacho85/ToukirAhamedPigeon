@@ -163,6 +163,51 @@ export class MpesaService {
   }
 
   /**
+   * C2B: tells Safaricom where to send validation and confirmation requests
+   * for paybill payments. One-time setup per shortcode; run it through
+   * scripts/mpesa-sandbox-check.ts. Needs MPESA_C2B_BASE_URL (public HTTPS).
+   */
+  async registerC2BUrls(): Promise<unknown> {
+    const base = (this.config.get<string>('MPESA_C2B_BASE_URL') || '').replace(/\/+$/, '');
+    if (!base) {
+      throw new Error('Set MPESA_C2B_BASE_URL to the public HTTPS base URL of this API');
+    }
+    const token = await this.getAccessToken();
+    const response = await axios.post(
+      `${this.baseUrl}/mpesa/c2b/v1/registerurl`,
+      {
+        ShortCode: this.c2bShortCode(),
+        ResponseType: 'Completed',
+        ConfirmationURL: `${base}/wallet-topup/mpesa/c2b/confirmation`,
+        ValidationURL: `${base}/wallet-topup/mpesa/c2b/validation`,
+      },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 },
+    );
+    return response.data;
+  }
+
+  /** Sandbox only: asks Safaricom to simulate a customer paying the paybill. */
+  async simulateC2B(amount: number, msisdn: string, billRef: string): Promise<unknown> {
+    const token = await this.getAccessToken();
+    const response = await axios.post(
+      `${this.baseUrl}/mpesa/c2b/v1/simulate`,
+      {
+        ShortCode: this.c2bShortCode(),
+        CommandID: 'CustomerPayBillOnline',
+        Amount: Math.round(amount),
+        Msisdn: this.normalizeKenyanMsisdn(msisdn),
+        BillRefNumber: billRef,
+      },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 },
+    );
+    return response.data;
+  }
+
+  private c2bShortCode(): string {
+    return this.config.get<string>('MPESA_C2B_SHORTCODE') || this.shortCode;
+  }
+
+  /**
    * Queries Daraja's STK Push Query API directly. Callers should prefer
    * checking their own already-webhook-updated DB record first — Safaricom's
    * own docs note this query can be unreliable/slow immediately after

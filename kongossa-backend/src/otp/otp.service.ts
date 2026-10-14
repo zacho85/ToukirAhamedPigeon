@@ -11,7 +11,7 @@ export class OtpService {
     private readonly mailService: MailService,
   ) {}
 
-  async sendOtp(email: string, purpose: string, userId?: number) {
+  async sendOtp(email: string, purpose: string, userId?: number, details?: [string, string][]) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const codeHash = await bcrypt.hash(code, 10);
 
@@ -26,7 +26,7 @@ export class OtpService {
       },
     });
 
-    await this.mailService.sendOtpEmail(email, code, purpose);
+    await this.mailService.sendOtpEmail(email, code, purpose, details);
     
     return { success: true, message: 'OTP sent to email' };
   }
@@ -39,6 +39,10 @@ export class OtpService {
         used: false,
         expiresAt: { gt: new Date() },
       },
+      // The code the user just received is the newest one; without this an
+      // older unused code for the same email and purpose could be checked
+      // instead, and the correct code would be rejected.
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!otp) {

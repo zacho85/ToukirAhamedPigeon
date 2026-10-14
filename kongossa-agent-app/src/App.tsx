@@ -12,6 +12,7 @@ import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
 import TransactionsPage from "@/modules/transactions/pages/TransactionsPage";
 import CashInPage from "@/modules/transactions/pages/CashInPage";
 import CashOutPage from "@/modules/transactions/pages/CashOutPage";
+import TransferPage from "@/modules/transactions/pages/TransferPage";
 import SettlementPage from "@/modules/settlement/pages/SettlementPage";
 import StartDayPage from "@/modules/settlement/pages/StartDayPage";
 import EndDayPage from "@/modules/settlement/pages/EndDayPage";
@@ -44,6 +45,7 @@ function App() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/transactions/cash-in" element={<CashInPage />} />
             <Route path="/transactions/cash-out" element={<CashOutPage />} />
+            <Route path="/transactions/transfer" element={<TransferPage />} />
             <Route path="/settlement" element={<SettlementPage />} />
             <Route path="/settlement/start-day" element={<StartDayPage />} />
             <Route path="/settlement/end-day" element={<EndDayPage />} />

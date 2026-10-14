@@ -85,6 +85,7 @@ model User {
   agentProfile           AgentProfile?         // One-to-One with AgentProfile (implicit relation)
   agentApprovals         AgentProfile[]        @relation("AgentApprover") // Users who approved agents
   agentCashTransactions  AgentCashTransaction[] // Cash transactions made by this user as customer
+  agentWalletAdjustments AgentWalletAdjustment[] @relation("AgentWalletAdjustmentAdmin") // made by this admin
 
   @@map("User")
 }
@@ -752,6 +753,7 @@ model AgentProfile {
   maxCashOnHand     Decimal  @default(5000) @db.Decimal(10, 2)
   dailyTransactionLimit Decimal @default(10000) @db.Decimal(10, 2)
   monthlyTransactionLimit Decimal @default(100000) @db.Decimal(10, 2)
+  maxTransactionAmount Decimal @default(5000) @db.Decimal(10, 2) // per single cash in/out/transfer
   approvedAt        DateTime?
   approvedBy        Int?     // Admin userId who approved
   status            String   @default("pending") // pending, active, suspended, terminated
@@ -764,6 +766,7 @@ model AgentProfile {
   approvedByUser    User?    @relation("AgentApprover", fields: [approvedBy], references: [id])
   cashTransactions  AgentCashTransaction[]
   daySettlements    AgentDaySettlement[]
+  walletAdjustments AgentWalletAdjustment[]
   
   @@index([userId])
   @@index([agentCode])
@@ -780,6 +783,8 @@ model AgentCashTransaction {
   feeAmount       Decimal  @default(0) @db.Decimal(10, 2)
   commission      Decimal  @default(0) @db.Decimal(10, 2)
   status          String   @default("pending")
+  otpAttempts     Int      @default(0) // wrong OTP codes entered while pending_otp
+  counterpartyUserId Int? // transfer recipient (userId is the sender)
   paymentMethod   String?
   reference       String   @unique
   transactionId   Int?     // Reference ID only - no Prisma relation
@@ -829,4 +834,25 @@ model AgentDaySettlement {
   @@index([agentId])
   @@index([status])
   @@map("AgentDaySettlement")
+}
+
+// Admin credit/debit of an agent's wallet balance (not cash on hand), with
+// the reason and who made it. Each one also writes a Transaction row.
+model AgentWalletAdjustment {
+  id            Int      @id @default(autoincrement())
+  agentId       Int
+  adminUserId   Int
+  direction     String   // credit, debit
+  amount        Decimal  @db.Decimal(10, 2)
+  reason        String
+  balanceBefore Float
+  balanceAfter  Float
+  transactionId Int?     // the matching Transaction row
+  createdAt     DateTime @default(now())
+
+  agent AgentProfile @relation(fields: [agentId], references: [id])
+  admin User         @relation("AgentWalletAdjustmentAdmin", fields: [adminUserId], references: [id])
+
+  @@index([agentId])
+  @@map("AgentWalletAdjustment")
 }

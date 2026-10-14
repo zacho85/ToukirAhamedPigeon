@@ -19,6 +19,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
+    // Optional machine-readable reason, passed through when an exception is
+    // thrown as `new XException({ message, code })`, so a client can react to
+    // a specific outcome without matching on message text.
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -37,6 +41,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (body && typeof body === 'object' && 'message' in body) {
         const inner = (body as { message: unknown }).message;
         message = Array.isArray(inner) ? inner.join(', ') : String(inner);
+        const inCode = (body as { code?: unknown }).code;
+        if (typeof inCode === 'string') code = inCode;
       } else {
         message = exception.message;
       }
@@ -47,6 +53,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       message,
+      ...(code ? { code } : {}),
     });
   }
 }

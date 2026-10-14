@@ -89,6 +89,9 @@ export class ExchangeRateService implements OnModuleInit {
       { from: 'USD', to: 'RON', rate: 4.58 },
       { from: 'USD', to: 'ISK', rate: 137.5 },
       { from: 'USD', to: 'BGN', rate: 1.80 },
+      // Not published by Frankfurter (ECB), so M-Pesa top-ups need a stored
+      // rate. Approximate; an admin can overwrite it with a manual rate.
+      { from: 'USD', to: 'KES', rate: 129.0 },
       { from: 'EUR', to: 'USD', rate: 1.09 },
       { from: 'EUR', to: 'GBP', rate: 0.85 },
       { from: 'EUR', to: 'CHF', rate: 0.96 },
@@ -146,6 +149,26 @@ export class ExchangeRateService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.warn(`Database rate lookup failed: ${error.message}`);
+    }
+
+    // Only the opposite direction stored (e.g. USD->KES for a KES->USD
+    // conversion): use its inverse rather than fail.
+    try {
+      const inverse = await this.prisma.exchangeRate.findUnique({
+        where: {
+          fromCurrency_toCurrency: {
+            fromCurrency: toCurrency,
+            toCurrency: fromCurrency,
+          },
+        },
+      });
+      if (inverse && inverse.rate > 0 && (!inverse.validUntil || inverse.validUntil > new Date())) {
+        const rate = 1 / inverse.rate;
+        this.cache.set(cacheKey, { rate, timestamp: Date.now() });
+        return rate;
+      }
+    } catch (error) {
+      this.logger.warn(`Database inverse rate lookup failed: ${error.message}`);
     }
 
     try {

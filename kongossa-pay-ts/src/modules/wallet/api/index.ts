@@ -206,3 +206,42 @@ export const checkAirtelStatus = async (topUpId: number) => {
   const res = await api.get(`/wallet-topup/airtel/${topUpId}/status`);
   return res.data;
 };
+/* ---------------- Agent requests (cash-out at an agent, agent-assisted transfer) ---------------- */
+
+export interface AgentRequest {
+  id: number;
+  type: "cash_out" | "transfer";
+  status: string; // pending_otp | awaiting_agent | completed | cancelled | declined | expired | failed
+  amount: number;
+  reference: string;
+  createdAt: string;
+  completedAt: string | null;
+  expiresAt: string;
+  agentName: string;
+  recipient: { fullName: string | null; email: string } | null;
+}
+
+export const listAgentRequests = async () => {
+  const res = await api.get("/agent-requests");
+  return res.data.data as AgentRequest[];
+};
+
+export const getAgentRequest = async (id: number) => {
+  const res = await api.get(`/agent-requests/${id}`);
+  return res.data.data as AgentRequest;
+};
+
+export const startAgentCashOut = async (agentCode: string, amount: number) => {
+  const res = await api.post("/agent-requests/cash-out", { agentCode, amount });
+  return res.data.data as { id: number; reference: string; amount: number; status: string; agentName: string };
+};
+
+export const confirmAgentRequest = async (id: number, code: string) => {
+  const res = await api.post(`/agent-requests/${id}/confirm`, { code });
+  return res.data.data;
+};
+
+export const cancelAgentRequest = async (id: number) => {
+  const res = await api.post(`/agent-requests/${id}/cancel`);
+  return res.data.data as AgentRequest;
+};

@@ -26,13 +26,46 @@ export class MailService {
     });
   }
 
-  async sendOtpEmail(to: string, otpCode: string, purpose: string = 'login') {
+  /** Agent names and notes are user-supplied; never put them in HTML raw. */
+  private escapeHtml(value: string): string {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private renderDetailRows(lines: [string, string][]): string {
+    return lines
+      .map(
+        ([label, value]) => `
+                      <tr>
+                        <td style="padding: 6px 0; color: #718096; font-size: 14px;">${this.escapeHtml(label)}</td>
+                        <td style="padding: 6px 0; color: #2d3748; font-size: 14px; font-weight: bold; text-align: right;">${this.escapeHtml(value)}</td>
+                      </tr>`,
+      )
+      .join('');
+  }
+
+  /**
+   * `details` lists what the code approves (amount, agent...), so the customer
+   * sees exactly which debit they are consenting to.
+   */
+  async sendOtpEmail(
+    to: string,
+    otpCode: string,
+    purpose: string = 'login',
+    details?: [string, string][],
+  ) {
     const subject =
       purpose === 'login'
         ? '🔐 Login Verification Code'
         : purpose === 'agent_cashout'
           ? '💵 Confirm Your Cash-Out Code'
-          : '📧 Welcome to Kongossa Pay';
+          : purpose === 'agent_transfer'
+            ? '💸 Confirm Your Transfer Code'
+            : '📧 Welcome to Kongossa Pay';
     
     // Gmail-friendly HTML (no complex CSS, inline styles only)
     const html = `
@@ -66,10 +99,22 @@ export class MailService {
                           ? 'login'
                           : purpose === 'agent_cashout'
                             ? 'cash-out confirmation with your agent'
-                            : 'registration'
+                            : purpose === 'agent_transfer'
+                              ? 'transfer from your wallet with your agent'
+                              : 'registration'
                       }.
                     </p>
-                    
+                    ${
+                      details?.length
+                        ? `
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                      ${this.renderDetailRows(details)}
+                    </table>
+                    <p style="color: #c53030; font-size: 13px; margin: 0 0 24px 0; text-align: center;">
+                      Enter this code only in your own Kongossa Pay app. Never tell it to an agent or anyone else.
+                    </p>`
+                        : ''
+                    }
                     <!-- OTP Code Box -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #1e3c72; border-radius: 8px;">
                       <tr>
@@ -108,9 +153,51 @@ export class MailService {
       </html>
     `;
     
-    const text = `Your OTP code is: ${otpCode}. It will expire in 10 minutes.`;
-    
+    const detailText = details?.length
+      ? ` ${details.map(([label, value]) => `${label}: ${value}`).join(', ')}. Enter it only in your own Kongossa Pay app; never tell it to anyone.`
+      : '';
+    const text = `Your OTP code is: ${otpCode}. It will expire in 10 minutes.${detailText}`;
+
     return this.sendMail(to, subject, html, text);
+  }
+
+  /** Receipt after a completed agent cash in, cash out or transfer. */
+  async sendReceiptEmail(to: string, title: string, lines: [string, string][]) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="UTF-8"><title>${this.escapeHtml(title)}</title></head>
+      <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f7fb;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f7fb; padding: 20px;">
+          <tr>
+            <td align="center">
+              <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; font-family: Arial, Helvetica, sans-serif;">
+                <tr>
+                  <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 24px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 26px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Receipt</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 24px 20px;">
+                    <h2 style="color: #2d3748; margin: 0 0 16px 0; font-size: 20px; text-align: center;">${this.escapeHtml(title)}</h2>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      ${this.renderDetailRows(lines)}
+                    </table>
+                    <p style="color: #a0aec0; font-size: 12px; margin: 24px 0 0 0; text-align: center;">
+                      If you did not make this transaction, contact Kongossa Pay support at once.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    const text = `${title}\n${lines.map(([label, value]) => `${label}: ${value}`).join('\n')}`;
+    return this.sendMail(to, `🧾 ${title}`, html, text);
   }
 
   async sendPasswordResetEmail(to: string, resetUrl: string) {

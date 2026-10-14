@@ -40,3 +40,38 @@ export class EndDayDto {
   @IsString()
   notes?: string;
 }
+
+export class AgentTransferDto {
+  @IsNotEmpty()
+  @IsEmail()
+  senderEmail: string;
+
+  @IsNotEmpty()
+  @IsEmail()
+  recipientEmail: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+/** A customer starting a cash-out at an agent, from their own app. */
+export class CustomerCashOutDto {
+  @IsNotEmpty()
+  @IsString()
+  agentCode: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
