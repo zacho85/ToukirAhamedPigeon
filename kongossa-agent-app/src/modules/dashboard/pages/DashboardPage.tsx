@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { getDashboardStats, getCurrentDay, getDailyCommission } from "@/modules/agents/api";
 import type { DailyCommission } from "@/modules/agents/api";
 
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [daily, setDaily] = useState<DailyCommission[]>([]);
   const [showAllDays, setShowAllDays] = useState(false);
+  const { waitingCashOuts = 0 } = useOutletContext<{ waitingCashOuts?: number }>() ?? {};
 
   useEffect(() => {
     Promise.all([getDashboardStats(), getCurrentDay(), getDailyCommission(30)])
@@ -96,11 +97,16 @@ export default function DashboardPage() {
         <Link
           to="/transactions/cash-out"
           aria-disabled={!dayOpen}
-          className={`rounded-2xl p-4 bg-white shadow-sm text-center font-medium ${
+          className={`relative rounded-2xl p-4 bg-white shadow-sm text-center font-medium ${
             dayOpen ? "text-[#0B1226]" : "pointer-events-none text-gray-300"
-          }`}
+          } ${waitingCashOuts > 0 ? "ring-2 ring-amber-400" : ""}`}
         >
           Cash Out
+          {waitingCashOuts > 0 && (
+            <span className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-amber-400 text-[#0B1226] text-xs font-bold flex items-center justify-center">
+              {waitingCashOuts}
+            </span>
+          )}
         </Link>
         <Link
           to="/transactions/transfer"

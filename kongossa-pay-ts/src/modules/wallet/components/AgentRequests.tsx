@@ -5,7 +5,7 @@
 // code and approves it with the emailed code, and approves (or rejects) any
 // transfer an agent started for them. Codes are entered only here, never
 // told to the agent.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Banknote, Clock } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -305,10 +305,19 @@ export function AgentRequestsCard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [active, setActive] = useState<AgentRequest | null>(null);
 
+  // Ids seen on the last poll. One that drops out has ended (paid out, declined, cancelled
+  // or expired), so the wallet balance is reloaded even when the dialog is closed.
+  const seen = useRef<Set<number> | null>(null);
   const refresh = useCallback(
     () =>
       listAgentRequests()
-        .then(setRequests)
+        .then((list) => {
+          const ids = new Set(list.map((r) => r.id));
+          const ended = seen.current ? [...seen.current].some((id) => !ids.has(id)) : false;
+          seen.current = ids;
+          setRequests(list);
+          if (ended) void syncUserProfile();
+        })
         .catch(() => undefined),
     [],
   );
