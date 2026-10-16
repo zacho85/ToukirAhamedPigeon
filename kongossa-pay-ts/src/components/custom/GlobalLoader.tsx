@@ -26,8 +26,8 @@ export default function GlobalLoader(): React.ReactElement | null {
         {/* Site Logo */}
         <div className="relative w-16 h-16 select-none pointer-events-none">
           <img
-            src="/logo.png"
-            alt="Logo"
+            src="/kp-mark.png"
+            alt="KongossaPay"
             width={64}
             height={64}
             className="object-contain"

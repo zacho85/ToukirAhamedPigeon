@@ -30,7 +30,7 @@ export default function AgentShell() {
     <div className="min-h-screen bg-[#F4F6F8] flex flex-col">
       <header className="bg-white px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-2 shrink-0">
-          <img src="/logo.png" alt="" className="h-8 w-auto" />
+          <img src="/kp-mark.png" alt="" className="h-8 w-8 rounded-lg" />
           <span className="font-semibold text-[#0B1226]">Kongossa Pay Agent</span>
         </div>
         {user && (

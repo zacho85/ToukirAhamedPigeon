@@ -21,7 +21,7 @@ export default function Logo({ isTitle, className, titleClassName }: LogoProps) 
           duration-300
         "
       >
-        <img src="/logo.png" alt="Logo" width={32} height={32} />
+        <img src="/kp-mark.png" alt="KongossaPay" width={32} height={32} className="rounded-full" />
       </div>
 
       {isTitle && (

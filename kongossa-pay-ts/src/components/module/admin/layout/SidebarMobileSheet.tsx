@@ -30,7 +30,8 @@ export default function SidebarMobileSheet() {
         
         {/* Logo Section - Fixed at top */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <img src="/logo.png" className="h-9" alt="Kongossa Pay Logo" />
+          <img src="/kp-logo.png" className="h-9 dark:hidden" alt="KongossaPay" />
+          <img src="/kp-logo-white.png" className="h-9 hidden dark:block" alt="KongossaPay" />
         </div>
         
         {/* Scrollable Menu Section */}
