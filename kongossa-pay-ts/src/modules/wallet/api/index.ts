@@ -213,6 +213,10 @@ export interface AgentRequest {
   type: "cash_out" | "transfer";
   status: string; // pending_otp | awaiting_agent | completed | cancelled | declined | expired | failed
   amount: number;
+  /** Platform fee paid on top, fixed when the request was made. */
+  fee: number;
+  /** amount + fee: what leaves the wallet. */
+  total: number;
   reference: string;
   createdAt: string;
   completedAt: string | null;

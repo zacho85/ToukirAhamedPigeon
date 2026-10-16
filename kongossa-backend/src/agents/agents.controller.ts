@@ -380,6 +380,12 @@ export class AgentsController {
     return { success: true, data: transaction };
   }
 
+  @Get('transfer/quote')
+  @UseGuards(JwtAuthGuard, AgentGuard)
+  async quoteTransfer(@Query('sender') sender: string, @Query('amount') amount: string) {
+    return { success: true, data: await this.agentsService.quoteTransfer(sender, Number(amount)) };
+  }
+
   @Post('transfer')
   @UseGuards(JwtAuthGuard, AgentGuard)
   async transfer(@Req() req, @Body() dto: AgentTransferDto) {

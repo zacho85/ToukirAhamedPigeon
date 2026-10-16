@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { DollarSign, Percent, Settings } from "lucide-react";
+import { DollarSign, Percent, Settings, Landmark } from "lucide-react";
 
 // ✅ API
-import { getSystemSettings, saveSystemSettings } from "@/modules/fee-management/api";
+import { getSystemSettings, saveSystemSettings, getPlatformAccount } from "@/modules/fee-management/api";
 import { dispatchShowToast } from "@/lib/dispatch";
 
 /* ------------------------------------------------------------------ */
@@ -20,7 +20,27 @@ interface FeeSettingsState {
   forex_markup_percent: number;
   crypto_markup_percent: number;
   tontine_fee_percent: number;
+  deposit_fee_percent: number;
+  withdrawal_fee_percent: number;
+  p2p_fee_percent: number;
+  p2p_free_daily_amount: number;
+  mobile_money_fee_percent: number;
 }
+
+/** The platform fees charged on agent and customer payments. */
+const PLATFORM_FEES: {
+  field: keyof FeeSettingsState;
+  label: string;
+  hint: string;
+  step: string;
+  percent: boolean;
+}[] = [
+  { field: "deposit_fee_percent", label: "Deposit fee (%)", hint: "Cash in at an agent. Taken from the amount credited.", step: "0.1", percent: true },
+  { field: "withdrawal_fee_percent", label: "Withdrawal fee (%)", hint: "Cash out at an agent. Paid on top by the customer.", step: "0.1", percent: true },
+  { field: "p2p_fee_percent", label: "Transfer fee (%)", hint: "Between KongossaPay users (Send Money and agent transfers), on the part above the free amount. Paid on top by the sender.", step: "0.1", percent: true },
+  { field: "p2p_free_daily_amount", label: "Free transfers per day", hint: "Amount each sender can transfer free per day, in the wallet currency.", step: "1", percent: false },
+  { field: "mobile_money_fee_percent", label: "Mobile Money fee (%)", hint: "Sending to a Mobile Money network. Applies once that option is available.", step: "0.1", percent: true },
+];
 
 /* ------------------------------------------------------------------ */
 /* COMPONENT */
@@ -33,7 +53,13 @@ export default function AdminFeeManagement() {
     forex_markup_percent: 2.0,
     crypto_markup_percent: 2.5,
     tontine_fee_percent: 0.5,
+    deposit_fee_percent: 0,
+    withdrawal_fee_percent: 0.5,
+    p2p_fee_percent: 0.5,
+    p2p_free_daily_amount: 13,
+    mobile_money_fee_percent: 1.5,
   });
+  const [platformBalance, setPlatformBalance] = useState<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,8 +83,16 @@ export default function AdminFeeManagement() {
           forex_markup_percent: latest.forexMarkupPercent,
           crypto_markup_percent: latest.cryptoMarkupPercent,
           tontine_fee_percent: latest.tontineFeePercent,
+          deposit_fee_percent: latest.depositFeePercent ?? 0,
+          withdrawal_fee_percent: latest.withdrawalFeePercent ?? 0.5,
+          p2p_fee_percent: latest.p2pFeePercent ?? 0.5,
+          p2p_free_daily_amount: latest.p2pFreeDailyAmount ?? 13,
+          mobile_money_fee_percent: latest.mobileMoneyFeePercent ?? 1.5,
         });
       }
+      getPlatformAccount()
+        .then((a) => setPlatformBalance(a.balance))
+        .catch(() => setPlatformBalance(null));
     } catch (err) {
       console.error("Failed to load system settings:", err);
     } finally {
@@ -79,6 +113,11 @@ export default function AdminFeeManagement() {
         forexMarkupPercent: settings.forex_markup_percent,
         cryptoMarkupPercent: settings.crypto_markup_percent,
         tontineFeePercent: settings.tontine_fee_percent,
+        depositFeePercent: settings.deposit_fee_percent,
+        withdrawalFeePercent: settings.withdrawal_fee_percent,
+        p2pFeePercent: settings.p2p_fee_percent,
+        p2pFreeDailyAmount: settings.p2p_free_daily_amount,
+        mobileMoneyFeePercent: settings.mobile_money_fee_percent,
       });
 
       dispatchShowToast({
@@ -145,6 +184,58 @@ export default function AdminFeeManagement() {
         </div>
       </div>
 
+      {/* Platform fees */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Landmark className="w-5 h-5 text-indigo-600" />
+            Platform fees
+          </CardTitle>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Fees go to the platform account, and agent commission is paid from it.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            {PLATFORM_FEES.map((f) => (
+              <div key={f.field}>
+                <Label htmlFor={f.field}>{f.label}</Label>
+                <div className="relative">
+                  <Input
+                    id={f.field}
+                    type="number"
+                    min="0"
+                    step={f.step}
+                    value={settings[f.field]}
+                    onChange={(e) => handleInputChange(f.field, e.target.value)}
+                  />
+                  {f.percent && (
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50" />
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{f.hint}</p>
+              </div>
+            ))}
+          </div>
+          {platformBalance !== null && (
+            <div className="p-3 bg-muted rounded-lg flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-sm font-medium">Platform account balance</span>
+              <span
+                className={`text-lg font-semibold tabular-nums ${
+                  platformBalance < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                }`}
+              >
+                {platformBalance < 0 ? "−" : ""}${Math.abs(platformBalance).toFixed(2)}
+              </span>
+              <span className="basis-full text-xs text-slate-500 dark:text-slate-400">
+                Fees collected minus agent commission paid. It can go below zero, because cash in pays
+                commission without a fee.
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Fee Cards */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Transfer & Withdrawal */}
@@ -157,7 +248,7 @@ export default function AdminFeeManagement() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Money Transfer Fee (%)</Label>
+              <Label>QR Payment Fee (%)</Label>
               <div className="relative">
                 <Input
                   type="number"
@@ -262,10 +353,13 @@ export default function AdminFeeManagement() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
           <div className="p-3 bg-muted rounded-lg">
-            <p className="font-medium">$100 Transfer</p>
+            <p className="font-medium">$100 transfer (first of the day)</p>
             <p>
               Fee: $
-              {(100 * settings.transfer_fee_percent / 100).toFixed(2)}
+              {(
+                (Math.max(0, 100 - settings.p2p_free_daily_amount) * settings.p2p_fee_percent) /
+                100
+              ).toFixed(2)}
             </p>
           </div>
           <div className="p-3 bg-muted rounded-lg">
@@ -276,8 +370,8 @@ export default function AdminFeeManagement() {
             </p>
           </div>
           <div className="p-3 bg-muted rounded-lg">
-            <p className="font-medium">Withdrawal</p>
-            <p>Fee: ${settings.withdrawal_fee_flat.toFixed(2)}</p>
+            <p className="font-medium">$100 cash out</p>
+            <p>Fee: ${((100 * settings.withdrawal_fee_percent) / 100).toFixed(2)}</p>
           </div>
         </CardContent>
       </Card>

@@ -6,12 +6,14 @@ import { TransactionHistoryDto } from './dto/transaction-history.dto';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
 import { WalletTopUpService } from '../wallet-topup/wallet-topup.service';
+import { FeesService } from '../fees/fees.service';
 
 @Injectable()
 export class TransactionsService {
   constructor(
     private prisma: PrismaService,
     private walletService: WalletTopUpService, // Inject wallet service for balance calculations
+    private fees: FeesService,
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
@@ -134,13 +136,13 @@ export class TransactionsService {
     if (!sender) throw new NotFoundException('Sender not found');
 
     const recipient = await this.prisma.user.findUnique({ where: { id: dto.recipientId } });
-    if (!recipient) throw new NotFoundException('Recipient not found');
+    if (!recipient || recipient.status !== 'active') throw new NotFoundException('Recipient not found');
+    if (recipient.id === senderId) throw new BadRequestException('You cannot send money to yourself');
 
-    const settings = await this.prisma.systemSettings.findFirst();
-    if (!settings) throw new BadRequestException('System settings not configured');
-
-    const transferFee = dto.amount * (settings.transferFeePercent / 100);
-    const totalDeduction = dto.amount + transferFee;
+    // Free up to the daily amount, then the platform's transfer fee on top.
+    const amount = Math.round(dto.amount * 100) / 100;
+    const { fee: transferFee } = await this.fees.transferFee(senderId, amount);
+    const totalDeduction = Math.round((amount + transferFee) * 100) / 100;
 
     const senderCurrentBalance = sender.walletBalance;
 
@@ -159,24 +161,35 @@ export class TransactionsService {
           transactionId: crypto.randomUUID(),
           senderId,
           recipientId: dto.recipientId,
-          amount: dto.amount,
+          amount,
           fee: transferFee,
           type: 'wallet_transfer',
           status: 'completed',
+          paymentMethod: 'send_money',
           description: dto.description || 'Wallet transfer',
         },
       });
 
-      // 2️⃣ Update sender's balance (decrease)
-      const updatedSender = await tx.user.update({
-        where: { id: senderId },
+      // 2️⃣ Debit the sender (amount + fee) only if the balance still covers it
+      const debited = await tx.user.updateMany({
+        where: { id: senderId, walletBalance: { gte: totalDeduction } },
         data: { walletBalance: { decrement: totalDeduction } },
       });
+      if (debited.count === 0) throw new BadRequestException('Insufficient balance');
+      const updatedSender = await tx.user.findUniqueOrThrow({ where: { id: senderId } });
 
       // 3️⃣ Update recipient's balance (increase)
       await tx.user.update({
         where: { id: dto.recipientId },
-        data: { walletBalance: { increment: dto.amount } },
+        data: { walletBalance: { increment: amount } },
+      });
+
+      // 4️⃣ The fee goes to the platform account, with its own ledger row
+      await this.fees.recordFee(tx, {
+        payerId: senderId,
+        fee: transferFee,
+        reference: transaction.transactionId,
+        description: 'Transfer fee',
       });
 
       console.log(`Sender ${senderId}: -${totalDeduction}`);

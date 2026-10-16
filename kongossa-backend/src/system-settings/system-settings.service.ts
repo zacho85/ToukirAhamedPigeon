@@ -13,10 +13,15 @@ export class SystemSettingsService {
     });
   }
 
-  // ✅ Always create new row (history preserved)
+  // ✅ Always create new row (history preserved). Fields the request leaves
+  // out keep their current value instead of falling back to the defaults.
   async createSettings(data: UpdateSystemSettingsDto) {
+    const latest = await this.getSettings();
+    const current = latest
+      ? (({ id, createdAt, updatedAt, ...values }) => values)(latest)
+      : {};
     return this.prisma.systemSettings.create({
-      data,
+      data: { ...current, ...data },
     });
   }
 

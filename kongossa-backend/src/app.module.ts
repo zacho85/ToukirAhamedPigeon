@@ -52,6 +52,7 @@ import { MpesaModule } from './mpesa/mpesa.module';
 import { PaystackModule } from './paystack/paystack.module';
 import { FlutterwaveModule } from './flutterwave/flutterwave.module';
 import { AgentsModule } from './agents/agents.module';
+import { FeesModule } from './fees/fees.module';
 
 // Swagger is mounted in main.ts (src/swagger/setup-swagger.ts) and gated by
 // nginx Basic auth at the edge — no in-app middleware or module is involved.
@@ -105,6 +106,7 @@ import { AgentsModule } from './agents/agents.module';
     PaystackModule,
     FlutterwaveModule,
     AgentsModule,
+    FeesModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET || 'default-secret',
       signOptions: { 

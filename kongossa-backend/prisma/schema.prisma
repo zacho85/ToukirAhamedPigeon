@@ -397,6 +397,12 @@ model SystemSettings {
   forexMarkupPercent  Float    @default(2.0)
   cryptoMarkupPercent Float    @default(2.5)
   tontineFeePercent   Float    @default(0.5)
+  // Platform fees (client's schedule, Oct 2026); all editable in Fee Management.
+  depositFeePercent     Float  @default(0)   // agent cash in
+  withdrawalFeePercent  Float  @default(0.5) // agent cash out, paid on top by the customer
+  p2pFeePercent         Float  @default(0.5) // KongossaPay user to user, above the free amount
+  p2pFreeDailyAmount    Float  @default(13)  // per sender per day, in wallet currency (~8,000 CFA)
+  mobileMoneyFeePercent Float  @default(1.5) // sending to a Mobile Money network (no such flow yet)
   updatedAt           DateTime @updatedAt
   createdAt           DateTime @default(now())
 

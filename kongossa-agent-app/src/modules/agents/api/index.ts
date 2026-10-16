@@ -44,6 +44,12 @@ export const endDay = async (endCash: number, notes?: string) => {
   return res.data.data;
 };
 
+/** The fee the sender would pay for this transfer (free daily amount, then a percentage). */
+export const quoteTransfer = async (sender: string, amount: number) => {
+  const res = await api.get("/agents/transfer/quote", { params: { sender: sender.trim(), amount } });
+  return res.data.data as { amount: number; fee: number; total: number; freeLeft: number };
+};
+
 /** `customer` is a KongossaPay ID, phone number (with country code) or email. */
 export const cashIn = async (customer: string, amount: number, notes?: string) => {
   const res = await api.post("/agents/cash-in", { customer: customer.trim(), amount, notes });

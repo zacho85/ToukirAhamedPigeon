@@ -186,6 +186,9 @@ async function main() {
   await prisma.agentDaySettlement.deleteMany({ where: { agentId: { in: agentIds } } });
   await prisma.transaction.deleteMany({ where: { OR: [{ senderId: { in: ids } }, { recipientId: { in: ids } }] } });
   await prisma.otp.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
+  // Platform fees back to their defaults, and the platform account to zero.
+  await prisma.systemSettings.deleteMany({});
+  await prisma.user.updateMany({ where: { email: 'platform@kongossapay.system' }, data: { walletBalance: 0 } });
 
   // ------------------------------------------------------------------- agents
   for (const a of AGENTS) {

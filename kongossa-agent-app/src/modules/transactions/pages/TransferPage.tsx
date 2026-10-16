@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { getMyTransaction, lookupUser, transfer } from "@/modules/agents/api";
+import { getMyTransaction, lookupUser, quoteTransfer, transfer } from "@/modules/agents/api";
 
 type Step = "form" | "review" | "waiting" | "success";
 type Party = { kongossaId: string; email: string; phoneNumber: string | null; fullName: string; active: boolean };
@@ -18,6 +18,7 @@ export default function TransferPage() {
   const [notes, setNotes] = useState("");
   const [sender, setSender] = useState<Party | null>(null);
   const [recipient, setRecipient] = useState<Party | null>(null);
+  const [feeQuote, setFeeQuote] = useState<{ fee: number; total: number } | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,6 +70,7 @@ export default function TransferPage() {
       if (!to.active) throw new Error(`${to.fullName}'s account is not active.`);
       setSender(from);
       setRecipient(to);
+      setFeeQuote(await quoteTransfer(senderInput, Number(amount)));
       setStep("review");
     } catch (err) {
       setError(apiError(err)?.message || (err as Error).message || "Could not find that customer.");
@@ -166,6 +168,12 @@ export default function TransferPage() {
           <div className="pt-3 border-t border-gray-100">
             <p className="text-gray-400">Amount</p>
             <p className="text-2xl font-bold text-[#0B1226]">{money}</p>
+            {feeQuote && (
+              <p className="text-gray-500 mt-1">
+                Fee ${feeQuote.fee.toFixed(2)} paid by the sender · ${feeQuote.total.toFixed(2)} leaves{" "}
+                {sender?.fullName}'s wallet
+              </p>
+            )}
           </div>
           <p className="text-xs text-gray-400">No cash changes hands, and no commission is earned.</p>
         </div>
