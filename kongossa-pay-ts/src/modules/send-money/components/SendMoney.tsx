@@ -11,7 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { useAppSelector } from "@/hooks/useRedux";
 
 import { getOtherUsers } from "@/modules/user/api";
-import { getSystemSettings } from "@/modules/fee-management/api";
+import { getFeeQuote } from "@/modules/fee-management/api";
+import type { FeeQuote } from "@/modules/fee-management/api";
 import { sendMoney } from "@/modules/history/api";
 import { getWalletStats } from "@/modules/wallet/api";
 import { TopUpDialog } from "@/modules/wallet/components/TopUpDialog";
@@ -25,16 +26,13 @@ interface Contact {
   profileImage?: string;
 }
 
-interface SystemSettings {
-  transferFeePercent: number;
-}
-
 export default function SendMoney() {
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user as DashboardUser);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  // The fee comes from the server (free daily amount, then a percentage).
+  const [quote, setQuote] = useState<FeeQuote | null>(null);
 
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -52,14 +50,9 @@ export default function SendMoney() {
     if (!user) return;
 
     const load = async () => {
-      const [users, fees, wallet] = await Promise.all([
-        getOtherUsers(),
-        getSystemSettings(),
-        getWalletStats(),
-      ]);
+      const [users, wallet] = await Promise.all([getOtherUsers(), getWalletStats()]);
 
       setContacts(users);
-      setSettings(fees);
       setWalletBalance(wallet.balance ?? user.walletBalance ?? 0);
     };
 
@@ -80,11 +73,27 @@ export default function SendMoney() {
 
   /* ---------------- CALCULATION ---------------- */
   const amountNum = Number(amount || 0);
-  const fee = settings ? amountNum * (settings.transferFeePercent / 100) : 0;
+
+  useEffect(() => {
+    if (!(amountNum > 0)) {
+      setQuote(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      getFeeQuote("transfer", amountNum)
+        .then(setQuote)
+        .catch(() => setQuote(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [amountNum]);
+
+  // Only trust a quote for the amount currently typed.
+  const quoteReady = quote !== null && quote.amount === Math.round(amountNum * 100) / 100;
+  const fee = quoteReady ? quote.fee : 0;
   const total = amountNum + fee;
   const remainingBalance = walletBalance - total; // ✅ Wallet after deduction
 
-  const canSend = amountNum > 0 && selectedContact && walletBalance >= total;
+  const canSend = amountNum > 0 && quoteReady && selectedContact && walletBalance >= total;
 
   /* ---------------- SEND MONEY ---------------- */
   const handleSendMoney = async () => {
@@ -237,8 +246,15 @@ export default function SendMoney() {
             </div>
             <div className="flex justify-between">
               <span>Fee</span>
-              <span>${fee.toFixed(2)}</span>
+              <span>{amountNum > 0 && !quoteReady ? "..." : `$${fee.toFixed(2)}`}</span>
             </div>
+            {quoteReady && quote.freeLeft !== undefined && (
+              <p className="text-xs text-gray-500">
+                {quote.freeLeft > 0
+                  ? `$${quote.freeLeft.toFixed(2)} of today's free amount left; ${quote.percent}% on anything above it.`
+                  : `Today's free amount is used up; ${quote.percent}% fee applies.`}
+              </p>
+            )}
             <Separator />
             <div className="flex justify-between font-semibold">
               <span>Total</span>

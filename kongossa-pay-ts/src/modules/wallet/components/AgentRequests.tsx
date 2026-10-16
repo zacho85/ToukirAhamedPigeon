@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dispatchShowToast, syncUserProfile } from "@/lib/dispatch";
+import { getFeeQuote } from "@/modules/fee-management/api";
+import type { FeeQuote } from "@/modules/fee-management/api";
 import {
   cancelAgentRequest,
   confirmAgentRequest,
@@ -59,6 +61,21 @@ function AgentRequestDialog({
   const [current, setCurrent] = useState<AgentRequest | null>(null);
   const [agentCode, setAgentCode] = useState("");
   const [amount, setAmount] = useState("");
+  // The cash-out fee for the typed amount, from the server's rules.
+  const [quote, setQuote] = useState<FeeQuote | null>(null);
+  useEffect(() => {
+    const value = Number(amount);
+    if (!(value > 0)) {
+      setQuote(null);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      getFeeQuote("withdrawal", value)
+        .then(setQuote)
+        .catch(() => setQuote(null));
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [amount]);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -105,6 +122,10 @@ function AgentRequestDialog({
     }
     if (value > maxAmount) {
       setError(`You can cash out at most ${money(maxAmount)}.`);
+      return;
+    }
+    if (quote && quote.amount === Math.round(value * 100) / 100 && quote.total > maxAmount) {
+      setError(`With the ${money(quote.fee)} fee this needs ${money(quote.total)}; you have ${money(maxAmount)}.`);
       return;
     }
     setLoading(true);
@@ -197,6 +218,11 @@ function AgentRequestDialog({
                 placeholder="0.00"
               />
               <p className="text-xs text-slate-500">Available: {money(maxAmount)}</p>
+              {quote && quote.amount === Math.round(Number(amount) * 100) / 100 && (
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Fee {money(quote.fee)} ({quote.percent}%) · Total from your wallet {money(quote.total)}
+                </p>
+              )}
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button className="w-full" onClick={onStart} disabled={loading}>
@@ -210,6 +236,9 @@ function AgentRequestDialog({
             <div className="rounded-lg border p-4 space-y-1 text-sm">
               <p className="text-slate-500">{isTransfer ? "Send" : "Cash out"}</p>
               <p className="text-2xl font-bold">{money(current.amount)}</p>
+              <p>
+                Fee {money(current.fee)} · <span className="font-medium">Total from your wallet {money(current.total)}</span>
+              </p>
               {isTransfer && current.recipient && (
                 <p>
                   to <span className="font-medium">{current.recipient.fullName || current.recipient.email}</span>
@@ -246,6 +275,9 @@ function AgentRequestDialog({
             <div className="rounded-lg border p-4 space-y-1 text-sm">
               <p className="text-slate-500">Collect from the agent</p>
               <p className="text-2xl font-bold">{money(current.amount)}</p>
+              <p className="text-slate-500">
+                {money(current.total)} will leave your wallet (incl. {money(current.fee)} fee)
+              </p>
               <p className="text-slate-500 break-words">Agent: {current.agentName}</p>
               <p className="text-xs text-slate-400 break-all">Reference {current.reference}</p>
             </div>
@@ -384,6 +416,7 @@ export function AgentRequestsCard({
                       {r.type === "transfer"
                         ? `Send ${money(r.amount)} to ${r.recipient?.fullName || r.recipient?.email}`
                         : `Cash out ${money(r.amount)}`}
+                      {r.fee > 0 && <span className="font-normal text-slate-500"> + {money(r.fee)} fee</span>}
                     </p>
                     <p className="text-slate-500 break-words">Agent: {r.agentName}</p>
                     <p className="text-xs text-slate-400">

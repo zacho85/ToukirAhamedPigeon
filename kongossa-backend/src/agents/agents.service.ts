@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
+import { FeesService } from '../fees/fees.service';
 import {
   RegisterAgentDto,
   ApproveAgentDto,
@@ -29,6 +30,7 @@ export class AgentsService {
     private prisma: PrismaService,
     private otpService: OtpService,
     private mailService: MailService,
+    private fees: FeesService,
   ) {}
 
   /**
@@ -951,10 +953,37 @@ export class AgentsService {
     return open;
   }
 
-  private async findActiveUserByEmail(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new NotFoundException('No user found with that email');
-    if (user.status !== 'active') throw new BadRequestException('This user account is not active');
+  /**
+   * Finds a customer by KongossaPay ID (KP100001), phone number or email.
+   * Phone numbers must be in international form (+237..., 237...), because a
+   * local number like 0612... cannot be told apart between countries.
+   */
+  private async findUserByIdentifier(identifier: string) {
+    const value = (identifier || '').trim();
+    if (!value) return null;
+
+    if (/^kp\d+$/i.test(value)) {
+      return this.prisma.user.findUnique({ where: { kongossaId: value.toUpperCase() } });
+    }
+    if (value.includes('@')) {
+      return this.prisma.user.findFirst({ where: { email: { equals: value, mode: 'insensitive' } } });
+    }
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 8) return null;
+    const international = digits.startsWith('00') ? digits.slice(2) : digits;
+    return this.prisma.user.findFirst({
+      where: { phoneNumber: { in: [value, `+${international}`, international, `00${international}`] } },
+    });
+  }
+
+  private async findActiveUser(identifier: string, who = 'customer') {
+    const user = await this.findUserByIdentifier(identifier);
+    if (!user) {
+      throw new NotFoundException(
+        `No ${who} found with that KongossaPay ID, phone number or email. Phone numbers need the country code, e.g. +237...`,
+      );
+    }
+    if (user.status !== 'active') throw new BadRequestException(`This ${who}'s account is not active`);
     return user;
   }
 
@@ -1034,6 +1063,8 @@ export class AgentsService {
       type: 'cash_in' | 'cash_out';
       amount: number;
       commission: number;
+      /** Platform fee the customer pays; already debited from their wallet by the caller. */
+      fee: number;
       reference: string;
       cashTransactionId: number;
     },
@@ -1054,25 +1085,20 @@ export class AgentsService {
       },
     });
 
-    if (p.commission > 0) {
-      await tx.user.update({
-        where: { id: p.agentProfile.userId },
-        data: { walletBalance: { increment: p.commission } },
-      });
-      await tx.transaction.create({
-        data: {
-          transactionId: `${p.reference}-COM`,
-          recipientId: p.agentProfile.userId,
-          amount: p.commission,
-          currency: 'USD',
-          type: 'agent_commission',
-          status: 'completed',
-          paymentMethod: 'agent_commission',
-          referenceNumber: p.reference,
-          description: `Commission on ${isCashIn ? 'cash in' : 'cash out'} ${p.reference}`,
-        },
-      });
-    }
+    // Commission is paid out of the platform account, which collects the fees.
+    await this.fees.payCommission(tx, {
+      agentUserId: p.agentProfile.userId,
+      commission: p.commission,
+      reference: p.reference,
+      description: `Commission on ${isCashIn ? 'cash in' : 'cash out'} ${p.reference}`,
+    });
+
+    await this.fees.recordFee(tx, {
+      payerId: p.userId,
+      fee: p.fee,
+      reference: p.reference,
+      description: `${isCashIn ? 'Deposit' : 'Withdrawal'} fee on ${p.reference}`,
+    });
 
     return tx.agentCashTransaction.update({
       where: { id: p.cashTransactionId },
@@ -1082,11 +1108,14 @@ export class AgentsService {
 
   async processCashIn(agentProfile: any, dto: CashTransactionDto) {
     await this.getOpenDaySettlement(agentProfile.id);
-    const user = await this.findActiveUserByEmail(dto.userEmail);
+    const user = await this.findActiveUser(dto.customer);
     const amount = this.toMoney(dto.amount);
     await this.assertWithinTransactionLimits(agentProfile, amount);
 
     const commission = this.toMoney((amount * Number(agentProfile.commissionRate)) / 100);
+    // A deposit fee (0% by default) comes out of the credited amount: the
+    // agent receives the full cash, the wallet gets the rest.
+    const fee = Math.min(await this.fees.depositFee(amount), amount);
     const reference = this.generateReference('CI');
 
     const completed = await this.prisma.$transaction(async (tx) => {
@@ -1108,7 +1137,7 @@ export class AgentsService {
 
       const credited = await tx.user.updateMany({
         where: { id: user.id, status: 'active' },
-        data: { walletBalance: { increment: amount } },
+        data: { walletBalance: { increment: this.toMoney(amount - fee) } },
       });
       if (credited.count === 0) {
         throw new BadRequestException('This user account is not active');
@@ -1121,6 +1150,7 @@ export class AgentsService {
           type: 'cash_in',
           amount,
           commission,
+          feeAmount: fee,
           status: 'completed',
           reference,
           description: dto.notes,
@@ -1134,6 +1164,7 @@ export class AgentsService {
         type: 'cash_in',
         amount,
         commission,
+        fee,
         reference,
         cashTransactionId: transaction.id,
       });
@@ -1150,6 +1181,12 @@ export class AgentsService {
         title: 'Cash-in receipt',
         lines: [
           ['Amount received', this.formatMoney(amount)],
+          ...(fee > 0
+            ? ([
+                ['Fee', this.formatMoney(fee)],
+                ['Added to your wallet', this.formatMoney(this.toMoney(amount - fee))],
+              ] as [string, string][])
+            : []),
           ['Agent', agentName],
           ['Reference', reference],
           ['Date', this.receiptDate()],
@@ -1262,8 +1299,12 @@ export class AgentsService {
     if (!user || user.status !== 'active') throw new BadRequestException('Your account is not active');
 
     const amount = this.toMoney(dto.amount);
-    if (Number(user.walletBalance) < amount) {
-      throw new BadRequestException('Your wallet balance is insufficient for this cash-out');
+    const fee = await this.fees.withdrawalFee(amount);
+    const total = this.toMoney(amount + fee);
+    if (Number(user.walletBalance) < total) {
+      throw new BadRequestException(
+        `Your wallet balance is insufficient for this cash-out (${this.formatMoney(amount)} + ${this.formatMoney(fee)} fee)`,
+      );
     }
     await this.assertWithinTransactionLimits(agent, amount, "the agent's");
     if (amount > Number(agent.cashOnHand)) {
@@ -1279,6 +1320,7 @@ export class AgentsService {
         type: 'cash_out',
         amount,
         commission,
+        feeAmount: fee,
         status: 'pending_otp',
         reference,
         description: dto.notes,
@@ -1288,11 +1330,13 @@ export class AgentsService {
     const agentName = this.agentDisplayName(agent);
     await this.sendDebitOtp(pending.id, user, 'agent_cashout', [
       ['Cash out', this.formatMoney(amount)],
+      ['Fee', this.formatMoney(fee)],
+      ['Total from your wallet', this.formatMoney(total)],
       ['Agent', agentName],
       ['Reference', reference],
     ]);
 
-    return { id: pending.id, reference, amount, status: pending.status, agentName };
+    return { id: pending.id, reference, amount, fee, total, status: pending.status, agentName };
   }
 
   /** The customer's code for their own pending cash-out or transfer. */
@@ -1352,6 +1396,7 @@ export class AgentsService {
         pending.userId!,
         pending.counterpartyUserId!,
         Number(pending.amount),
+        Number(pending.feeAmount),
         pending.reference,
         pending.id,
       );
@@ -1396,6 +1441,8 @@ export class AgentsService {
         type: r.type,
         status: r.status,
         amount: Number(r.amount),
+        fee: Number(r.feeAmount),
+        total: this.toMoney(Number(r.amount) + Number(r.feeAmount)),
         reference: r.reference,
         createdAt: r.createdAt,
         completedAt: r.completedAt,
@@ -1489,6 +1536,8 @@ export class AgentsService {
         title: 'Cash-out receipt',
         lines: [
           ['Amount paid out', this.formatMoney(amount)],
+          ['Fee', this.formatMoney(Number(request.feeAmount))],
+          ['Total from your wallet', this.formatMoney(this.toMoney(amount + Number(request.feeAmount)))],
           ['Agent', agentName],
           ['Reference', request.reference],
           ['Date', this.receiptDate()],
@@ -1521,9 +1570,14 @@ export class AgentsService {
     return this.prisma.agentCashTransaction.findUnique({ where: { id: requestId } });
   }
 
-  private async finalizeCashOut(agentProfile: any, request: { id: number; userId: number | null; amount: unknown; commission: unknown; reference: string }) {
+  private async finalizeCashOut(
+    agentProfile: any,
+    request: { id: number; userId: number | null; amount: unknown; commission: unknown; feeAmount: unknown; reference: string },
+  ) {
     const amount = Number(request.amount);
     const commission = Number(request.commission);
+    const fee = Number(request.feeAmount);
+    const total = this.toMoney(amount + fee);
 
     return this.prisma.$transaction(async (tx) => {
       // Claim the request: only one "Cash given" can ever complete it, and
@@ -1548,9 +1602,10 @@ export class AgentsService {
         throw new BadRequestException('Insufficient cash on hand to process this cash-out');
       }
 
+      // The customer pays the cash-out fee on top of the cash they receive.
       const debited = await tx.user.updateMany({
-        where: { id: request.userId!, status: 'active', walletBalance: { gte: amount } },
-        data: { walletBalance: { decrement: amount } },
+        where: { id: request.userId!, status: 'active', walletBalance: { gte: total } },
+        data: { walletBalance: { decrement: total } },
       });
       if (debited.count === 0) {
         throw new BadRequestException("The customer's wallet balance is insufficient for this cash-out");
@@ -1562,6 +1617,7 @@ export class AgentsService {
         type: 'cash_out',
         amount,
         commission,
+        fee,
         reference: request.reference,
         cashTransactionId: request.id,
       });
@@ -1584,31 +1640,48 @@ export class AgentsService {
   // AgentCashTransaction.userId is the sender, counterpartyUserId the recipient.
   // -----------------------------------------------------------------------
 
-  /** Name lookup so the agent can confirm who they are dealing with. */
-  async lookupUser(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: (email || '').trim() },
-      select: { email: true, fullName: true, status: true },
-    });
-    if (!user) throw new NotFoundException('No user found with that email');
-    return { email: user.email, fullName: user.fullName, active: user.status === 'active' };
+  /** Lookup by KongossaPay ID, phone or email, so the agent can confirm who they are dealing with. */
+  async lookupUser(identifier: string) {
+    const user = await this.findUserByIdentifier(identifier);
+    if (!user) {
+      throw new NotFoundException(
+        'No customer found with that KongossaPay ID, phone number or email. Phone numbers need the country code, e.g. +237...',
+      );
+    }
+    return {
+      kongossaId: user.kongossaId,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      fullName: user.fullName,
+      active: user.status === 'active',
+    };
+  }
+
+  /** The fee the sender would pay, so the agent can show it on the review screen. */
+  async quoteTransfer(sender: string, amountRaw: number) {
+    const user = await this.findActiveUser(sender, 'sender');
+    const amount = this.toMoney(amountRaw);
+    if (!(amount > 0)) throw new BadRequestException('amount must be a positive number');
+    const { fee, freeLeft } = await this.fees.transferFee(user.id, amount);
+    return { amount, fee, total: this.toMoney(amount + fee), freeLeft };
   }
 
   async processTransfer(agentProfile: any, dto: AgentTransferDto) {
     await this.getOpenDaySettlement(agentProfile.id);
-    if (dto.senderEmail.trim().toLowerCase() === dto.recipientEmail.trim().toLowerCase()) {
+    const sender = await this.findActiveUser(dto.sender, 'sender');
+    const recipient = await this.findActiveUser(dto.recipient, 'recipient');
+    if (sender.id === recipient.id) {
       throw new BadRequestException('Sender and recipient must be different users');
     }
 
-    const sender = await this.findActiveUserByEmail(dto.senderEmail.trim());
-    const recipient = await this.prisma.user.findUnique({ where: { email: dto.recipientEmail.trim() } });
-    if (!recipient) throw new NotFoundException('No recipient found with that email');
-    if (recipient.status !== 'active') throw new BadRequestException('The recipient account is not active');
-
     const amount = this.toMoney(dto.amount);
     await this.assertWithinTransactionLimits(agentProfile, amount);
-    if (Number(sender.walletBalance) < amount) {
-      throw new BadRequestException("The sender's wallet balance is insufficient for this transfer");
+    const { fee } = await this.fees.transferFee(sender.id, amount);
+    const total = this.toMoney(amount + fee);
+    if (Number(sender.walletBalance) < total) {
+      throw new BadRequestException(
+        `The sender's wallet balance is insufficient for this transfer (${this.formatMoney(amount)} + ${this.formatMoney(fee)} fee)`,
+      );
     }
 
     const reference = this.generateReference('TR');
@@ -1620,6 +1693,7 @@ export class AgentsService {
         type: 'transfer',
         amount,
         commission: 0,
+        feeAmount: fee,
         status: 'pending_otp',
         reference,
         description: dto.notes,
@@ -1632,12 +1706,14 @@ export class AgentsService {
     });
     await this.sendDebitOtp(pending.id, sender, 'agent_transfer', [
       ['Transfer', this.formatMoney(amount)],
+      ['Fee', this.formatMoney(fee)],
+      ['Total from your wallet', this.formatMoney(total)],
       ['To', recipient.fullName || recipient.email],
       ['Agent', this.agentDisplayName({ ...agentProfile, user: agentUser })],
       ['Reference', reference],
     ]);
 
-    return { ...pending, requiresCustomerApproval: true, senderName: sender.fullName };
+    return { ...pending, fee, total, requiresCustomerApproval: true, senderName: sender.fullName };
   }
 
   private async finalizeTransfer(
@@ -1645,9 +1721,11 @@ export class AgentsService {
     senderId: number,
     recipientId: number,
     amount: number,
+    fee: number,
     reference: string,
     pendingId: number,
   ) {
+    const total = this.toMoney(amount + fee);
     const completed = await this.prisma.$transaction(async (tx) => {
       // Claim the pending row: only one confirmation can ever complete it.
       const claimed = await tx.agentCashTransaction.updateMany({
@@ -1658,9 +1736,10 @@ export class AgentsService {
         throw new BadRequestException('This transfer is not waiting for your code');
       }
 
+      // The sender pays the fee on top; the recipient gets the full amount.
       const debited = await tx.user.updateMany({
-        where: { id: senderId, status: 'active', walletBalance: { gte: amount } },
-        data: { walletBalance: { decrement: amount } },
+        where: { id: senderId, status: 'active', walletBalance: { gte: total } },
+        data: { walletBalance: { decrement: total } },
       });
       if (debited.count === 0) {
         throw new BadRequestException("The sender's wallet balance is insufficient for this transfer");
@@ -1688,6 +1767,13 @@ export class AgentsService {
         },
       });
 
+      await this.fees.recordFee(tx, {
+        payerId: senderId,
+        fee,
+        reference,
+        description: `Transfer fee on ${reference}`,
+      });
+
       return tx.agentCashTransaction.update({
         where: { id: pendingId },
         data: { transactionId: ledger.id },
@@ -1709,7 +1795,13 @@ export class AgentsService {
       sender && {
         to: sender.email,
         title: 'Transfer receipt',
-        lines: [['Amount sent', this.formatMoney(amount)], ['To', recipient?.fullName || recipient?.email || '-'], ...common],
+        lines: [
+          ['Amount sent', this.formatMoney(amount)],
+          ['Fee', this.formatMoney(fee)],
+          ['Total from your wallet', this.formatMoney(total)],
+          ['To', recipient?.fullName || recipient?.email || '-'],
+          ...common,
+        ],
       },
       recipient && {
         to: recipient.email,

@@ -14,6 +14,7 @@ import { MpesaModule } from '../mpesa/mpesa.module';
 import { PaystackModule } from '../paystack/paystack.module';      // ✅ ADDED
 import { FlutterwaveModule } from '../flutterwave/flutterwave.module'; // ✅ ADDED
 import { AirtelMoneyModule } from '../airtel-money/airtel-money.module';
+import { FeesModule } from '../fees/fees.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AirtelMoneyModule } from '../airtel-money/airtel-money.module';
     PaystackModule,      // ✅ ADDED
     FlutterwaveModule,   // ✅ ADDED
     AirtelMoneyModule,
+    FeesModule,
   ],
   controllers: [TransactionsController],
   providers: [TransactionsService, WalletTopUpService],

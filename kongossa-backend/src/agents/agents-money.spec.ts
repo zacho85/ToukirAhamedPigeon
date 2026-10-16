@@ -17,6 +17,7 @@ import { execSync } from 'child_process';
 import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentsService } from './agents.service';
+import { FeesService, PLATFORM_ACCOUNT_EMAIL } from '../fees/fees.service';
 
 const TEST_OTP = '123456';
 
@@ -39,6 +40,7 @@ describe('Agent money paths (integration)', () => {
   let prisma: PrismaService;
   let service: AgentsService;
   let ids: { admin: number; agentUser: number; agent: number; u1: number; u2: number };
+  let ids_platform: number;
 
   const fakeOtp = {
     sendOtp: jest.fn(async () => ({ success: true })),
@@ -69,6 +71,7 @@ describe('Agent money paths (integration)', () => {
     await prisma.user.update({ where: { id: ids.u1 }, data: { walletBalance: opts.u1 ?? 1000 } });
     await prisma.user.update({ where: { id: ids.u2 }, data: { walletBalance: opts.u2 ?? 50 } });
     await prisma.user.update({ where: { id: ids.agentUser }, data: { walletBalance: 0 } });
+    await prisma.user.update({ where: { id: ids_platform }, data: { walletBalance: 0 } });
     await prisma.agentProfile.update({ where: { id: ids.agent }, data: { cashOnHand: 0 } });
     await service.startDay(await agentProfile(), { startCash: opts.cash ?? 1000 });
   }
@@ -81,7 +84,11 @@ describe('Agent money paths (integration)', () => {
 
     prisma = new PrismaService({ datasources: { db: { url: DB_URL } } });
     await prisma.$connect();
-    service = new AgentsService(prisma, fakeOtp as any, fakeMail as any);
+    service = new AgentsService(prisma, fakeOtp as any, fakeMail as any, new FeesService(prisma));
+    // Default fee settings apply (no SystemSettings row): cash out 0.5%,
+    // transfers free up to 13 per day then 0.5%.
+    await prisma.systemSettings.deleteMany();
+    ids_platform = (await prisma.user.findUniqueOrThrow({ where: { email: PLATFORM_ACCOUNT_EMAIL } })).id;
 
     // Leftovers from an earlier run of this suite.
     await prisma.agentWalletAdjustment.deleteMany();
@@ -118,7 +125,7 @@ describe('Agent money paths (integration)', () => {
   });
 
   it('cash in credits the user, adds to cash on hand and pays commission, with ledger rows', async () => {
-    await service.processCashIn(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 });
+    await service.processCashIn(await agentProfile(), { customer: 'u1@test.local', amount: 100 });
 
     expect(await wallet(ids.u1)).toBe(1100);
     expect(await cash()).toBe(1100);
@@ -156,16 +163,20 @@ describe('Agent money paths (integration)', () => {
     expect(requests.map((r) => r.id)).toEqual([started.id]);
 
     await service.completeCashOut(await agentProfile(), started.id);
-    expect(await wallet(ids.u1)).toBe(900);
+    // 0.5% fee on top: the customer pays 100.50, the agent hands over 100.
+    expect(await wallet(ids.u1)).toBe(899.5);
     expect(await cash()).toBe(900);
     expect(await wallet(ids.agentUser)).toBe(2);
+    // Platform: +0.50 fee, -2.00 commission.
+    expect(await wallet(ids_platform)).toBe(-1.5);
     await expectLedgerMatchesWallet(ids.u1, 1000);
     await expectLedgerMatchesWallet(ids.agentUser, 0);
+    await expectLedgerMatchesWallet(ids_platform, 0);
     expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('u1@test.local', 'Cash-out receipt', expect.anything());
     expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('agent@test.local', 'Cash-out completed', expect.anything());
 
     await expect(service.completeCashOut(await agentProfile(), started.id)).rejects.toThrow('no longer open');
-    expect(await wallet(ids.u1)).toBe(900);
+    expect(await wallet(ids.u1)).toBe(899.5);
   });
 
   it('the agent cannot complete a cash-out the customer has not approved', async () => {
@@ -239,8 +250,8 @@ describe('Agent money paths (integration)', () => {
 
   it('transfer moves money only after the sender enters the code in their own app', async () => {
     const pending: any = await service.processTransfer(await agentProfile(), {
-      senderEmail: 'u1@test.local',
-      recipientEmail: 'u2@test.local',
+      sender: 'u1@test.local',
+      recipient: 'u2@test.local',
       amount: 30,
     });
     expect(pending.status).toBe('pending_otp');
@@ -255,16 +266,19 @@ describe('Agent money paths (integration)', () => {
     await expect(service.confirmCustomerRequest(ids.u2, pending.id, TEST_OTP)).rejects.toThrow('not found');
     await service.confirmCustomerRequest(ids.u1, pending.id, TEST_OTP);
 
-    expect(await wallet(ids.u1)).toBe(970);
+    // 13 of the 30 are free today; 0.5% of the other 17 is 0.085 -> 0.09.
+    expect(await wallet(ids.u1)).toBe(969.91);
     expect(await wallet(ids.u2)).toBe(80);
     expect(await cash()).toBe(1000);
     expect(await wallet(ids.agentUser)).toBe(0);
+    expect(await wallet(ids_platform)).toBe(0.09);
     await expectLedgerMatchesWallet(ids.u1, 1000);
     await expectLedgerMatchesWallet(ids.u2, 50);
+    await expectLedgerMatchesWallet(ids_platform, 0);
     expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('u2@test.local', 'Money received', expect.anything());
 
     await expect(service.confirmCustomerRequest(ids.u1, pending.id, TEST_OTP)).rejects.toThrow('not waiting');
-    expect(await wallet(ids.u1)).toBe(970);
+    expect(await wallet(ids.u1)).toBe(969.91);
   });
 
   it('admin credit and debit change the agent wallet with ledger and audit rows; no overdraft', async () => {
@@ -296,7 +310,7 @@ describe('Agent money paths (integration)', () => {
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(await cash()).toBe(20);
-    expect(await wallet(ids.u1)).toBe(920);
+    expect(await wallet(ids.u1)).toBe(919.6); // 80 + 0.40 fee
   });
 
   it('the same cash-out given twice at the same moment pays out once', async () => {
@@ -306,8 +320,41 @@ describe('Agent money paths (integration)', () => {
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(await cash()).toBe(900);
-    expect(await wallet(ids.u1)).toBe(900);
+    expect(await wallet(ids.u1)).toBe(899.5);
     await expectLedgerMatchesWallet(ids.u1, 1000);
+  });
+
+  it('the transfer fee applies only above the daily free amount, across transfers', async () => {
+    const send = async (amount: number) => {
+      const pending: any = await service.processTransfer(await agentProfile(), {
+        sender: 'u1@test.local',
+        recipient: 'u2@test.local',
+        amount,
+      });
+      await service.confirmCustomerRequest(ids.u1, pending.id, TEST_OTP);
+      return pending;
+    };
+
+    const first = await send(10); // 10 of the 13 free
+    expect(first.fee).toBe(0);
+    const second = await send(10); // 3 free, 7 charged -> 0.035 -> 0.04
+    expect(second.fee).toBe(0.04);
+    const third = await send(10); // nothing free left -> 0.05
+    expect(third.fee).toBe(0.05);
+
+    // walletBalance is a Float column, so compare to the cent.
+    expect(await wallet(ids.u1)).toBeCloseTo(969.91, 2);
+    expect(await wallet(ids_platform)).toBeCloseTo(0.09, 2);
+    await expectLedgerMatchesWallet(ids.u1, 1000);
+    await expectLedgerMatchesWallet(ids_platform, 0);
+  });
+
+  it('a cash-out the customer cannot cover with the fee is refused before any code is sent', async () => {
+    await prisma.user.update({ where: { id: ids.u1 }, data: { walletBalance: 100 } });
+    await expect(service.createCustomerCashOut(ids.u1, { agentCode: 'AG-TEST', amount: 100 })).rejects.toThrow(
+      'insufficient',
+    );
+    expect(fakeOtp.sendOtp).not.toHaveBeenCalled();
   });
 
   it('rolls back every balance change when a step inside the transaction fails', async () => {
@@ -316,7 +363,7 @@ describe('Agent money paths (integration)', () => {
     jest.spyOn(service as any, 'generateReference').mockReturnValueOnce('DUP-REF');
 
     await expect(
-      service.processCashIn(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 }),
+      service.processCashIn(await agentProfile(), { customer: 'u1@test.local', amount: 100 }),
     ).rejects.toThrow();
 
     expect(await wallet(ids.u1)).toBe(1000);

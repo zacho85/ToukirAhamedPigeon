@@ -27,6 +27,18 @@ export class MailService {
   }
 
   /** Agent names and notes are user-supplied; never put them in HTML raw. */
+  /**
+   * The KongossaPay logo for the dark email headers: the white logo image
+   * served by the web app, or the text logo when FRONTEND_URL is not set.
+   */
+  private logoHtml(height = 36): string {
+    const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+    if (!base) {
+      return `<span style="color: #ffffff; font-size: 28px; font-weight: bold;">Kongossa<span style="color: #ffd700;">Pay</span></span>`;
+    }
+    return `<img src="${base}/kp-logo-white.png" alt="KongossaPay" height="${height}" style="height: ${height}px; width: auto; border: 0; display: inline-block;" />`;
+  }
+
   private escapeHtml(value: string): string {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -84,7 +96,7 @@ export class MailService {
                 <!-- Header -->
                 <tr>
                   <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <h1 style="margin: 0;">${this.logoHtml()}</h1>
                     <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Secure Digital Payments</p>
                   </td>
                 </tr>
@@ -174,7 +186,7 @@ export class MailService {
               <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; font-family: Arial, Helvetica, sans-serif;">
                 <tr>
                   <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 24px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 26px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <h1 style="margin: 0;">${this.logoHtml()}</h1>
                     <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Receipt</p>
                   </td>
                 </tr>
@@ -237,7 +249,7 @@ export class MailService {
               <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif;">
                 <tr>
                   <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <h1 style="margin: 0;">${this.logoHtml()}</h1>
                     <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Agent Network</p>
                   </td>
                 </tr>
@@ -292,7 +304,7 @@ export class MailService {
               <table width="500" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif;">
                 <tr>
                   <td style="background-color: #1e3c72; border-radius: 12px 12px 0 0; padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Kongossa<span style="color: #ffd700;">Pay</span></h1>
+                    <h1 style="margin: 0;">${this.logoHtml()}</h1>
                     <p style="color: #a8c4e0; margin: 8px 0 0 0; font-size: 14px;">Agent Network</p>
                   </td>
                 </tr>
@@ -453,7 +465,7 @@ export class MailService {
         <div class="container">
           <div class="card">
             <div class="header">
-              <div class="logo">Kongossa<span>Pay</span></div>
+              <div class="logo">${this.logoHtml()}</div>
               <div class="tagline">Secure Digital Payments</div>
             </div>
             <div class="content">
@@ -546,7 +558,7 @@ export class MailService {
         <div class="container">
           <div class="card">
             <div class="header">
-              <div class="logo">Kongossa<span>Pay</span></div>
+              <div class="logo">${this.logoHtml()}</div>
               <div class="tagline">Secure Digital Payments</div>
             </div>
             <div class="content">
@@ -641,7 +653,7 @@ export class MailService {
         <div class="container">
           <div class="card">
             <div class="header">
-              <div class="logo">Kongossa<span>Pay</span></div>
+              <div class="logo">${this.logoHtml()}</div>
               <div class="tagline">Secure Digital Payments</div>
             </div>
             <div class="content">
@@ -723,7 +735,7 @@ export class MailService {
         <div class="container">
           <div class="card">
             <div class="header">
-              <div class="logo">Kongossa<span>Pay</span></div>
+              <div class="logo">${this.logoHtml()}</div>
               <div class="tagline">Secure Digital Payments</div>
             </div>
             <div class="content">

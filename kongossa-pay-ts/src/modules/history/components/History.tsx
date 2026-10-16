@@ -172,7 +172,12 @@ export default function History() {
         // Agent cash in/out and commission rows have only one party, so the
         // "Sent to / Received from" titles below would read "User undefined".
         // An agent transfer has both parties and keeps those titles.
-        if (transaction.type.startsWith('agent_') && transaction.type !== 'agent_transfer' && transaction.description) {
+        // Platform fees likewise read better as their own description ("Transfer fee").
+        if (
+            (transaction.type === 'platform_fee' ||
+                (transaction.type.startsWith('agent_') && transaction.type !== 'agent_transfer')) &&
+            transaction.description
+        ) {
             return transaction.description;
         }
         if (transaction.type === 'deposit' || transaction.type === 'wallet_topup') {

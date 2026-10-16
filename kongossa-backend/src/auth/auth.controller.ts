@@ -177,6 +177,8 @@ export class AuthController {
         profileImage: userData.profileImage,
         currency: userData.currency,
         rewardsPoints: userData.rewardsPoints,
+        kongossaId: userData.kongossaId,
+        phoneNumber: userData.phoneNumber,
       };
     } catch (error) {
       console.log(error);

@@ -24,7 +24,8 @@ export default function PublicLayout({
 
             {/* LOGO */}
             <Link to="/" className="flex items-center gap-2">
-              <img src="/logo.png" className="h-9" />
+              <img src="/kp-logo.png" className="h-9 dark:hidden" alt="KongossaPay" />
+              <img src="/kp-logo-white.png" className="h-9 hidden dark:block" alt="KongossaPay" />
             </Link>
 
             {/* NAV */}

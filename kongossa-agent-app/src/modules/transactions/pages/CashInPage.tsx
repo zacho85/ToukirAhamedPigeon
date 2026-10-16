@@ -5,7 +5,7 @@ import { cashIn } from "@/modules/agents/api";
 
 export default function CashInPage() {
   const navigate = useNavigate();
-  const [userEmail, setUserEmail] = useState("");
+  const [customer, setCustomer] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ export default function CashInPage() {
     setError("");
     setLoading(true);
     try {
-      await cashIn(userEmail, Number(amount), notes || undefined);
+      await cashIn(customer, Number(amount), notes || undefined);
       setSuccess(true);
     } catch (err) {
       const message =
@@ -37,7 +37,7 @@ export default function CashInPage() {
         </div>
         <h1 className="text-lg font-bold text-[#0B1226]">Cash-in complete</h1>
         <p className="text-sm text-gray-500">
-          ${Number(amount).toFixed(2)} credited to {userEmail}'s wallet.
+          ${Number(amount).toFixed(2)} credited to {customer}'s wallet.
         </p>
         <button
           onClick={() => navigate("/dashboard")}
@@ -58,14 +58,17 @@ export default function CashInPage() {
 
       <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Customer email</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Customer ID, phone or email
+          </label>
           <input
-            type="email"
+            type="text"
+            autoComplete="off"
             required
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm"
-            placeholder="customer@example.com"
+            placeholder="KP100001, +237 6..., or email"
           />
         </div>
         <div>

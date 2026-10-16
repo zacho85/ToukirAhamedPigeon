@@ -71,7 +71,14 @@ export default function UserDropdown() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-60 p-2 bg-white dark:bg-gray-800">
-        <DropdownMenuLabel className="text-gray-700 dark:text-gray-200">{shortName}</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-gray-700 dark:text-gray-200">
+          {shortName}
+          {(user as any).kongossaId && (
+            <span className="block text-xs font-normal text-muted-foreground">
+              KongossaPay ID: {(user as any).kongossaId}
+            </span>
+          )}
+        </DropdownMenuLabel>
 
         <DropdownMenuItem asChild className="cursor-pointer dark:text-gray-200">
           <Link to="/profile" className="flex items-center gap-2">

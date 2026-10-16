@@ -27,7 +27,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "logo.png"],
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "kp-mark.png"],
       manifest: {
         name: "Kongossa Pay",
         short_name: "KongossaPay",

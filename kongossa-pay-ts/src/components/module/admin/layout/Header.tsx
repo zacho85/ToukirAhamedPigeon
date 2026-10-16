@@ -14,10 +14,10 @@ export default function Header() {
     >
       <div className="flex items-center gap-3">
         <SidebarMobileSheet />
-        <img
-          src="/logo.png"
-          className="h-9 hidden md:block"
-        />
+        <span className="hidden md:block">
+          <img src="/kp-logo.png" alt="KongossaPay" className="h-9 dark:hidden" />
+          <img src="/kp-logo-white.png" alt="KongossaPay" className="h-9 hidden dark:block" />
+        </span>
       </div>
         <div className="flex justify-end items-center gap-3">
           <ThemeToggleButton />
