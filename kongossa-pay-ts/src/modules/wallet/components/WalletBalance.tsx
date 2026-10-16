@@ -1,10 +1,23 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, TrendingUp, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Eye, EyeOff, TrendingUp, ArrowUpRight, ArrowDownLeft, Copy, Check } from "lucide-react";
 
 export default function WalletBalance({ user, stats }: { user: any, stats: any }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // Customers share this ID with an agent or a friend instead of their email.
+  const copyId = async () => {
+    if (!user?.kongossaId) return;
+    try {
+      await navigator.clipboard.writeText(user.kongossaId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked: the ID is still visible to copy by hand */
+    }
+  };
 
   return (
     <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
@@ -51,6 +64,20 @@ export default function WalletBalance({ user, stats }: { user: any, stats: any }
               <p className="text-blue-200 text-xs uppercase tracking-wide">Currency</p>
               <p className="text-lg md:text-xl font-semibold mt-1">{user?.currency || 'USD'}</p>
             </div>
+            {user?.kongossaId && (
+              <div className="text-center">
+                <p className="text-blue-200 text-xs uppercase tracking-wide">KongossaPay ID</p>
+                <button
+                  type="button"
+                  onClick={copyId}
+                  title="Copy your KongossaPay ID"
+                  className="inline-flex items-center gap-1.5 text-lg md:text-xl font-semibold mt-1 font-mono hover:text-blue-200"
+                >
+                  {user.kongossaId}
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 opacity-70" />}
+                </button>
+              </div>
+            )}
             <div className="text-right">
               <p className="text-blue-200 text-xs uppercase tracking-wide">Rewards</p>
               <p className="text-lg md:text-xl font-semibold mt-1">{user?.rewardsPoints || 0}</p>

@@ -1,11 +1,11 @@
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CashTransactionDto {
-  // Identifies the end user by email -- kept simple for MVP; the agent app's
-  // "search user" step is expected to resolve a phone/QR scan down to this.
+  // The customer's KongossaPay ID (KP100001), phone number or email.
   @IsNotEmpty()
-  @IsEmail()
-  userEmail: string;
+  @IsString()
+  @MaxLength(254)
+  customer: string;
 
   @IsNotEmpty()
   @IsNumber()
@@ -42,13 +42,16 @@ export class EndDayDto {
 }
 
 export class AgentTransferDto {
+  // Each is a KongossaPay ID, phone number or email.
   @IsNotEmpty()
-  @IsEmail()
-  senderEmail: string;
+  @IsString()
+  @MaxLength(254)
+  sender: string;
 
   @IsNotEmpty()
-  @IsEmail()
-  recipientEmail: string;
+  @IsString()
+  @MaxLength(254)
+  recipient: string;
 
   @IsNotEmpty()
   @IsNumber()

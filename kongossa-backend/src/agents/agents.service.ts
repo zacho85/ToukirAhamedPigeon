@@ -951,10 +951,37 @@ export class AgentsService {
     return open;
   }
 
-  private async findActiveUserByEmail(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new NotFoundException('No user found with that email');
-    if (user.status !== 'active') throw new BadRequestException('This user account is not active');
+  /**
+   * Finds a customer by KongossaPay ID (KP100001), phone number or email.
+   * Phone numbers must be in international form (+237..., 237...), because a
+   * local number like 0612... cannot be told apart between countries.
+   */
+  private async findUserByIdentifier(identifier: string) {
+    const value = (identifier || '').trim();
+    if (!value) return null;
+
+    if (/^kp\d+$/i.test(value)) {
+      return this.prisma.user.findUnique({ where: { kongossaId: value.toUpperCase() } });
+    }
+    if (value.includes('@')) {
+      return this.prisma.user.findFirst({ where: { email: { equals: value, mode: 'insensitive' } } });
+    }
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 8) return null;
+    const international = digits.startsWith('00') ? digits.slice(2) : digits;
+    return this.prisma.user.findFirst({
+      where: { phoneNumber: { in: [value, `+${international}`, international, `00${international}`] } },
+    });
+  }
+
+  private async findActiveUser(identifier: string, who = 'customer') {
+    const user = await this.findUserByIdentifier(identifier);
+    if (!user) {
+      throw new NotFoundException(
+        `No ${who} found with that KongossaPay ID, phone number or email. Phone numbers need the country code, e.g. +237...`,
+      );
+    }
+    if (user.status !== 'active') throw new BadRequestException(`This ${who}'s account is not active`);
     return user;
   }
 
@@ -1082,7 +1109,7 @@ export class AgentsService {
 
   async processCashIn(agentProfile: any, dto: CashTransactionDto) {
     await this.getOpenDaySettlement(agentProfile.id);
-    const user = await this.findActiveUserByEmail(dto.userEmail);
+    const user = await this.findActiveUser(dto.customer);
     const amount = this.toMoney(dto.amount);
     await this.assertWithinTransactionLimits(agentProfile, amount);
 
@@ -1584,26 +1611,30 @@ export class AgentsService {
   // AgentCashTransaction.userId is the sender, counterpartyUserId the recipient.
   // -----------------------------------------------------------------------
 
-  /** Name lookup so the agent can confirm who they are dealing with. */
-  async lookupUser(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: (email || '').trim() },
-      select: { email: true, fullName: true, status: true },
-    });
-    if (!user) throw new NotFoundException('No user found with that email');
-    return { email: user.email, fullName: user.fullName, active: user.status === 'active' };
+  /** Lookup by KongossaPay ID, phone or email, so the agent can confirm who they are dealing with. */
+  async lookupUser(identifier: string) {
+    const user = await this.findUserByIdentifier(identifier);
+    if (!user) {
+      throw new NotFoundException(
+        'No customer found with that KongossaPay ID, phone number or email. Phone numbers need the country code, e.g. +237...',
+      );
+    }
+    return {
+      kongossaId: user.kongossaId,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      fullName: user.fullName,
+      active: user.status === 'active',
+    };
   }
 
   async processTransfer(agentProfile: any, dto: AgentTransferDto) {
     await this.getOpenDaySettlement(agentProfile.id);
-    if (dto.senderEmail.trim().toLowerCase() === dto.recipientEmail.trim().toLowerCase()) {
+    const sender = await this.findActiveUser(dto.sender, 'sender');
+    const recipient = await this.findActiveUser(dto.recipient, 'recipient');
+    if (sender.id === recipient.id) {
       throw new BadRequestException('Sender and recipient must be different users');
     }
-
-    const sender = await this.findActiveUserByEmail(dto.senderEmail.trim());
-    const recipient = await this.prisma.user.findUnique({ where: { email: dto.recipientEmail.trim() } });
-    if (!recipient) throw new NotFoundException('No recipient found with that email');
-    if (recipient.status !== 'active') throw new BadRequestException('The recipient account is not active');
 
     const amount = this.toMoney(dto.amount);
     await this.assertWithinTransactionLimits(agentProfile, amount);

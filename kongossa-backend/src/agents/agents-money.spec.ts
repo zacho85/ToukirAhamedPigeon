@@ -118,7 +118,7 @@ describe('Agent money paths (integration)', () => {
   });
 
   it('cash in credits the user, adds to cash on hand and pays commission, with ledger rows', async () => {
-    await service.processCashIn(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 });
+    await service.processCashIn(await agentProfile(), { customer: 'u1@test.local', amount: 100 });
 
     expect(await wallet(ids.u1)).toBe(1100);
     expect(await cash()).toBe(1100);
@@ -239,8 +239,8 @@ describe('Agent money paths (integration)', () => {
 
   it('transfer moves money only after the sender enters the code in their own app', async () => {
     const pending: any = await service.processTransfer(await agentProfile(), {
-      senderEmail: 'u1@test.local',
-      recipientEmail: 'u2@test.local',
+      sender: 'u1@test.local',
+      recipient: 'u2@test.local',
       amount: 30,
     });
     expect(pending.status).toBe('pending_otp');
@@ -316,7 +316,7 @@ describe('Agent money paths (integration)', () => {
     jest.spyOn(service as any, 'generateReference').mockReturnValueOnce('DUP-REF');
 
     await expect(
-      service.processCashIn(await agentProfile(), { userEmail: 'u1@test.local', amount: 100 }),
+      service.processCashIn(await agentProfile(), { customer: 'u1@test.local', amount: 100 }),
     ).rejects.toThrow();
 
     expect(await wallet(ids.u1)).toBe(1000);

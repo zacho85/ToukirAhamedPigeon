@@ -52,6 +52,9 @@ model User {
   stripeDetailsSubmitted Boolean               @default(false)
   stripePayoutsEnabled   Boolean               @default(false)
   qrToken                String?               @unique
+  // Short public ID customers can share instead of an email (e.g. KP100001).
+  // Filled by the database from user_kongossa_id_seq for every new user.
+  kongossaId             String                @unique @default(dbgenerated("('KP'::text || nextval('user_kongossa_id_seq'::regclass))"))
   transfiUserId          String?
   
   // Existing Relations

@@ -214,8 +214,9 @@ export class AgentsController {
   // Declared before GET ':id' so "lookup-user" is never parsed as an agent id.
   @Get('lookup-user')
   @UseGuards(JwtAuthGuard, AgentGuard)
-  async lookupUser(@Query('email') email: string) {
-    return { success: true, data: await this.agentsService.lookupUser(email) };
+  async lookupUser(@Query('q') q?: string, @Query('email') email?: string) {
+    // `q` takes a KongossaPay ID, phone or email; `email` is the older name.
+    return { success: true, data: await this.agentsService.lookupUser(q ?? email ?? '') };
   }
 
   @Get(':id')

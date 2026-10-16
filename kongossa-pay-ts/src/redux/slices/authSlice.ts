@@ -11,6 +11,8 @@ export interface User {
   email?: string;
   fullName?: string;
   phoneNumber?: string;
+  /** Short public ID customers share instead of an email, e.g. KP100001. */
+  kongossaId?: string;
   profileImage?: string;
   walletBalance?: number;
   currency?: string;

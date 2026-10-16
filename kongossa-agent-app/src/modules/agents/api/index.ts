@@ -44,8 +44,9 @@ export const endDay = async (endCash: number, notes?: string) => {
   return res.data.data;
 };
 
-export const cashIn = async (userEmail: string, amount: number, notes?: string) => {
-  const res = await api.post("/agents/cash-in", { userEmail, amount, notes });
+/** `customer` is a KongossaPay ID, phone number (with country code) or email. */
+export const cashIn = async (customer: string, amount: number, notes?: string) => {
+  const res = await api.post("/agents/cash-in", { customer: customer.trim(), amount, notes });
   return res.data.data;
 };
 
@@ -77,18 +78,25 @@ export const declineCashOut = async (requestId: number) => {
   return res.data.data;
 };
 
-export const lookupUser = async (email: string) => {
-  const res = await api.get("/agents/lookup-user", { params: { email } });
-  return res.data.data as { email: string; fullName: string; active: boolean };
+/** Finds a customer by KongossaPay ID (KP100001), phone number (with country code) or email. */
+export const lookupUser = async (query: string) => {
+  const res = await api.get("/agents/lookup-user", { params: { q: query.trim() } });
+  return res.data.data as {
+    kongossaId: string;
+    email: string;
+    phoneNumber: string | null;
+    fullName: string;
+    active: boolean;
+  };
 };
 
 export const transfer = async (
-  senderEmail: string,
-  recipientEmail: string,
+  sender: string,
+  recipient: string,
   amount: number,
   notes?: string,
 ) => {
-  const res = await api.post("/agents/transfer", { senderEmail, recipientEmail, amount, notes });
+  const res = await api.post("/agents/transfer", { sender: sender.trim(), recipient: recipient.trim(), amount, notes });
   return res.data.data;
 };
 

@@ -207,6 +207,8 @@ export class AuthService {
       permissions,
       walletBalance: user.walletBalance,
       currency: user.currency,
+      kongossaId: user.kongossaId,
+      phoneNumber: user.phoneNumber,
     };
 
     return { accessToken, refreshToken: refreshTokenRaw, refreshTokenExpires: expiresAt, userInfo };
@@ -275,6 +277,8 @@ export class AuthService {
             permissions,
             walletBalance: user.walletBalance,
             currency: user.currency,
+            kongossaId: user.kongossaId,
+            phoneNumber: user.phoneNumber,
           };
 
           return { 

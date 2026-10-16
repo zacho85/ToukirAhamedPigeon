@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getMyTransaction, lookupUser, transfer } from "@/modules/agents/api";
 
 type Step = "form" | "review" | "waiting" | "success";
-type Party = { email: string; fullName: string; active: boolean };
+type Party = { kongossaId: string; email: string; phoneNumber: string | null; fullName: string; active: boolean };
 
 const apiError = (err: unknown) =>
   (err as { response?: { data?: { message?: string; code?: string } } })?.response?.data;
@@ -12,8 +12,8 @@ const apiError = (err: unknown) =>
 export default function TransferPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("form");
-  const [senderEmail, setSenderEmail] = useState("");
-  const [recipientEmail, setRecipientEmail] = useState("");
+  const [senderInput, setSenderInput] = useState("");
+  const [recipientInput, setRecipientInput] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [sender, setSender] = useState<Party | null>(null);
@@ -58,13 +58,13 @@ export default function TransferPage() {
   const onSubmitForm = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    if (senderEmail.trim().toLowerCase() === recipientEmail.trim().toLowerCase()) {
+    if (senderInput.trim().toLowerCase() === recipientInput.trim().toLowerCase()) {
       setError("Sender and recipient must be different customers.");
       return;
     }
     setLoading(true);
     try {
-      const [from, to] = await Promise.all([lookupUser(senderEmail), lookupUser(recipientEmail)]);
+      const [from, to] = await Promise.all([lookupUser(senderInput), lookupUser(recipientInput)]);
       if (!from.active) throw new Error(`${from.fullName}'s account is not active.`);
       if (!to.active) throw new Error(`${to.fullName}'s account is not active.`);
       setSender(from);
@@ -82,7 +82,7 @@ export default function TransferPage() {
     setError("");
     setLoading(true);
     try {
-      const result = await transfer(senderEmail, recipientEmail, Number(amount), notes || undefined);
+      const result = await transfer(senderInput, recipientInput, Number(amount), notes || undefined);
       setPendingId(result.id);
       setStep("waiting");
     } catch (err) {
@@ -152,12 +152,16 @@ export default function TransferPage() {
           <div>
             <p className="text-gray-400">From</p>
             <p className="font-semibold text-[#0B1226] break-words">{sender?.fullName}</p>
-            <p className="text-gray-500 break-all">{sender?.email}</p>
+            <p className="text-gray-500 break-all">
+              {sender?.kongossaId} · {sender?.email}
+            </p>
           </div>
           <div>
             <p className="text-gray-400">To</p>
             <p className="font-semibold text-[#0B1226] break-words">{recipient?.fullName}</p>
-            <p className="text-gray-500 break-all">{recipient?.email}</p>
+            <p className="text-gray-500 break-all">
+              {recipient?.kongossaId} · {recipient?.email}
+            </p>
           </div>
           <div className="pt-3 border-t border-gray-100">
             <p className="text-gray-400">Amount</p>
@@ -196,25 +200,31 @@ export default function TransferPage() {
 
       <form onSubmit={onSubmitForm} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Sender email</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Sender ID, phone or email
+          </label>
           <input
-            type="email"
+            type="text"
+            autoComplete="off"
             required
-            value={senderEmail}
-            onChange={(e) => setSenderEmail(e.target.value)}
+            value={senderInput}
+            onChange={(e) => setSenderInput(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm"
-            placeholder="sender@example.com"
+            placeholder="KP100001, +237 6..., or email"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Recipient email</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Recipient ID, phone or email
+          </label>
           <input
-            type="email"
+            type="text"
+            autoComplete="off"
             required
-            value={recipientEmail}
-            onChange={(e) => setRecipientEmail(e.target.value)}
+            value={recipientInput}
+            onChange={(e) => setRecipientInput(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm"
-            placeholder="recipient@example.com"
+            placeholder="KP100001, +237 6..., or email"
           />
         </div>
         <div>
