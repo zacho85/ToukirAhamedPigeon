@@ -1,0 +1,160 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ToukirAhamedPigeon/LocalRun/main/schema/localrun.schema.json",
+  "name": "Kongossa Pay",
+  "description": "PostgreSQL (Windows service) + kongossa-backend (NestJS on :3000) + Stripe CLI webhook forwarding + kongossa-agent-app (:5176) + kongossa-pay-ts (:5177). Both Vite apps default to 5173 and open their own browser tab; here each gets its own port and LocalRun opens the tabs once everything is ready, so they can run together (and next to Shop, which needs 5173). The backend allows any localhost port outside production.",
+  "checks": [
+    {
+      "name": "PostgreSQL is running",
+      "portBusy": 5432,
+      "fix": "Start the 'postgresql-x64-18' Windows service (services.msc, or 'net start postgresql-x64-18' as admin)"
+    },
+    {
+      "name": "Node.js",
+      "command": "node -v",
+      "fix": "Install Node.js (nodejs.org)"
+    },
+    {
+      "name": "kongossa-backend/.env exists",
+      "exists": "kongossa-backend/.env",
+      "fix": "Create kongossa-backend/.env with DATABASE_URL, PORT=3000, the STRIPE_* keys and the rest"
+    },
+    {
+      "name": "port 3000 is free for the backend",
+      "portFree": 3000,
+      "fix": "Something else holds port 3000. Stop it first"
+    },
+    {
+      "name": "Stripe CLI",
+      "command": "stripe --version",
+      "warn": true,
+      "fix": "Install the Stripe CLI (winget install Stripe.StripeCLI) and run 'stripe login' once. Without it the app runs, but no webhooks arrive"
+    }
+  ],
+  "setup": [
+    {
+      "name": "npm install (kongossa-backend)",
+      "cwd": "kongossa-backend",
+      "run": "npm install --no-audit --no-fund",
+      "when": {
+        "any": [
+          {
+            "missing": "kongossa-backend/node_modules"
+          },
+          {
+            "newer": [
+              "kongossa-backend/package-lock.json",
+              "kongossa-backend/node_modules/.package-lock.json"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "prisma generate (kongossa-backend)",
+      "cwd": "kongossa-backend",
+      "run": "npx prisma generate",
+      "when": {
+        "any": [
+          {
+            "missing": "kongossa-backend/generated/prisma"
+          },
+          {
+            "newer": [
+              "kongossa-backend/prisma/schema.prisma",
+              "kongossa-backend/generated/prisma"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "npm install (kongossa-agent-app)",
+      "cwd": "kongossa-agent-app",
+      "run": "npm install --no-audit --no-fund",
+      "when": {
+        "any": [
+          {
+            "missing": "kongossa-agent-app/node_modules"
+          },
+          {
+            "newer": [
+              "kongossa-agent-app/package-lock.json",
+              "kongossa-agent-app/node_modules/.package-lock.json"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "npm install (kongossa-pay-ts)",
+      "cwd": "kongossa-pay-ts",
+      "run": "npm install --no-audit --no-fund",
+      "when": {
+        "any": [
+          {
+            "missing": "kongossa-pay-ts/node_modules"
+          },
+          {
+            "newer": [
+              "kongossa-pay-ts/package-lock.json",
+              "kongossa-pay-ts/node_modules/.package-lock.json"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "kongossa-backend",
+      "cwd": "kongossa-backend",
+      "run": "npm run start:dev",
+      "port": 3000,
+      "ready": {
+        "port": 3000,
+        "timeout": 180
+      }
+    },
+    {
+      "name": "stripe-webhooks",
+      "run": "stripe listen --forward-to localhost:3000/stripe/webhook",
+      "optional": true,
+      "ready": {
+        "log": "Ready!",
+        "timeout": 60
+      }
+    },
+    {
+      "name": "stripe-payment-links",
+      "run": "stripe listen --forward-to localhost:3000/stripe/payment-links/webhook",
+      "optional": true,
+      "ready": {
+        "log": "Ready!",
+        "timeout": 60
+      }
+    },
+    {
+      "name": "kongossa-agent-app",
+      "cwd": "kongossa-agent-app",
+      "run": "npm run dev -- --port 5176 --strictPort",
+      "env": {
+        "BROWSER": "none"
+      },
+      "port": 5176
+    },
+    {
+      "name": "kongossa-pay-ts",
+      "cwd": "kongossa-pay-ts",
+      "run": "npm run dev -- --port 5177 --strictPort",
+      "env": {
+        "BROWSER": "none"
+      },
+      "port": 5177
+    }
+  ],
+  "open": [
+    "http://localhost:5176",
+    "http://localhost:5177"
+  ],
+  "message": "Agent app: http://localhost:5176   Pay app: http://localhost:5177   API: http://localhost:3000\nStripe: the signing secret the CLI prints (whsec_..., see the stripe-webhooks log) must match STRIPE_WEBHOOK_SECRET and STRIPE_PAYMENT_LINKS_WEBHOOK_SECRET in kongossa-backend/.env."
+}
