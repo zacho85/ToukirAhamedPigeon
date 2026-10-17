@@ -1,7 +1,8 @@
 /**
  * Integration tests for the agent money paths: cash in, customer-started cash
  * out (customer OTP, then the agent's cash hand-over), customer-approved
- * transfer, admin wallet adjustments, concurrency and rollback.
+ * transfer, admin wallet adjustments, concurrency and rollback; plus the
+ * customer's own money paths that charge platform fees (Send Money, bank payout).
  *
  * They run against a real PostgreSQL database: the one named in DATABASE_URL
  * with "_test" appended (e.g. kongossa_m3_test), or TEST_DATABASE_URL if set.
@@ -18,6 +19,8 @@ import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentsService } from './agents.service';
 import { FeesService, PLATFORM_ACCOUNT_EMAIL } from '../fees/fees.service';
+import { WalletPayoutService } from '../wallet-payout/wallet-payout.service';
+import { TransactionsService } from '../transactions/transactions.service';
 
 const TEST_OTP = '123456';
 
@@ -39,6 +42,8 @@ jest.setTimeout(120_000);
 describe('Agent money paths (integration)', () => {
   let prisma: PrismaService;
   let service: AgentsService;
+  let payouts: WalletPayoutService;
+  let transactions: TransactionsService;
   let ids: { admin: number; agentUser: number; agent: number; u1: number; u2: number };
   let ids_platform: number;
 
@@ -51,6 +56,7 @@ describe('Agent money paths (integration)', () => {
   };
 
   const fakeMail = { sendReceiptEmail: jest.fn(async () => undefined) };
+  const fakeStripe = { client: { payouts: { create: jest.fn(async () => ({ id: `po_test_${Date.now()}` })) } } };
 
   const agentProfile = () => prisma.agentProfile.findUniqueOrThrow({ where: { id: ids.agent } });
   const wallet = async (id: number) => (await prisma.user.findUniqueOrThrow({ where: { id } })).walletBalance;
@@ -68,7 +74,8 @@ describe('Agent money paths (integration)', () => {
     await prisma.agentCashTransaction.deleteMany();
     await prisma.agentDaySettlement.deleteMany();
     await prisma.transaction.deleteMany();
-    await prisma.user.update({ where: { id: ids.u1 }, data: { walletBalance: opts.u1 ?? 1000 } });
+    await prisma.walletPayout.deleteMany();
+    await prisma.user.update({ where: { id: ids.u1 }, data: { walletBalance: opts.u1 ?? 1000, stripeConnectId: 'acct_test' } });
     await prisma.user.update({ where: { id: ids.u2 }, data: { walletBalance: opts.u2 ?? 50 } });
     await prisma.user.update({ where: { id: ids.agentUser }, data: { walletBalance: 0 } });
     await prisma.user.update({ where: { id: ids_platform }, data: { walletBalance: 0 } });
@@ -85,6 +92,8 @@ describe('Agent money paths (integration)', () => {
     prisma = new PrismaService({ datasources: { db: { url: DB_URL } } });
     await prisma.$connect();
     service = new AgentsService(prisma, fakeOtp as any, fakeMail as any, new FeesService(prisma));
+    payouts = new WalletPayoutService(prisma, fakeStripe as any, new FeesService(prisma));
+    transactions = new TransactionsService(prisma, null as any, new FeesService(prisma), fakeMail as any);
     // Default fee settings apply (no SystemSettings row): cash out 0.5%,
     // transfers free up to 13 per day then 0.5%.
     await prisma.systemSettings.deleteMany();
@@ -95,6 +104,7 @@ describe('Agent money paths (integration)', () => {
     await prisma.agentCashTransaction.deleteMany();
     await prisma.agentDaySettlement.deleteMany();
     await prisma.transaction.deleteMany();
+    await prisma.walletPayout.deleteMany();
     await prisma.agentProfile.deleteMany({ where: { agentCode: 'AG-TEST' } });
     await prisma.user.deleteMany({ where: { email: { endsWith: '@test.local' } } });
 
@@ -370,5 +380,64 @@ describe('Agent money paths (integration)', () => {
     expect(await cash()).toBe(1000);
     expect(await wallet(ids.agentUser)).toBe(0);
     expect(await prisma.agentCashTransaction.count()).toBe(0);
+  });
+  it('bank payout: the withdrawal fee is paid on top and reaches the platform with its own ledger row', async () => {
+    const res = await payouts.requestPayout(ids.u1, 100);
+
+    expect(res).toMatchObject({ amount: 100, fee: 0.5, total: 100.5 });
+    expect(fakeStripe.client.payouts.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 10000 }),
+      expect.objectContaining({ stripeAccount: 'acct_test' }),
+    );
+    expect(await wallet(ids.u1)).toBe(899.5);
+    expect(await wallet(ids_platform)).toBe(0.5);
+    expect(await prisma.transaction.count({ where: { type: 'wallet_payout', senderId: ids.u1 } })).toBe(1);
+    expect(await prisma.transaction.count({ where: { type: 'platform_fee', senderId: ids.u1, recipientId: ids_platform } })).toBe(1);
+    expect((await prisma.walletPayout.findFirstOrThrow()).status).toBe('completed');
+    await expectLedgerMatchesWallet(ids.u1, 1000);
+    await expectLedgerMatchesWallet(ids_platform, 0);
+  });
+
+  it('bank payout: a failed Stripe payout refunds amount and fee, and the platform gets nothing', async () => {
+    fakeStripe.client.payouts.create.mockRejectedValueOnce(new Error('Stripe down'));
+
+    await expect(payouts.requestPayout(ids.u1, 100)).rejects.toThrow('Stripe down');
+
+    expect(await wallet(ids.u1)).toBe(1000);
+    expect(await wallet(ids_platform)).toBe(0);
+    expect(await prisma.transaction.count()).toBe(0);
+    expect((await prisma.walletPayout.findFirstOrThrow()).status).toBe('failed');
+  });
+
+  it('bank payout: refused before any debit without a Stripe account or when the fee is not covered', async () => {
+    await expect(payouts.requestPayout(ids.u1, 1000)).rejects.toThrow('Insufficient balance');
+    await prisma.user.update({ where: { id: ids.u1 }, data: { stripeConnectId: null } });
+    await expect(payouts.requestPayout(ids.u1, 100)).rejects.toThrow('not connected to Stripe');
+
+    expect(await wallet(ids.u1)).toBe(1000);
+    expect(await prisma.walletPayout.count()).toBe(0);
+    expect(fakeStripe.client.payouts.create).not.toHaveBeenCalled();
+  });
+
+  it('send money emails a receipt with the fee to the sender and one to the recipient', async () => {
+    await transactions.sendMoney(ids.u1, { recipientId: ids.u2, amount: 113 });
+
+    expect(await wallet(ids.u1)).toBe(886.5); // 100 above the free 13 → 0.50 fee on top
+    expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith(
+      'u1@test.local',
+      'Transfer receipt',
+      expect.arrayContaining([['Fee', '$0.50'], ['Total from your wallet', '$113.50']]),
+    );
+    expect(fakeMail.sendReceiptEmail).toHaveBeenCalledWith('u2@test.local', 'Money received', expect.anything());
+  });
+
+  it('send money still completes when the receipt email fails', async () => {
+    fakeMail.sendReceiptEmail.mockRejectedValue(new Error('SMTP down'));
+
+    await transactions.sendMoney(ids.u1, { recipientId: ids.u2, amount: 10 });
+    fakeMail.sendReceiptEmail.mockResolvedValue(undefined);
+
+    expect(await wallet(ids.u1)).toBe(990);
+    expect(await wallet(ids.u2)).toBe(60);
   });
 });

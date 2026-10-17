@@ -7,9 +7,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestPayout } from "../api";
 import { dispatchShowToast, syncUserProfile } from "@/lib/dispatch";
+import { getFeeQuote } from "@/modules/fee-management/api";
+import type { FeeQuote } from "@/modules/fee-management/api";
 
 export function PayoutDialog({
   open,
@@ -28,16 +30,33 @@ export function PayoutDialog({
   const [remarks, setRemarks] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  const FEE = 1;
   const parsedAmount = Number(amount);
-  const netAmount = !isNaN(parsedAmount) ? Math.max(parsedAmount - FEE, 0) : 0;
+  const amountNum = !isNaN(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
+
+  // The withdrawal fee comes from the server (Fee Management) and is paid on top.
+  const [quote, setQuote] = useState<FeeQuote | null>(null);
+  useEffect(() => {
+    if (!(amountNum > 0)) {
+      setQuote(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      getFeeQuote("withdrawal", amountNum)
+        .then(setQuote)
+        .catch(() => setQuote(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [amountNum]);
+
+  // Only trust a quote for the amount currently typed.
+  const quoteReady = quote !== null && quote.amount === Math.round(amountNum * 100) / 100;
+  const fee = quoteReady ? quote.fee : 0;
+  const total = amountNum + fee;
 
   const isValidAmount =
-    amount !== "" &&
-    !isNaN(parsedAmount) &&
-    parsedAmount > 0 &&
-    (maxAmount ? parsedAmount <= maxAmount : true) &&
-    netAmount > 0;
+    amountNum > 0 &&
+    quoteReady &&
+    (maxAmount !== undefined ? total <= maxAmount : true);
 
   const handlePayout = async () => {
     if (!isValidAmount) {
@@ -50,10 +69,10 @@ export function PayoutDialog({
 
     setLoading(true);
     try {
-      await requestPayout(parsedAmount);
+      await requestPayout(amountNum);
 
       dispatchShowToast({
-        message: `Withdrawal request submitted. You will receive $${netAmount.toFixed(2)} after fees.`,
+        message: `Withdrawal request submitted. You will receive $${amountNum.toFixed(2)}; $${total.toFixed(2)} was taken from your wallet.`,
         type: "success",
       });
 
@@ -99,11 +118,24 @@ export function PayoutDialog({
           </p>
         )}
 
-        {parsedAmount > 0 && (
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            You will receive:{" "}
-            <span className="font-semibold">${netAmount.toFixed(2)}</span> after ${FEE} fee
-          </p>
+        {amountNum > 0 && (
+          <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+            <div className="flex justify-between">
+              <span>You will receive</span>
+              <span>${amountNum.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Fee{quoteReady ? ` (${quote.percent}%)` : ""}</span>
+              <span>{quoteReady ? `$${fee.toFixed(2)}` : "..."}</span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>Total from your wallet</span>
+              <span>{quoteReady ? `$${total.toFixed(2)}` : "..."}</span>
+            </div>
+            {quoteReady && maxAmount !== undefined && total > maxAmount && (
+              <p className="text-red-500 dark:text-red-400">Not enough balance to cover the amount and the fee.</p>
+            )}
+          </div>
         )}
 
         <Textarea

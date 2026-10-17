@@ -15,6 +15,7 @@ import { PaystackModule } from '../paystack/paystack.module';      // ✅ ADDED
 import { FlutterwaveModule } from '../flutterwave/flutterwave.module'; // ✅ ADDED
 import { AirtelMoneyModule } from '../airtel-money/airtel-money.module';
 import { FeesModule } from '../fees/fees.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { FeesModule } from '../fees/fees.module';
     FlutterwaveModule,   // ✅ ADDED
     AirtelMoneyModule,
     FeesModule,
+    MailModule,
   ],
   controllers: [TransactionsController],
   providers: [TransactionsService, WalletTopUpService],

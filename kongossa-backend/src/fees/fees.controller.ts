@@ -13,7 +13,7 @@ export class FeesController {
 
   /**
    * What the signed-in customer would pay, shown before they approve:
-   * kind=transfer (to another KongossaPay user) or kind=withdrawal (cash out at an agent).
+   * kind=transfer (to another KongossaPay user) or kind=withdrawal (cash out at an agent, or a payout to the bank).
    */
   @Get('quote')
   async quote(@Req() req, @Query('kind') kind: string, @Query('amount') amountRaw: string) {
