@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import crypto from 'crypto';
 import { WalletTopUpService } from '../wallet-topup/wallet-topup.service';
 import { FeesService } from '../fees/fees.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class TransactionsService {
@@ -14,6 +15,7 @@ export class TransactionsService {
     private prisma: PrismaService,
     private walletService: WalletTopUpService, // Inject wallet service for balance calculations
     private fees: FeesService,
+    private mail: MailService,
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
@@ -154,7 +156,7 @@ export class TransactionsService {
       throw new BadRequestException('Insufficient balance');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1️⃣ Create transaction record
       const transaction = await tx.transaction.create({
         data: {
@@ -212,6 +214,35 @@ export class TransactionsService {
         updatedBalance: updatedSender.walletBalance,
       };
     });
+
+    // Receipts after the money has moved; a mail failure never undoes the transfer.
+    const date = `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    const money = (v: number) => `$${Number(v).toFixed(2)}`;
+    const reference = result.transaction.transactionId;
+    await this.sendReceiptSafely(sender.email, 'Transfer receipt', [
+      ['Amount sent', money(amount)],
+      ['Fee', money(transferFee)],
+      ['Total from your wallet', money(totalDeduction)],
+      ['To', recipient.fullName || recipient.email],
+      ['Reference', reference],
+      ['Date', date],
+    ]);
+    await this.sendReceiptSafely(recipient.email, 'Money received', [
+      ['Amount received', money(amount)],
+      ['From', sender.fullName || sender.email],
+      ['Reference', reference],
+      ['Date', date],
+    ]);
+
+    return result;
+  }
+
+  private async sendReceiptSafely(to: string, title: string, lines: [string, string][]) {
+    try {
+      await this.mail.sendReceiptEmail(to, title, lines);
+    } catch (error) {
+      console.error('Failed to send receipt email:', error.message);
+    }
   }
   async processQRPayment(senderId: number, qrPaymentId: number, customAmount?: number) {
     const qrPayment = await this.prisma.qRPayment.findUnique({

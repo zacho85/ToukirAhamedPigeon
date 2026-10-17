@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import Stripe from 'stripe';
+import { FeesService } from '../fees/fees.service';
 
 @Injectable()
 export class WalletPayoutService {
@@ -10,61 +11,55 @@ export class WalletPayoutService {
   constructor(
     private prisma: PrismaService,
     private stripe: StripeService,
+    private fees: FeesService,
   ) {}
 
   /* =====================================================
      USER REQUEST PAYOUT
+     The withdrawal fee (Fee Management) is paid on top: the user receives
+     the full amount and the wallet is debited amount + fee. The fee reaches
+     the platform account only when the Stripe payout succeeds; a failed
+     payout refunds amount + fee and the platform is never touched.
+     WalletPayout.amount = debited from the wallet, netAmount = paid out.
   ====================================================== */
   async requestPayout(userId: number, amount: number) {
     try {
-      if (amount <= 0) throw new BadRequestException('Invalid amount');
+      amount = Math.round(amount * 100) / 100;
+      if (!(amount > 0)) throw new BadRequestException('Invalid amount');
 
       // Load user
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) throw new BadRequestException('User not found');
+      // Checked before any debit, so a payout can never be left pending with the money taken.
+      if (!user.stripeConnectId) throw new BadRequestException('User not connected to Stripe');
 
-      // Check pending payouts
-      const pending = await this.prisma.walletPayout.aggregate({
-        _sum: { netAmount: true },
-        where: { userId, status: { in: ['pending', 'processing'] } },
-      });
+      const fee = await this.fees.withdrawalFee(amount);
+      const total = Math.round((amount + fee) * 100) / 100;
 
-      const lockedAmount = pending._sum.netAmount || 0;
-      const availableBalance = user.walletBalance - lockedAmount;
-
-      if (availableBalance < amount)
-        throw new BadRequestException('Balance already reserved for another payout');
-
-      // Fee
-      const fee = 1;
-      const netAmount = amount - fee;
-      if (netAmount <= 0) throw new BadRequestException('Amount too small');
-
-      // Create payout + deduct balance
+      // Create payout + deduct balance, only if the balance still covers amount + fee
       const payout = await this.prisma.$transaction(async (tx) => {
-        const p = await tx.walletPayout.create({
+        const debited = await tx.user.updateMany({
+          where: { id: userId, walletBalance: { gte: total } },
+          data: { walletBalance: { decrement: total } },
+        });
+        if (debited.count === 0) throw new BadRequestException('Insufficient balance');
+
+        return tx.walletPayout.create({
           data: {
             userId,
-            amount,
+            amount: total,
             fee,
-            netAmount,
+            netAmount: amount,
             currency: user.currency,
             status: 'pending',
           },
         });
-
-        await tx.user.update({
-          where: { id: userId },
-          data: { walletBalance: { decrement: amount } },
-        });
-
-        return p;
       });
 
       // Process payout
       await this.processPayout(payout.id);
 
-      return { payoutId: payout.id };
+      return { payoutId: payout.id, amount, fee, total };
     } catch (err: any) {
       this.logger.error('Payout request failed', err);
       throw new BadRequestException(err.message);
@@ -81,9 +76,13 @@ export class WalletPayoutService {
 
     // Load user
     const user = await this.prisma.user.findUnique({ where: { id: payout.userId } });
-    if (!user?.stripeConnectId) throw new BadRequestException('User not connected to Stripe');
+    if (!user) return;
 
+    // Only a failed Stripe call refunds: once Stripe has paid out, the money has left.
+    let stripePayout: Stripe.Payout;
     try {
+        if (!user.stripeConnectId) throw new BadRequestException('User not connected to Stripe');
+
         // 1️⃣ Mark as processing
         await this.prisma.walletPayout.update({
         where: { id: payout.id },
@@ -91,7 +90,7 @@ export class WalletPayoutService {
         });
 
         // 2️⃣ Stripe payout
-        const stripePayout = await this.stripe.client.payouts.create(
+        stripePayout = await this.stripe.client.payouts.create(
         {
             amount: Math.round(payout.netAmount * 100),
             currency: payout.currency.toLowerCase(),
@@ -100,33 +99,6 @@ export class WalletPayoutService {
             stripeAccount: user.stripeConnectId,
         }
         );
-
-        // 3️⃣ Mark payout success + create transaction
-        await this.prisma.$transaction([
-        // Update payout
-        this.prisma.walletPayout.update({
-            where: { id: payout.id },
-            data: {
-            status: 'completed',
-            stripePayoutId: stripePayout.id,
-            },
-        }),
-
-        // Create transaction entry
-        this.prisma.transaction.create({
-            data: {
-            transactionId: stripePayout.id,
-            senderId: payout.userId,
-            amount: payout.amount,
-            fee: payout.fee,
-            currency: payout.currency,
-            type: 'wallet_payout',
-            status: 'completed',
-            paymentMethod: 'stripe',
-            description: 'Wallet payout via Stripe',
-            },
-        }),
-        ]);
     } catch (err: any) {
         // Refund and mark failed
         await this.prisma.$transaction([
@@ -143,5 +115,37 @@ export class WalletPayoutService {
         this.logger.error('Payout processing failed', err);
         throw err;
     }
-    }
+
+    // 3️⃣ Mark payout success, ledger row for the payout and the fee to the platform
+    await this.prisma.$transaction(async (tx) => {
+        await tx.walletPayout.update({
+            where: { id: payout.id },
+            data: {
+            status: 'completed',
+            stripePayoutId: stripePayout.id,
+            },
+        });
+
+        await tx.transaction.create({
+            data: {
+            transactionId: stripePayout.id,
+            senderId: payout.userId,
+            amount: payout.netAmount,
+            fee: payout.fee,
+            currency: payout.currency,
+            type: 'wallet_payout',
+            status: 'completed',
+            paymentMethod: 'stripe',
+            description: 'Wallet payout via Stripe',
+            },
+        });
+
+        await this.fees.recordFee(tx, {
+            payerId: payout.userId,
+            fee: payout.fee,
+            reference: stripePayout.id,
+            description: 'Withdrawal fee',
+        });
+    });
+  }
 }
