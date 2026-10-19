@@ -30,13 +30,15 @@ export class MailService {
   /**
    * The KongossaPay logo for the dark email headers: the white logo image
    * served by the web app, or the text logo when FRONTEND_URL is not set.
+   * The alt text is styled white so it stays readable on the dark header
+   * when the mail client blocks or cannot load the image.
    */
   private logoHtml(height = 36): string {
     const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
     if (!base) {
       return `<span style="color: #ffffff; font-size: 28px; font-weight: bold;">Kongossa<span style="color: #ffd700;">Pay</span></span>`;
     }
-    return `<img src="${base}/kp-logo-white.png" alt="KongossaPay" height="${height}" style="height: ${height}px; width: auto; border: 0; display: inline-block;" />`;
+    return `<img src="${base}/kp-logo-white.png" alt="KongossaPay" height="${height}" style="height: ${height}px; width: auto; border: 0; display: inline-block; color: #ffffff; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;" />`;
   }
 
   private escapeHtml(value: string): string {
