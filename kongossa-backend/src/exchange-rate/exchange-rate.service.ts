@@ -5,6 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
 import { CURRENCY_CODES } from '../constants/currencies';
 
+// The CFA francs (XAF: Central Africa, XOF: West Africa) are fixed to the euro by law:
+// 1 EUR = 655.957 of either. The ECB does not publish them, so they are derived from EUR.
+const CFA_PER_EUR = 655.957;
+const CFA_CURRENCIES = ['XAF', 'XOF'];
+
 @Injectable()
 export class ExchangeRateService implements OnModuleInit {
   private readonly logger = new Logger(ExchangeRateService.name);
@@ -126,6 +131,12 @@ export class ExchangeRateService implements OnModuleInit {
   async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {
     if (fromCurrency === toCurrency) return 1.0;
 
+    const fromCfa = CFA_CURRENCIES.includes(fromCurrency);
+    const toCfa = CFA_CURRENCIES.includes(toCurrency);
+    if (fromCfa && toCfa) return 1.0; // XAF and XOF share the same peg
+    if (toCfa) return (await this.getExchangeRate(fromCurrency, 'EUR')) * CFA_PER_EUR;
+    if (fromCfa) return (await this.getExchangeRate('EUR', toCurrency)) / CFA_PER_EUR;
+
     const cacheKey = `${fromCurrency}_${toCurrency}`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
@@ -182,7 +193,7 @@ export class ExchangeRateService implements OnModuleInit {
       this.logger.warn(`API fetch failed for ${fromCurrency}->${toCurrency}: ${error.message}`);
     }
 
-    // No stored rate and none from the API (e.g. XAF: not published by the ECB):
+    // No stored rate and none from the API:
     // a 404 the caller can show, not a 500. A superadmin sets it with POST /exchange-rate/rate.
     throw new NotFoundException(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
   }
