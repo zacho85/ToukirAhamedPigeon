@@ -38,7 +38,10 @@ const READ_ONLY_RESOURCES = [
   'dashboard', 'wallet', 'history', 'role', 'backup', 'agent-dashboard', 'agent-crm',
   'fee-management', 'crypto-exchange', 'currency-exchange', 'tontine-contribution', 'tontine-invite',
 ];
-const EXTRA = ['create:send-money', 'read:send-money', 'view:api-docs', 'update:agent-crm'];
+const EXTRA = [
+  'create:send-money', 'read:send-money', 'view:api-docs', 'update:agent-crm',
+  'update:fee-management', 'update:currency-exchange',
+];
 
 const PERSONAL_ALLOWED = [
   'read:dashboard', 'read:wallet', 'read:history', 'read:send-money', 'create:send-money',

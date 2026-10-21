@@ -2,6 +2,8 @@
 import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ExchangeRateService } from './exchange-rate.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Exchange Rate')
@@ -41,8 +43,10 @@ export class ExchangeRateController {
     return { from, to, rate };
   }
 
+  // Customers hold read:currency-exchange, so setting a rate needs the update permission.
   @Post('rate')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('update:currency-exchange')
   async setRate(@Body() body: { from: string; to: string; rate: number }) {
     await this.exchangeRateService.saveRate(
       body.from.toUpperCase(),

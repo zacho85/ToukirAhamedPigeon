@@ -9,6 +9,7 @@ import { DollarSign, Percent, Settings, Landmark } from "lucide-react";
 // ✅ API
 import { getSystemSettings, saveSystemSettings, getPlatformAccount } from "@/modules/fee-management/api";
 import { dispatchShowToast } from "@/lib/dispatch";
+import { Can } from "@/components/custom/Can";
 
 /* ------------------------------------------------------------------ */
 /* TYPES */
@@ -377,11 +378,13 @@ export default function AdminFeeManagement() {
       </Card>
 
       {/* Save */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+      <Can allOf={["update:fee-management"]}>
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </Can>
     </div>
   );
 }
