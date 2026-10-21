@@ -17,7 +17,7 @@ export class SystemSettingsController {
     return this.service.getSettings();
   }
 
-  /** Fees are money settings: only admins may change them (the Fee Management Save button). */
+  /** Fees are a central decision: only superadmin holds this permission (the Fee Management Save button). */
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('update:fee-management')

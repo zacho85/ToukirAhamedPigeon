@@ -78,9 +78,6 @@ function buildPermissionMatrix(): { action: string; resource: string }[] {
   // but 'agent-crm' only being in READ_ONLY_RESOURCES above never created it --
   // those admin actions were unreachable by anyone until this was added.
   perms.push({ action: 'update', resource: 'agent-crm' });
-  // POST /system-settings and POST /exchange-rate/rate require these.
-  perms.push({ action: 'update', resource: 'fee-management' });
-  perms.push({ action: 'update', resource: 'currency-exchange' });
 
   // De-duplicate on the composite unique key.
   const seen = new Set<string>();

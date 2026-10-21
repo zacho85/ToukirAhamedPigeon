@@ -38,10 +38,9 @@ const READ_ONLY_RESOURCES = [
   'dashboard', 'wallet', 'history', 'role', 'backup', 'agent-dashboard', 'agent-crm',
   'fee-management', 'crypto-exchange', 'currency-exchange', 'tontine-contribution', 'tontine-invite',
 ];
-const EXTRA = [
-  'create:send-money', 'read:send-money', 'view:api-docs', 'update:agent-crm',
-  'update:fee-management', 'update:currency-exchange',
-];
+const EXTRA = ['create:send-money', 'read:send-money', 'view:api-docs', 'update:agent-crm'];
+// Central decisions (fees, exchange rates): superadmin only, as in production.
+const SUPERADMIN_ONLY = ['update:fee-management', 'update:currency-exchange'];
 
 const PERSONAL_ALLOWED = [
   'read:dashboard', 'read:wallet', 'read:history', 'read:send-money', 'create:send-money',
@@ -58,6 +57,7 @@ function permissionKeys(): string[] {
   const keys = new Set<string>(EXTRA);
   for (const r of RESOURCES_CRUD) for (const a of ['create', 'read', 'update', 'delete']) keys.add(`${a}:${r}`);
   for (const r of READ_ONLY_RESOURCES) keys.add(`read:${r}`);
+  for (const k of SUPERADMIN_ONLY) keys.add(k);
   return [...keys];
 }
 
@@ -82,7 +82,7 @@ type AgentSpec = {
 };
 
 const USERS: UserSpec[] = [
-  { key: 'ADMIN', email: E.ADMIN, fullName: 'M3 Admin', phoneNumber: '+254700000100', role: 'admin', roles: ['admin'], walletBalance: 0 },
+  { key: 'ADMIN', email: E.ADMIN, fullName: 'M3 Admin', phoneNumber: '+254700000100', role: 'superadmin', roles: ['superadmin'], walletBalance: 0 },
   { key: 'VIEWER', email: E.VIEWER, fullName: 'M3 Read-only Staff', phoneNumber: '+254700000101', role: 'staff', roles: ['agent-crm-viewer'], walletBalance: 0 },
   { key: 'AG1', email: E.AG1, fullName: 'Agent One', phoneNumber: '+254700000201', role: 'agent', roles: ['agent'], walletBalance: 0, userType: 'agent' },
   { key: 'AG2', email: E.AG2, fullName: 'Agent Two (pending)', phoneNumber: '+254700000202', role: 'pending', roles: [], walletBalance: 0, userType: 'agent' },
@@ -104,7 +104,7 @@ async function main() {
 
   // ------------------------------------------------------ roles + permissions
   const roleIds: Record<string, number> = {};
-  for (const name of ['admin', 'personal', 'merchant', 'user', 'agent', 'agent-crm-viewer']) {
+  for (const name of ['superadmin', 'admin', 'personal', 'merchant', 'user', 'agent', 'agent-crm-viewer']) {
     const role = await prisma.role.upsert({
       where: { name },
       update: {},
@@ -125,7 +125,8 @@ async function main() {
   }
 
   const grants: [string, string[]][] = [
-    ['admin', Object.keys(permIds)],
+    ['superadmin', Object.keys(permIds)],
+    ['admin', Object.keys(permIds).filter((k) => !SUPERADMIN_ONLY.includes(k))],
     ['personal', PERSONAL_ALLOWED],
     ['user', PERSONAL_ALLOWED],
     ['agent', PERSONAL_ALLOWED],
