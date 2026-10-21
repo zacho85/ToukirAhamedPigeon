@@ -1,5 +1,5 @@
 // src/exchange-rate/exchange-rate.service.ts
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
@@ -182,7 +182,9 @@ export class ExchangeRateService implements OnModuleInit {
       this.logger.warn(`API fetch failed for ${fromCurrency}->${toCurrency}: ${error.message}`);
     }
 
-    throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+    // No stored rate and none from the API (e.g. XAF: not published by the ECB):
+    // a 404 the caller can show, not a 500. A superadmin sets it with POST /exchange-rate/rate.
+    throw new NotFoundException(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
   }
 
   private async fetchFromAPI(from: string, to: string): Promise<number | null> {
